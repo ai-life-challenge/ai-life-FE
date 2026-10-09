@@ -38,6 +38,7 @@ export function ChatDock({ code }: { code: string }) {
     if (p.budget != null) next.budget = p.budget
     if (p.main) next.main = p.main
     if (p.level) next.level = p.level
+    if (p.aiPick) next.aiPick = p.aiPick
     if (p.detail !== undefined) { next.detail = p.detail; next.replay = useStore.getState().replay + 1 }
     useStore.getState().set(next)
   }
@@ -105,7 +106,7 @@ export function ChatDock({ code }: { code: string }) {
               </motion.div>
             </div>
             <form onSubmit={(e) => { e.preventDefault(); send(input) }}>
-              <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={pending ? '예: 응급취약 해제까지' : '말로 물어보세요'} disabled={busy} aria-label="AI에게 질문" />
+              <input value={input} onChange={(e) => setInput(e.target.value)} placeholder={pending ? '골라 주세요' : screen === 'goal' ? '예) 어르신들이 응급실 가는 시간을 줄이고 싶어요' : '말로 물어보세요'} disabled={busy} aria-label="AI에게 질문" />
               <button className="primary" disabled={busy || !input.trim()}>보내기</button>
             </form>
           </motion.section>

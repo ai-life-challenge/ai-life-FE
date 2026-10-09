@@ -39,7 +39,7 @@ function flyToBox(map: CamMap | undefined | null, box: Box, duration: number, ex
 }
 
 // 군 전체가 빈 곳에 꽉 차게
-export function fitCounty(map: CamMap | undefined | null, bbox: Box, opts: { pitch?: number; duration?: number } = {}) {
+export function fitCounty(map: CamMap | undefined | null, bbox: Box, opts: { duration?: number } = {}) {
   flyToBox(map, bbox, opts.duration ?? 1600)
 }
 

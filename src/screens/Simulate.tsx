@@ -1,23 +1,27 @@
-// S4 AI 시뮬레이션: 도구 호출 칩이 순서대로 끝나고, greedy 배분을 "1억 블록 쌓기"로 재생한다.
+// S4 AI 시뮬레이션 (지도 위 왼쪽 패널): 도구 호출 칩과 '1억 블록 쌓기'가 진행되는 동안, 같은 안의 정책이 지도에 하나씩 놓인다.
 // 실제 계산은 즉시 끝나 있고 연출만 약 4초. 건너뛰기 가능, 동작 줄이기면 최종 상태를 바로 보여 준다.
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import type { MapRef } from 'react-map-gl/maplibre'
 import { useNavigate, useParams } from 'react-router'
 import { motion, useReducedMotion } from 'motion/react'
 import { regionOf } from '../data/regions'
 import { LEVERS, PRESETS, preset, type PresetId } from '../sim/model'
-import { usePlans, useStore } from '../store'
+import { usePlans, useStore, useUnitCost } from '../store'
+import { planMap } from '../map/planMap'
+import { planT } from '../map/MapView'
+import { fitCounty } from '../map/geo'
 import { AiBadge } from '../ui/Badges'
 import { Tools, type ToolCall } from '../ui/Tools'
 
-const DIAG = 600, OPT = 1100, CMP = 500
+const DIAG = 600, OPT = 2200, CMP = 500 // 안마다 지도에 정책이 놓일 시간을 준다
 const T_END = DIAG + OPT * 3 + CMP
 
-export function Simulate() {
+export function Simulate({ mapRef }: { mapRef: React.RefObject<MapRef | null> }) {
   const { code } = useParams()
   const nav = useNavigate()
   const r = regionOf(code)!
   const plans = usePlans(r)!
-  const { budget, main } = useStore()
+  const { budget } = useStore()
   const reduce = useReducedMotion()
   const [t, setT] = useState(reduce ? T_END : 0)
   const [tab, setTab] = useState<PresetId | null>(null)
@@ -43,13 +47,31 @@ export function Simulate() {
   // 시나리오별 진행률 (0~1)
   const prog = (k: number) => Math.min(1, Math.max(0, (t - DIAG - k * OPT) / OPT))
   const running = PRESETS.findIndex((_, k) => prog(k) < 1)
-  const shownId = tab ?? PRESETS[running === -1 ? PRESETS.findIndex((p) => p.id === main) : running].id
+  const recId = plans.find((p) => p.recommended)!.preset
+  // 계산 중에는 그 안, 다 끝나면 추천안을 지도와 블록에 보여 준다
+  const shownId = tab ?? (running === -1 ? recId : PRESETS[running].id)
   const k = PRESETS.findIndex((p) => p.id === shownId)
   const plan = plans.find((p) => p.preset === shownId)!
   const nShown = Math.round(plan.opt.steps.length * prog(k))
   const steps = plan.opt.steps.slice(0, nShown)
   const g0 = plan.opt.steps[0]?.gain || 1
   const rec = plans.find((p) => p.recommended)!
+
+  // 지도: 군 전체로 맞추고, 지금 보고 있는 안(기본은 계산 중인 안)의 정책을 진행률만큼 놓는다
+  const st = useStore()
+  const c = useUnitCost()
+  const g = st.grid?.region.code === r.code ? st.grid : null
+  useEffect(() => {
+    if (!st.mapReady) return
+    useStore.getState().loadRegion(r.code).then((grid) => grid && fitCounty(mapRef.current, grid.bbox, { duration: 1000 }))
+  }, [st.mapReady, r.code, mapRef])
+  useEffect(() => () => useStore.getState().set({ mapPlan: null }), [])
+  const mode = plan.opt.alloc.er > 0 ? 'car' : 'bus'
+  const pm = useMemo(() => (g ? planMap(g, plan.opt, c, mode, planT(mode), st.age) : null), [g, plan, c, mode, st.age])
+  const reveal = pm ? prog(k) * pm.picks.length : 0
+  useEffect(() => {
+    if (pm) useStore.getState().set({ mapPlan: plan.preset, planMode: mode, reveal, simDone: t >= T_END && plan.preset === recId ? recId : null })
+  }, [pm, plan.preset, mode, reveal, t, recId])
 
   const calls: ToolCall[] = [
     { id: 'd', label: `diagnose(${r.name})`, state: t >= DIAG ? 'done' : 'run', result: '현황 지표 6개', detail: `E30, E60, 의사 수, 최소서비스, 사망률, 병원 대중교통시간\n의료 취약도 ${Math.round(plans[1].before.mvi)} · 교통 취약도 ${Math.round(plans[1].before.tvi)}` },
@@ -62,7 +84,7 @@ export function Simulate() {
   ]
 
   return (
-    <motion.main className="page" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
+    <motion.aside className="panel sim-panel" initial={{ x: -40, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -40, opacity: 0 }} transition={{ type: 'spring', stiffness: 260, damping: 28 }}>
       <p className="eyebrow">4단계 · 시뮬레이션 · {r.name} · {budget}억</p>
       <div className="row">
         <h1 style={{ margin: 0 }}>{t >= T_END ? 'AI가 예산안 3개를 만들었어요' : 'AI가 예산안을 만들고 있어요'}</h1>
@@ -107,6 +129,6 @@ export function Simulate() {
           {prog(k) >= 1 && plan.opt.left >= 1 && <p className="small bad">모든 정책이 실행 상한에 닿아 {plan.opt.left}억은 배정하지 못했어요.</p>}
         </section>
       </div>
-    </motion.main>
+    </motion.aside>
   )
 }

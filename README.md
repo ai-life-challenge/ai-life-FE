@@ -30,7 +30,7 @@ npm run build
 - `src/data/regions.ts` — 창녕·의령·함안 지표와 출처. **숫자는 모두 예시값**이고, 데이터 수집 후 이 파일만 바꾸면 된다.
 - `src/sim/model.ts` — 엔진(구현안 4장). 점수(D2-C), 프리셋 3개(D3-C), 레버 6개와 체감 효과함수(D6), 교차효과(D7: 버스·DRT → 배차간격 → 병원 대중교통시간 → 실효 E30), 1억 단위 greedy 배분, 단가 저/중/고 결과 범위, What-if 곡선, AI 추천(균형 잣대 취약도 감소 × 수혜 인구).
 - `src/api/agent.ts` — AI 에이전트 mock. 실서비스 SSE와 같은 이벤트(`tool_call / tool_result / text / clarify / apply / done`)를 흘려보낸다. 백엔드가 준비되면 같은 이벤트를 내는 http 구현으로 바꾼다.
-- `src/map/` — 지도 하나(MapLibre + deck.gl interleaved)가 S1·S2·S5 뒤에 깔리고 카메라가 이어진다. S1 시군구·후보 맥동·군 위 호버 카드, S2 500m 격자(펼침·시간 스윕·3D·AI 빗금·칸 클릭 경로), S5 예산안 정책 배치(`planMap.ts`). 격자(`grid.ts`)의 마을·인구·버스는 가상 값이다.
+- `src/map/` — 지도 하나(MapLibre + deck.gl interleaved)가 S1·S2·S5 뒤에 깔리고 카메라가 이어진다. S1 시군구·후보 맥동·군 위 호버 카드, S2 500m 격자(펼침·시간 스윕·AI 빗금·칸 클릭 경로), S5 예산안 정책 배치(`planMap.ts`). 격자(`grid.ts`)의 마을·인구·버스는 가상 값이다.
 - `src/chat/ChatDock.tsx` — 'AI에게 물어보기' 버튼과 창. 답에 따라 예산·목표·단가가 바뀌면 화면이 바로 다시 계산된다(`api/agent.ts`의 `ask`).
 - `src/api/report.ts` — 레포트 초안. 문장 속 숫자는 모두 `{ n, tip }` 토큰이라 출처 툴팁과 숫자 대조 검사에 쓴다.
 
