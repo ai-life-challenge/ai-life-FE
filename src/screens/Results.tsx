@@ -45,7 +45,10 @@ export function Results({ mapRef }: { mapRef: React.RefObject<MapRef | null> }) 
   useEffect(() => {
     if (!g || !pm) return
     const n = pm.picks.length
-    if (reduce) { useStore.getState().set({ reveal: n }); return }
+    // 시뮬레이션이 이 안을 방금 다 그려 두었으면 다시 그리지 않는다
+    // (플래그는 여기서 지우지 않는다: 개발 모드에서 effect가 두 번 돈다. 카드를 누르거나 다시 그리기를 하면 지운다)
+    const fromSim = useStore.getState().simDone === shown.preset
+    if (reduce || fromSim) { useStore.getState().set({ reveal: n }); return }
     useStore.getState().set({ reveal: 0 })
     const legendH = document.querySelector('.plan-legend')?.getBoundingClientRect().height ?? 200
     flyToArea(mapRef.current, planArea(g, pm), { duration: CAMERA_MS, bottom: Math.min(legendH + 40, window.innerHeight * 0.35) })
@@ -64,7 +67,7 @@ export function Results({ mapRef }: { mapRef: React.RefObject<MapRef | null> }) 
         <p className="muted small">점수는 0점이 가장 좋아요. 각 안은 자기 목표의 가중치로 쟀어요. 카드를 누르면 그 안이 지도에 놓이고 정책별 금액과 이유가 펼쳐져요.</p>
 
         <div className="plans-col">
-          {plans.map((p, k) => <PlanCard key={p.preset} p={p} k={k} on={shown.preset === p.preset} main={s.main === p.preset} showRange={showRange} onClick={() => s.set({ detail: s.detail === p.preset ? null : p.preset, replay: s.replay + 1 })} />)}
+          {plans.map((p, k) => <PlanCard key={p.preset} p={p} k={k} on={shown.preset === p.preset} main={s.main === p.preset} showRange={showRange} onClick={() => s.set({ detail: s.detail === p.preset ? null : p.preset, replay: s.replay + 1, simDone: null })} />)}
         </div>
         <div className="lever-legend">{LEVERS.map((l) => <span key={l.id}><i style={{ background: l.color }} />{l.short}</span>)}</div>
 
@@ -126,7 +129,7 @@ function PlanLegend({ p, pm }: { p: Plan; pm: PlanMap }) {
       <p><i className="sw" style={{ background: '#a9d3b4' }} /> 이미 닿는 칸</p>
       <p><i className="ring-red" /> 교통사고 다발지점</p>
       <div className="chips" style={{ marginTop: 8 }}>{types.map((t) => <span key={t} className="mini"><i style={{ background: lever(t).color }} />{lever(t).short}</span>)}</div>
-      <button className="link small" style={{ marginTop: 8 }} onClick={() => s.set({ replay: s.replay + 1 })}>↻ 지도에 다시 그리기</button>
+      <button className="link small" style={{ marginTop: 8 }} onClick={() => s.set({ replay: s.replay + 1, simDone: null })}>↻ 지도에 다시 그리기</button>
     </motion.div>
   )
 }

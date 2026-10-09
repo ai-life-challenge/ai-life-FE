@@ -1,5 +1,5 @@
 // S2 현황 진단: 왼쪽 패널에 의료·교통 취약도 게이지 + 지표 6개(공식 기준선, 누르면 계산식), 오른쪽 지도에 응급실까지 500m 격자.
-// 격자 인터랙션(펼침·시간 스윕·3D·AI 빗금·칸 클릭 경로·마을 호버)은 VillageCoverage 공백 진단과 같다.
+// 격자 인터랙션(펼침·시간 스윕·AI 빗금·칸 클릭 경로·마을 호버)은 VillageCoverage 공백 진단과 같다.
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
@@ -68,7 +68,7 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
     useStore.getState().set({ unfolded: false, selectedCell: null, sweep: null })
     useStore.getState().loadRegion(r.code).then((grid) => {
       if (!grid) return
-      fitCounty(mapRef.current, grid.bbox, { pitch: useStore.getState().extruded ? 50 : 15 })
+      fitCounty(mapRef.current, grid.bbox)
       timer = window.setTimeout(() => useStore.getState().set({ unfolded: true }), reduce ? 0 : 2000)
     })
     return () => clearTimeout(timer)
@@ -132,7 +132,7 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
   )
 }
 
-// 지도 조건 · 공백 인구 · 시간 스윕 · 3D · 공백이 큰 마을 (VillageCoverage 공백 진단과 같은 인터랙션)
+// 지도 조건 · 공백 인구 · 시간 스윕 · 공백이 큰 마을 (VillageCoverage 공백 진단과 같은 인터랙션)
 function MapControls({ g, mapRef }: { g: Grid; mapRef: React.RefObject<MapRef | null> }) {
   const s = useStore()
   const reduce = useReducedMotion()
@@ -144,11 +144,6 @@ function MapControls({ g, mapRef }: { g: Grid; mapRef: React.RefObject<MapRef | 
     s.set({ selectedCell: null, unfolded: true })
     if (reduce) return
     tween(0, s.T * 1.6, 3000, (v) => useStore.getState().set({ sweep: v }), { ease: (x) => x, onDone: () => useStore.getState().set({ sweep: null }) })
-  }
-  const toggle3d = () => {
-    const ex = !s.extruded
-    s.set({ extruded: ex })
-    mapRef.current?.easeTo({ pitch: ex ? 55 : 20, duration: 1200 })
   }
   const flyToVillage = (vi: number) => {
     const v = g.villages[vi]
@@ -170,7 +165,6 @@ function MapControls({ g, mapRef }: { g: Grid; mapRef: React.RefObject<MapRef | 
       </div>
       <div className="row">
         <motion.button className="primary" onClick={playSweep} whileTap={{ scale: 0.97 }} disabled={s.sweep != null}>{s.sweep != null ? `${Math.round(s.sweep)}분…` : '▶ 시간 스윕'}</motion.button>
-        <button className="ghost" onClick={toggle3d}>{s.extruded ? '평면으로' : '3D로 보기'}</button>
       </div>
       <h3 style={{ marginTop: 16 }}>공백이 큰 마을</h3>
       <motion.ol className="villages" initial="hidden" animate="show" key={`${s.mode}-${s.age}-${s.T}`} variants={{ show: { transition: { staggerChildren: 0.04 } } }}>

@@ -34,3 +34,14 @@ test('AI 질문: 예산을 말하면 그 예산으로 다시 계산하라고 화
   expect(evs.find((e) => e.type === 'apply')).toMatchObject({ patch: { budget: 150 } })
   expect(evs.at(-1)).toMatchObject({ type: 'done', intent: 'budget' })
 }, 10000)
+
+test('AI 질문: 목표 단계에서 말한 목표를 프리셋으로 정하고, 애매하면 되묻는다', async () => {
+  const ctx: AgentCtx = { region: r, screen: 'goal', budget: 100, main: 'bal', level: 'mid', costs: DEFAULT_COSTS, minMed: 0, plans: planSet(r, 100, DEFAULT_COSTS, 'mid'), pending: null }
+  const run = async (q: string, c: AgentCtx) => { const evs = []; for await (const e of ask(q, c)) evs.push(e); return evs }
+  const a = await run('어르신들이 응급실 가는 시간을 줄이고 싶어요', ctx)
+  expect(a.find((e) => e.type === 'apply')).toMatchObject({ patch: { main: 'med', aiPick: { preset: 'med' } } })
+  const b = await run('병원도 멀고 사고도 많아요', ctx)
+  expect(b.find((e) => e.type === 'clarify')).toBeTruthy()
+  const c2 = await run('교통사고 줄이기가 더 급해요', { ...ctx, pending: { intent: 'goal' } })
+  expect(c2.find((e) => e.type === 'apply' && 'main' in e.patch)).toMatchObject({ patch: { main: 'safe' } })
+}, 15000)

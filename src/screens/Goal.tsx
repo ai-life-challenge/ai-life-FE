@@ -1,78 +1,34 @@
-// S3 목표·예산 입력: 자연어 목표 → AI가 가장 가까운 프리셋에 추천 배지, 프리셋 3개 카드, 총예산 슬라이더, 고급 설정(분야 최소 보장).
-import { useState } from 'react'
+// S3 목표·예산 입력 (진단 지도 위 왼쪽 패널): 프리셋 3개 카드(말로 정하면 'AI에게 물어보기'가 추천 배지를 붙인다), 총예산 슬라이더, 고급 설정(분야 최소 보장).
+import { useEffect } from 'react'
+import type { MapRef } from 'react-map-gl/maplibre'
+import { fitCounty } from '../map/geo'
 import { useNavigate, useParams } from 'react-router'
-import { AnimatePresence, motion } from 'motion/react'
+import { motion } from 'motion/react'
 import { regionOf } from '../data/regions'
-import { PRESETS, preset, type PresetId } from '../sim/model'
-import { mapGoal, type AgentEvent } from '../api/agent'
+import { PRESETS, type PresetId } from '../sim/model'
 import { useStore } from '../store'
 import { fmt } from '../motion/useCountUp'
 import { AiBadge } from '../ui/Badges'
-import { Tools, type ToolCall } from '../ui/Tools'
 
-const EXAMPLES = ['어르신들이 응급실 가는 시간을 줄이고 싶어요', '교통사고 사망을 줄이고 싶어요', '버스가 너무 안 와요', '병원도 멀고 사고도 많아요']
-
-export function Goal() {
+export function Goal({ mapRef }: { mapRef: React.RefObject<MapRef | null> }) {
   const { code } = useParams()
   const nav = useNavigate()
   const r = regionOf(code)!
   const s = useStore()
-  const [text, setText] = useState(s.goalText)
-  const [busy, setBusy] = useState(false)
-  const [reply, setReply] = useState<{ tools: ToolCall[]; text: string; clarify?: Extract<AgentEvent, { type: 'clarify' }> } | null>(null)
+  // 진단을 거치지 않고 바로 들어와도 지도에 이 군의 격자가 깔리게
+  useEffect(() => {
+    if (!s.mapReady || useStore.getState().grid?.region.code === r.code) return
+    useStore.getState().loadRegion(r.code).then((grid) => { if (grid) { fitCounty(mapRef.current, grid.bbox); useStore.getState().set({ unfolded: true }) } })
+  }, [s.mapReady, r.code, mapRef])
 
-  const ask = async (q: string) => {
-    if (!q.trim() || busy) return
-    setBusy(true)
-    s.set({ goalText: q })
-    let cur: NonNullable<typeof reply> = { tools: [], text: '' }
-    const push = (p: Partial<typeof cur>) => { cur = { ...cur, ...p }; setReply(cur) }
-    push({})
-    for await (const ev of mapGoal(q)) {
-      if (ev.type === 'tool_call') push({ tools: [...cur.tools, { id: ev.id, label: ev.label, state: 'run' }] })
-      else if (ev.type === 'tool_result') push({ tools: cur.tools.map((t) => (t.id === ev.id ? { ...t, state: 'done', result: ev.result, detail: `입력: "${q}"\n결과: ${ev.result}` } : t)) })
-      else if (ev.type === 'text') push({ text: cur.text + ev.delta })
-      else if (ev.type === 'clarify') push({ clarify: ev })
-      else if (ev.type === 'apply') useStore.getState().set({ aiPick: { preset: ev.preset, reason: ev.reason }, main: ev.preset })
-    }
-    setBusy(false)
-  }
   const choose = (id: PresetId) => s.set({ main: id })
   const perCapita = (s.budget * 1e8) / r.pop / 1e4
 
   return (
-    <motion.main className="page narrow" initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
+    <motion.aside className="panel goal-panel" initial={{ x: -40, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -40, opacity: 0 }} transition={{ type: 'spring', stiffness: 260, damping: 28 }}>
       <p className="eyebrow">3단계 · 목표와 예산 · {r.name}</p>
-      <h1>무엇을 가장 개선하고 싶으세요?</h1>
-
-      <form className="ask" onSubmit={(e) => { e.preventDefault(); ask(text) }}>
-        <span className="bubble" aria-hidden>💬</span>
-        <textarea value={text} onChange={(e) => setText(e.target.value)} placeholder="예) 어르신들이 응급실 가는 시간을 줄이고 싶어요" aria-label="개선하고 싶은 점"
-          onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey && !e.nativeEvent.isComposing) { e.preventDefault(); ask(text) } }} />
-        <button className="primary" disabled={busy || !text.trim()}>AI에게 묻기</button>
-      </form>
-      <div className="chips" style={{ marginTop: 8 }}>
-        {EXAMPLES.map((q) => <button key={q} className="chip" onClick={() => { setText(q); ask(q) }} disabled={busy}>{q}</button>)}
-      </div>
-
-      <AnimatePresence>
-        {reply && (
-          <motion.div className="ai-reply" initial={{ opacity: 0, y: -6 }} animate={{ opacity: 1, y: 0 }} exit={{ opacity: 0 }}>
-            <div className="row"><AiBadge>목표 해석</AiBadge></div>
-            <Tools calls={reply.tools} />
-            {reply.text && <p>{reply.text}{busy && <span className="caret" />}</p>}
-            {reply.clarify && !busy && (
-              <div className="chips">
-                {reply.clarify.options.map((o) => (
-                  <button key={o.label} className="chip dark" onClick={() => { s.set({ main: o.preset, aiPick: { preset: o.preset, reason: `‘${o.label}’를 고르셨어요` } }); setReply({ ...reply, clarify: undefined, text: `${reply.text}\n→ ${o.label}: ‘${preset(o.preset).icon} ${preset(o.preset).name}’으로 정했어요.` }) }}>{o.label}</button>
-                ))}
-              </div>
-            )}
-          </motion.div>
-        )}
-      </AnimatePresence>
-
-      <p className="or">또는 목표를 직접 고르세요</p>
+      <h1>목표와 예산을 정해 주세요</h1>
+      <p className="muted small">말로 정하고 싶으면 <b>✦ AI에게 물어보기</b>에 “어르신들이 응급실 가는 시간을 줄이고 싶어요”처럼 적어 보세요. 가장 가까운 목표에 추천 배지를 붙여 드려요.</p>
       <div className="grid3">
         {PRESETS.map((p) => (
           <motion.button key={p.id} className={`preset ${s.main === p.id ? 'on' : ''}`} onClick={() => choose(p.id)} whileTap={{ scale: 0.98 }} aria-pressed={s.main === p.id}>
@@ -110,6 +66,6 @@ export function Goal() {
         <button className="ghost" onClick={() => nav(`/r/${r.code}`)}>← 현황 진단</button>
         <button className="primary big-btn" onClick={() => nav(`/r/${r.code}/sim`)}>✦ AI로 예산안 만들기 →</button>
       </div>
-    </motion.main>
+    </motion.aside>
   )
 }

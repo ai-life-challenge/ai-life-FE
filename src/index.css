@@ -364,6 +364,17 @@ button.badge:hover { background: var(--gray-2); }
 .toast-inline { margin-top: 12px; padding: 12px 14px; border-radius: var(--r-btn); background: var(--bad-soft); color: #7a2323; font-size: 14px; }
 .panel .budget-line { margin-top: 14px; font-size: 14px; }
 
+/* 목표·시뮬레이션도 지도 위 왼쪽 패널 */
+.goal-panel .grid3 { grid-template-columns: 1fr; gap: 8px; }
+.goal-panel .preset { min-height: 0; grid-template-columns: auto 1fr; column-gap: 12px; align-items: center; padding: 14px 16px; }
+.goal-panel .preset .ico { grid-row: span 3; font-size: 26px; }
+.goal-panel .ask textarea { min-height: 72px; font-size: 16px; padding-right: 16px; padding-bottom: 56px; }
+.goal-panel .big { font-size: 30px; }
+.goal-panel .next-row .big-btn, .sim-panel .big-btn { padding: 13px 16px; font-size: 16px; }
+.sim-panel h1 { font-size: 22px; }
+.sim-panel .sim { grid-template-columns: 1fr; gap: 12px; margin-top: 12px; }
+.sim-panel .lane, .sim-panel .left-bar { grid-template-columns: 76px 1fr 44px; }
+
 /* 지도에서 군에 마우스를 올리면 그 군 위에 뜨는 카드 */
 .region-pop { pointer-events: none; z-index: 4; }
 .region-pop .maplibregl-popup-content { padding: 0; background: transparent; box-shadow: none; border-radius: var(--r-card); }

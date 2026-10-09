@@ -81,7 +81,6 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   const tr = useMemo(() => (g ? travel(g, s.mode) : null), [g, s.mode])
   const diag = useMemo(() => (g && tr ? diagnoseGrid(g, tr.t, s.age, s.T) : null), [g, tr, s.age, s.T])
   const route = useMemo(() => (g && s.selectedCell != null ? routeFrom(g, s.selectedCell, s.mode) : null), [g, s.selectedCell, s.mode])
-  const maxW = useMemo(() => (g ? Math.max(...g.cells.map((c) => weightOf(c, s.age))) : 1), [g, s.age])
   // deck.gl은 data가 새 객체면 다시 계산하므로, 매 프레임 렌더에서도 같은 객체를 쓰게 고정한다
   const candidateGeo = useMemo(() => sigungu && { ...sigungu, features: sigungu.features.filter((f: any) => CANDIDATES.has(f.properties.sgg)) }, [sigungu])
   const hoverGeo = useMemo(() => sigungu && s.hoverRegion && { ...sigungu, features: sigungu.features.filter((f: any) => f.properties.sgg === s.hoverRegion) }, [sigungu, s.hoverRegion])
@@ -103,7 +102,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   // 결과 화면: 고른 안(없으면 추천안)을 지도 위 위치로
   const plans = usePlans(screen === 'result' ? region : undefined)
   const c = useUnitCost()
-  const shown = plans ? plans.find((p) => p.preset === s.detail) ?? plans.find((p) => p.recommended)! : null
+  const shown = plans ? plans.find((p) => p.preset === (s.mapPlan ?? s.detail)) ?? plans.find((p) => p.recommended)! : null
   const pm = useMemo(() => (g && shown ? planMap(g, shown.opt, c, s.planMode, planT(s.planMode), s.age) : null), [g, shown, c, s.planMode, s.age])
 
   // 칸을 고르면: (필요하면) 카메라를 경로에 맞추고 → 도착한 뒤 0분부터 끝까지 선이 그려진다
@@ -182,9 +181,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
         pickable: true,
         autoHighlight: true,
         highlightColor: [255, 255, 255, 120],
-        extruded: s.extruded,
-        wireframe: false,
-        stroked: !s.extruded,
+        stroked: true,
         getLineColor: [255, 255, 255, 60],
         lineWidthMinPixels: 0.5,
         getPolygon: (cl: any) => cl.polygon,
@@ -193,9 +190,8 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
           const hl = s.hoverVillage != null && cl.village === s.hoverVillage
           return timeColor(tr.t[cl.i] / s.T, hl ? 255 : cl.pop === 0 ? 60 : 200)
         },
-        getElevation: (cl: any) => (s.unfolded && s.extruded ? Math.sqrt(weightOf(cl, s.age) / maxW) * 2500 : 0),
-        updateTriggers: { getFillColor: [tr, s.unfolded, s.hoverVillage, s.T, avgColor], getElevation: [s.unfolded, s.extruded, s.age, maxW] },
-        transitions: reduce ? {} : { getFillColor: { duration: 900, easing: (x: number) => 1 - Math.pow(1 - x, 3) }, getElevation: { type: 'spring', stiffness: 0.04, damping: 0.35 } },
+        updateTriggers: { getFillColor: [tr, s.unfolded, s.hoverVillage, s.T, avgColor] },
+        transitions: reduce ? {} : { getFillColor: { duration: 900, easing: (x: number) => 1 - Math.pow(1 - x, 3) } },
         extensions: FILTER,
         getFilterValue: (cl: any) => tr.t[cl.i],
         filterRange: [0, sweeping ? s.sweep! : 1e6],
@@ -206,7 +202,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
       }),
       // 인구가 5명 미만이라 통계에서 가려진 칸 → AI가 채웠다는 표시(빗금)
       new PolygonLayer({
-        id: 'ai-filled', data: aiCells, visible: s.unfolded && !s.extruded && !sweeping, getPolygon: (cl: any) => cl.polygon, getFillColor: [30, 40, 70, 255], opacity: 0.75, stroked: false,
+        id: 'ai-filled', data: aiCells, visible: s.unfolded && !sweeping, getPolygon: (cl: any) => cl.polygon, getFillColor: [30, 40, 70, 255], opacity: 0.75, stroked: false,
         extensions: PATTERN, fillPatternMapping: HATCH, fillPatternMask: true, fillPatternSizeUnits: 'pixels', getFillPattern: () => 'hatch', parameters: ON_TOP, beforeId: labelsBefore,
       } as any),
       new ScatterplotLayer({
@@ -262,7 +258,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
         initialViewState={KOREA_VIEW}
         mapStyle={STYLE}
         style={{ position: 'absolute', inset: 0 }}
-        maxPitch={60}
+        maxPitch={0}
         attributionControl={{ compact: true }}
         onMove={() => hover && setTick((n) => n + 1)}
         onLoad={(e) => {

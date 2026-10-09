@@ -4,39 +4,14 @@
 import type { Region } from '../data/regions'
 import { LEVERS, crossChain, costAt, lever, leverCurve, planSet, preset, type Alloc, type CostLevel, type Costs, type LeverId, type Plan, type PresetId } from '../sim/model'
 
-export type AgentEvent =
-  | { type: 'tool_call'; id: string; label: string }
-  | { type: 'tool_result'; id: string; result: string }
-  | { type: 'text'; delta: string }
-  | { type: 'clarify'; question: string; options: { label: string; preset: PresetId }[] }
-  | { type: 'apply'; preset: PresetId; reason: string }
-  | { type: 'done' }
-
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms))
-let seq = 0
-async function* say(text: string): AsyncGenerator<AgentEvent> {
-  for (let i = 0; i < text.length; i += 2) {
-    yield { type: 'text', delta: text.slice(i, i + 2) }
-    await sleep(18)
-  }
-}
-
-// ---------- S3: 자연어 목표 → 프리셋 ----------
+// ---------- 자연어 목표 → 프리셋 ('AI에게 물어보기'에서 쓴다) ----------
 const RULES: { preset: PresetId | 'transit'; re: RegExp }[] = [
   { preset: 'med', re: /응급|병원|의사|진료|구급|의료|아플|아프|분만|소아/g },
   { preset: 'safe', re: /사고|안전|과속|횡단|보행|사망|위험|도로|교차로/g },
   { preset: 'bal', re: /균형|골고루|둘\s*다|모두|전반|고르게|같이/g },
   { preset: 'transit', re: /버스|대중교통|교통편|배차|DRT|정류장|이동/g },
 ]
-const CLARIFY = {
-  question: '응급실 접근성과 교통사고 중 무엇이 더 급하세요?',
-  options: [
-    { label: '응급실 가는 시간', preset: 'med' as const },
-    { label: '교통사고 줄이기', preset: 'safe' as const },
-    { label: '둘 다 비슷해요', preset: 'bal' as const },
-  ],
-}
-
 export function parseGoal(text: string) {
   const hits = Object.fromEntries(RULES.map((r) => [r.preset, [...new Set(text.match(r.re) ?? [])]])) as Record<PresetId | 'transit', string[]>
   const med = hits.med.length, safe = hits.safe.length, bal = hits.bal.length, transit = hits.transit.length
@@ -50,25 +25,6 @@ export function parseGoal(text: string) {
     : transit ? ['bal', `‘${hits.transit.join('’, ‘')}’는 교통이지만 병원 가는 시간도 줄여서(교차효과) 의료와 교통을 함께 보는 균형이 맞아요`]
     : [null, '']
   return { pick, reason, hits }
-}
-
-export async function* mapGoal(text: string): AsyncGenerator<AgentEvent> {
-  const id = `t${++seq}`
-  const short = text.length > 18 ? text.slice(0, 18) + '…' : text
-  yield { type: 'tool_call', id, label: `map_goal("${short}")` }
-  await sleep(650)
-  const { pick, reason } = parseGoal(text)
-  yield { type: 'tool_result', id, result: pick ? `${preset(pick).icon} ${preset(pick).name}` : '애매함 → 되묻기' }
-  if (!pick) {
-    yield* say('목표를 조금 더 알려 주세요. ')
-    yield* say(CLARIFY.question)
-    yield { type: 'clarify', ...CLARIFY }
-  } else {
-    const p = preset(pick)
-    yield* say(`${reason}. 가장 가까운 목표는 ‘${p.icon} ${p.name}’이에요(의료 비중 ${Math.round(p.gamma * 100)}%). 그래도 세 가지를 모두 계산해서 비교해 드릴게요.`)
-    yield { type: 'apply', preset: pick, reason }
-  }
-  yield { type: 'done' }
 }
 
 // ---------- S6: What-if 한 줄 해설 (계산 결과 숫자만 쓴다) ----------
@@ -105,9 +61,9 @@ export function explainWhatIf(f: WhatIfFacts) {
 // ---------- 'AI에게 물어보기' 창 (VillageCoverage 정책 질의 에이전트와 같은 이벤트) ----------
 
 export type Screen = 'diag' | 'goal' | 'sim' | 'result' | 'whatif' | 'report'
-type Intent = 'budget' | 'release' | 'ms80' | 'mincost' | 'struct' | 'cross' | 'why' | 'compare' | 'preset' | 'level' | 'lever' | 'diag'
+type Intent = 'goal' | 'budget' | 'release' | 'ms80' | 'mincost' | 'struct' | 'cross' | 'why' | 'compare' | 'preset' | 'level' | 'lever' | 'diag'
 export interface AgentCtx { region: Region; screen: Screen; budget: number; main: PresetId; level: CostLevel; costs: Costs; minMed: number; plans: Plan[]; pending: { intent: Intent } | null }
-export interface Patch { budget?: number; main?: PresetId; level?: CostLevel; detail?: PresetId | null; pending?: { intent: Intent } | null }
+export interface Patch { aiPick?: { preset: PresetId; reason: string }; budget?: number; main?: PresetId; level?: CostLevel; detail?: PresetId | null; pending?: { intent: Intent } | null }
 export type AskEvent =
   | { type: 'tool_call'; id: string; label: string }
   | { type: 'tool_result'; id: string; result: string }
@@ -122,12 +78,15 @@ const sc = (x: number) => `${Math.round(x)}점`
 const pctS = (x: number) => `${Math.round(x * 100)}%`
 const LEVEL_NAME: Record<CostLevel, string> = { low: '저', mid: '중', high: '고' }
 
-function parseAsk(q: string, pending: AgentCtx['pending']) {
+function parseAsk(q: string, pending: AgentCtx['pending'], screen: Screen) {
   const b = q.match(/(\d{2,3})\s*억/)
   const presetPick: PresetId | undefined = /(응급|의료).*(우선|중심)/.test(q) ? 'med' : /(교통\s*안전|사고).*(우선|중심)/.test(q) ? 'safe' : /균형/.test(q) ? 'bal' : undefined
   const lv = LEVERS.find((l) => q.includes(l.short) || (l.id === 'drt' && /DRT|수요응답/.test(q)) || (l.id === 'struct' && /회전교차로/.test(q)))
   let intent: Intent | null = null
-  if (pending?.intent === 'mincost') intent = /해제|응급/.test(q) ? 'release' : /최소서비스|80|대중교통/.test(q) ? 'ms80' : null
+  const goal = parseGoal(q)
+  const goalAnswer: PresetId | null = pending?.intent === 'goal' ? (/둘\s*다|비슷|균형/.test(q) ? 'bal' : /응급|병원|의료/.test(q) ? 'med' : /사고|안전|교통/.test(q) ? 'safe' : null) : null
+  if (goalAnswer || ((screen === 'goal' || /싶|좋겠|원해|바래|줄였으면|늘었으면/.test(q)) && (goal.pick || (goal.hits.med.length && goal.hits.safe.length)))) intent = 'goal'
+  if (!intent && pending?.intent === 'mincost') intent = /해제|응급/.test(q) ? 'release' : /최소서비스|80|대중교통/.test(q) ? 'ms80' : null
   if (!intent) {
     if (presetPick && /바꿔|으로|로 해|기준/.test(q)) intent = 'preset'
     else if (/해제|취약지\s*(벗|빠)/.test(q)) intent = 'release'
@@ -142,7 +101,7 @@ function parseAsk(q: string, pending: AgentCtx['pending']) {
     else if (/비교|차이|세\s*안|3\s*안/.test(q)) intent = 'compare'
     else if (/문제|취약한|약점|어디/.test(q)) intent = 'diag'
   }
-  return { intent, budget: b ? Math.min(300, Math.max(10, +b[1])) : undefined, presetPick, lever: lv?.id, up: /오르|비싸|고/.test(q) }
+  return { intent, budget: b ? Math.min(300, Math.max(10, +b[1])) : undefined, presetPick, lever: lv?.id, up: /오르|비싸|고/.test(q), goal: goalAnswer ? { pick: goalAnswer, reason: `‘${q}’라고 답하셨어요` } : goal }
 }
 
 let askSeq = 0
@@ -160,7 +119,7 @@ async function* sayA(text: string): AsyncGenerator<AskEvent> {
 }
 
 export async function* ask(q: string, ctx: AgentCtx): AsyncGenerator<AskEvent> {
-  const r = parseAsk(q, ctx.pending)
+  const r = parseAsk(q, ctx.pending, ctx.screen)
   const { region: rg, main } = ctx
   const mp = preset(r.presetPick ?? main)
   const run = (B: number, lv: CostLevel = ctx.level) => planSet(rg, B, ctx.costs, lv, ctx.minMed)
@@ -170,6 +129,21 @@ export async function* ask(q: string, ctx: AgentCtx): AsyncGenerator<AskEvent> {
   if (ctx.pending && r.intent) yield { type: 'apply', patch: { pending: null } }
 
   switch (r.intent) {
+    case 'goal': {
+      // 말로 한 목표 → 가장 가까운 프리셋. 의료와 사고를 같이 말하면 되묻는다
+      const short = q.length > 18 ? q.slice(0, 18) + '…' : q
+      yield* toolA(`map_goal("${short}")`, () => (r.goal.pick ? `${preset(r.goal.pick).icon} ${preset(r.goal.pick).name}` : '애매함 → 되묻기'))
+      if (!r.goal.pick) {
+        yield { type: 'apply', patch: { pending: { intent: 'goal' } } }
+        yield* sayA('응급실 접근성과 교통사고 중 무엇이 더 급하세요?')
+        yield { type: 'clarify', options: ['응급실 가는 시간이 더 급해요', '교통사고 줄이기가 더 급해요', '둘 다 비슷해요'] }
+        break
+      }
+      const p = preset(r.goal.pick)
+      yield { type: 'apply', patch: { main: p.id, aiPick: { preset: p.id, reason: r.goal.reason } } }
+      yield* sayA(`${r.goal.reason}. 가장 가까운 목표는 ‘${p.icon} ${p.name}’이에요(의료 비중 ${Math.round(p.gamma * 100)}%). 목표 카드에 추천 배지를 붙였고, 세 가지 모두 계산해서 비교해 드릴게요.`)
+      break
+    }
     case 'budget': {
       const B = r.budget!
       let ps: Plan[] = []
@@ -272,7 +246,7 @@ export async function* ask(q: string, ctx: AgentCtx): AsyncGenerator<AskEvent> {
     default:
       yield* sayA('이 시제품은 예산 바꿔 보기, 응급취약 해제·최소서비스 80%에 필요한 최소 예산, 추천 이유, 구조개선이 들어오는 시점, 버스 증차의 교차효과, 단가가 바뀔 때를 답할 수 있어요. 아래 추천 질문을 눌러 보세요.')
   }
-  if (r.intent && r.intent !== 'mincost') yield { type: 'basis', text: `쓴 가정: 단가 ${LEVEL_NAME[ctx.level]}, 프리셋 가중치 예시값, 지표 예시값` }
+  if (r.intent && r.intent !== 'mincost' && r.intent !== 'goal') yield { type: 'basis', text: `쓴 가정: 단가 ${LEVEL_NAME[ctx.level]}, 프리셋 가중치 예시값, 지표 예시값` }
   yield { type: 'done', intent: r.intent }
 }
 const fmtN = (n: number) => Math.round(n).toLocaleString('ko-KR')
@@ -284,6 +258,8 @@ export function suggestAsk(ctx: AgentCtx, last: Intent | null, asked: Set<string
     last === 'budget' ? ['구조개선은 언제부터 들어와요?', '왜 이 안을 추천했어요?', `예산을 ${down}억으로 줄이면요?`, '단가가 오르면요?']
     : last === 'release' || last === 'ms80' ? ['버스 증차가 의료에 주는 효과는?', '세 안을 비교해 줘', '대중교통 최소서비스 80%까지 최소 얼마예요?']
     : last === 'cross' ? ['DRT에 왜 이만큼 넣었어요?', '응급취약 해제하려면 최소 얼마예요?', `예산이 ${up}억이면요?`]
+    : ctx.screen === 'goal' && last !== 'goal' ? ['어르신들이 응급실 가는 시간을 줄이고 싶어요', '교통사고 사망을 줄이고 싶어요', '버스가 너무 안 와서 늘었으면 좋겠어요', '병원도 멀고 사고도 많아요']
+    : last === 'goal' ? ['왜 이 안을 추천했어요?', `예산이 ${up}억이면요?`, '응급취약 해제하려면 최소 얼마예요?']
     : ctx.screen === 'diag' ? ['어디가 가장 문제예요?', '응급취약 해제하려면 최소 얼마예요?', '버스 증차가 의료에 주는 효과는?']
     : ctx.screen === 'report' ? ['교통안전 우선으로 바꿔 줘', '왜 이 안을 추천했어요?', `예산이 ${up}억이면요?`]
     : [`예산이 ${up}억이면요?`, '응급취약 해제하려면 최소 얼마예요?', '왜 이 안을 추천했어요?', '구조개선은 언제부터 들어와요?', '버스 증차가 의료에 주는 효과는?', '단가가 오르면요?']

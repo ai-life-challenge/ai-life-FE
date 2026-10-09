@@ -24,10 +24,11 @@ interface State {
   age: AgeId
   T: number // 기준 시간(분)
   unfolded: boolean // false = 군 평균 한 색, true = 격자마다 제 색 (펼침 연출)
-  extruded: boolean
   sweep: number | null // 시간 스윕 재생 중이면 현재 분
   selectedCell: number | null
   hoverVillage: number | null
+  simDone: PresetId | null // 시뮬레이션이 지도에 다 그려 두고 끝난 안 (결과 화면이 같은 그림을 다시 그리지 않게)
+  mapPlan: PresetId | null // 시뮬레이션 중 지도에 그리는 안 (null이면 결과 화면 규칙: 고른 안 → 추천안)
   planMode: ModeId // S5 지도: 응급 거점 효과(자가용) / 버스·DRT 효과(버스)
   reveal: number // S5 지도에 놓인 정책 개수 (애니메이션 진행)
   replay: number // 올리면 S5 지도 그리기를 처음부터 다시 한다
@@ -64,10 +65,11 @@ export const useStore = create<State>((set, get) => ({
   age: 'a80',
   T: 30,
   unfolded: false,
-  extruded: false,
   sweep: null,
   selectedCell: null,
   hoverVillage: null,
+  simDone: null,
+  mapPlan: null,
   planMode: 'car',
   reveal: 0,
   replay: 0,

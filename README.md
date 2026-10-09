@@ -1,46 +1,89 @@
-# 우리 군 100억 (VillageCoverage-ai)
+# VillageCoverage-ai
 
-2026 AI 라이프 솔루션 챌린지 시제품. “우리 군에 100억이 있다면, 어디에 써야 할까?” — 의료·교통 공공데이터로 군의 취약도를 진단하고, AI가 예산안 3개를 만들어 비교·설명한 뒤 레포트로 정리한다.
-기준 문서: 노션 `구현안`(D1–D9 체크안) + `스토리보드`(S0–S8). 지도와 'AI에게 물어보기'는 VillageCoverage 시제품과 같은 인터랙션으로 가져왔다.
+> "우리 군에 100억이 있다면, 어디에 써야 할까?"
+
+2026 AI 라이프 솔루션 챌린지 출품 시제품이에요. 의료·교통 공공데이터로 군의 취약도를 정부 공식 기준으로 진단하고, AI가 예산안 3개를 만들어 지도 위에서 시뮬레이션·비교한 뒤 근거가 담긴 레포트로 정리해요.
+
+- 대상 지역: 경남 창녕(정밀) · 의령 · 함안(추정 포함)
+- 기준 문서: 노션 `구현안`(D1–D9) · `스토리보드`(S0–S8)
+- 지도와 'AI에게 물어보기'는 [VillageCoverage](https://github.com/ai-life-challenge/AI-life-FE) 시제품과 같은 인터랙션으로 가져왔어요.
+
+> ⚠️ 지역 지표 숫자는 모두 **예시값**이고, 지도 격자의 마을·인구·버스는 **가상 데이터**예요.
+
+## 실행
 
 ```bash
 npm install
 npm run dev     # http://localhost:5173
-npm test        # 배분 엔진·AI mock·레포트 숫자 대조 검사
+npm test        # 배분 엔진 · 격자 · AI mock · 레포트 숫자 대조 (11개)
 npm run build
 ```
 
-## 화면 (스토리보드)
+## 화면 흐름
 
-| 화면 | 경로 | 파일 |
+랜딩 → S0 인트로 → **지도 한 화면에서 S1~S5** → What-if / 레포트
+
+| 화면 | 경로 | 내용 |
 |---|---|---|
-| 랜딩 | `/` | `screens/Landing.tsx` |
-| S0 인트로 | `/intro` | `screens/Intro.tsx` |
-| S1 지역 선택 (지도) | `/start` | `screens/Select.tsx` |
-| S2 현황 진단 (지도) | `/r/:code` | `screens/Diagnose.tsx` |
-| S3 목표·예산 | `/r/:code/goal` | `screens/Goal.tsx` |
-| S4 AI 시뮬레이션 | `/r/:code/sim` | `screens/Simulate.tsx` |
-| S5 예산안 3개 비교 (지도) | `/r/:code/result` | `screens/Results.tsx` |
-| S6 What-if | `/r/:code/whatif` | `screens/WhatIf.tsx` |
-| S7 가정과 출처 | 어디서든 (사이드 시트) | `screens/Sources.tsx` |
-| S8 AI 레포트 | `/r/:code/report?b=&p=&c=` | `screens/Report.tsx` |
+| 랜딩 | `/` | 풀페이지 스크롤(한 번에 한 화면), 기능 소개·FAQ |
+| S0 인트로 | `/intro` | 문제 체감 문구 3줄 |
+| S1 지역 선택 | `/start` | 전국 지도, 후보 3군 맥동, 군에 호버하면 그 위에 지역 카드 |
+| S2 현황 진단 | `/r/:code` | 취약도 게이지·지표 6개(공식 기준선) + 500m 격자(시간 스윕·칸 클릭 경로) |
+| S3 목표·예산 | `/r/:code/goal` | 총예산 슬라이더, 목표 프리셋 3개, 분야 최소 보장 |
+| S4 시뮬레이션 | `/r/:code/sim` | 도구 호출 칩 + 1억 블록 쌓기, 세 안이 차례로 지도에 놓임 |
+| S5 결과 | `/r/:code/result` | 예산안 카드 3장, AI 추천, 단가 저/중/고 범위, 지도에 정책 배치 |
+| S6 What-if | `/r/:code/whatif` | 예산을 바꾸면 증감분이 어느 정책으로 가는지, 예산-효과 곡선 |
+| S7 가정과 출처 | 어디서든 (사이드 시트) | 데이터 출처, 단가(직접 수정 가능), 가중치, 기준값 |
+| S8 AI 레포트 | `/r/:code/report?b=&p=&c=` | 스트리밍 작성, 숫자 출처 툴팁, 숫자 대조 체크, PDF·링크 |
+| 데이터 미리보기 | `/test` | `public/data/mapdata.json`(창녕 예시)을 지도에 표시 |
 
-## 구조
+- S2~S5는 지도가 그대로 있고 왼쪽 패널만 바뀌어요.
+- 오른쪽 위 단계 메뉴(`2 / 6 · 진단 ▾`)로 거쳐 온 단계와 바로 다음 단계로 이동할 수 있어요.
+- 'AI에게 물어보기'는 S2 이후 모든 화면에 떠요. 목표를 말로 정하거나("응급실 가는 시간을 줄이고 싶어요"), 예산·추천 이유·교차효과를 물어볼 수 있어요.
 
-- `src/data/regions.ts` — 창녕·의령·함안 지표와 출처. **숫자는 모두 예시값**이고, 데이터 수집 후 이 파일만 바꾸면 된다.
-- `src/sim/model.ts` — 엔진(구현안 4장). 점수(D2-C), 프리셋 3개(D3-C), 레버 6개와 체감 효과함수(D6), 교차효과(D7: 버스·DRT → 배차간격 → 병원 대중교통시간 → 실효 E30), 1억 단위 greedy 배분, 단가 저/중/고 결과 범위, What-if 곡선, AI 추천(균형 잣대 취약도 감소 × 수혜 인구).
-- `src/api/agent.ts` — AI 에이전트 mock. 실서비스 SSE와 같은 이벤트(`tool_call / tool_result / text / clarify / apply / done`)를 흘려보낸다. 백엔드가 준비되면 같은 이벤트를 내는 http 구현으로 바꾼다.
-- `src/map/` — 지도 하나(MapLibre + deck.gl interleaved)가 S1·S2·S5 뒤에 깔리고 카메라가 이어진다. S1 시군구·후보 맥동·군 위 호버 카드, S2 500m 격자(펼침·시간 스윕·3D·AI 빗금·칸 클릭 경로), S5 예산안 정책 배치(`planMap.ts`). 격자(`grid.ts`)의 마을·인구·버스는 가상 값이다.
-- `src/chat/ChatDock.tsx` — 'AI에게 물어보기' 버튼과 창. 답에 따라 예산·목표·단가가 바뀌면 화면이 바로 다시 계산된다(`api/agent.ts`의 `ask`).
-- `src/api/report.ts` — 레포트 초안. 문장 속 숫자는 모두 `{ n, tip }` 토큰이라 출처 툴팁과 숫자 대조 검사에 쓴다.
+## 시뮬레이션 모델 (구현안 4장)
+
+- **지표 6개:** E30·E60·인구 1천명당 의사 수 / 대중교통 최소서비스·10만명당 사망자·병원까지 대중교통시간
+- **점수 (D2-C):** 비율 지표는 값 그대로, 수량 지표는 전국 평균 대비 부족률 → 의료(MVI)·교통(TVI) → 종합 V
+- **목표 프리셋 (D3-C):** 응급의료 우선 / 균형 / 교통안전 우선. 가중치는 팀 AHP 확정 전 예시값이에요
+- **정책 레버 6개 (D6):** 응급 거점 · 의료인력 · 버스 증차 · DRT · 교통안전시설 · 구조개선. 한계효용이 체감하는 효과함수를 쓰고 실행 상한이 있어요
+- **배분 (4-4):** 1억씩 '그 순간 종합 취약도를 가장 많이 낮추는 정책'에 배정해요(greedy)
+- **교차효과 (D7):** 버스·DRT → 배차간격·도보 ↓ → 병원 대중교통시간 ↓ → 실효 E30 ↓ (의료 점수도 내려가요)
+- **AI 추천:** 같은 잣대(균형 가중치)로 잰 취약도 감소 × 수혜 인구가 가장 큰 안을 추천해요
+
+## 폴더 구조
+
+```
+src/
+  data/regions.ts      3군 지표·출처 (예시값 — 실데이터는 이 파일만 바꾸면 돼요)
+  sim/model.ts         배분 엔진 (점수·프리셋·레버·greedy·교차효과·What-if)
+  api/agent.ts         AI 에이전트 mock (SSE와 같은 이벤트: tool_call / tool_result / text / clarify / apply / done)
+  api/report.ts        레포트 초안 (숫자는 { n, tip } 토큰 → 출처 툴팁·숫자 대조)
+  map/                 MapView(MapLibre + deck.gl) · grid(500m 격자, 가상) · planMap(정책 배치) · geo · colors
+  chat/ChatDock.tsx    AI에게 물어보기 버튼·창
+  screens/             Landing · Intro · Select · Diagnose · Goal · Simulate · Results · WhatIf · Report · Sources · TestMap
+  ui/                  단계 메뉴 · 배지 · 지역 카드 · 도구 칩 · 카운트업 · 구절 줄바꿈
+  store.ts             zustand 전역 상태
+```
+
+## 기술 스택
+
+React 19 · TypeScript · Vite · Motion · zustand · react-router · MapLibre GL + react-map-gl · deck.gl · Vitest · oxlint
 
 ## 구현안과 다르게 둔 것
 
-- 병원 대중교통시간 100점 기준을 60분 → **120분**으로 뒀다. 예시 지역 값(74·91분)이 60분을 넘어 버스 증차 효과가 점수에 안 잡혀서다. `STD.htFull`.
-- 교차효과는 `실효 E30 = (1−τ)·E30 + τ·(대중교통 60분 밖 비율)`, τ = 고령비율×0.5로 연결했다(가정값, S7에 공개).
-- 응급 거점·의료인력·구조개선 단가와 효과 계수는 출처가 없어 가정값으로 두고 S7에서 고칠 수 있게 했다.
+- 병원 대중교통시간 100점 기준을 60분 → **120분**으로 뒀어요. 예시 지역 값(74·91분)이 60분을 넘어서 버스 증차 효과가 점수에 잡히지 않았기 때문이에요 (`STD.htFull`).
+- 교차효과는 `실효 E30 = (1−τ)·E30 + τ·(대중교통 60분 밖 비율)`, τ = 고령비율 × 0.5로 연결했어요 (가정값, S7에 공개).
+- 응급 거점·의료인력·구조개선 단가와 효과 계수는 출처가 없어 가정값으로 두고, S7에서 고칠 수 있게 했어요.
 
-## 지도 데이터와 출처
+## 백엔드 연결
 
-- 행정 경계: [vuski/admdongkor](https://github.com/vuski/admdongkor) ver20260701 (통계청 SGIS 기반, CC BY 4.0). `public/data/`는 VillageCoverage 시제품과 같은 파일.
+- 지금은 모든 계산이 브라우저에서 돌아요.
+- AI는 `api/agent.ts`의 규칙 기반 mock이에요.
+- 백엔드가 준비되면 같은 이벤트를 SSE로 내는 http 구현으로 바꾸면 돼요. 숫자는 도구 결과에서만 가져온다는 규칙은 그대로 지켜요.
+
+## 데이터와 출처
+
+- 지표 출처: KOSIS · 국립중앙의료원(응급의료 취약지) · 심평원 · TAGO · TAAS · 지방재정365 (현재 값은 예시)
+- 행정 경계: [vuski/admdongkor](https://github.com/vuski/admdongkor) ver20260701 (통계청 SGIS 기반, CC BY 4.0)
 - 바탕 지도: OpenFreeMap (© OpenStreetMap 기여자)

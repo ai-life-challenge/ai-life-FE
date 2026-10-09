@@ -37,7 +37,8 @@ function Shell() {
   useEffect(() => { window.scrollTo(0, 0) }, [loc.pathname])
   const intro = loc.pathname === '/' || loc.pathname === '/intro' || loc.pathname === '/test' // 랜딩·S0 인트로·데이터 미리보기는 헤더·공용 지도 없이 전체 화면
   // 지도가 깔리는 화면: S1 지역 선택 · S2 진단 · S5 결과 (나머지 화면에서는 숨겨 두고 카메라는 그대로 둔다)
-  const mapScreen: MapScreen = loc.pathname === '/start' ? 'select' : /^\/r\/\d+$/.test(loc.pathname) ? 'diag' : /\/result$/.test(loc.pathname) ? 'result' : 'off'
+  // 진단 → 목표 → 시뮬레이션 → 결과는 지도 한 화면에서 이어진다 (왼쪽 패널만 바뀜)
+  const mapScreen: MapScreen = loc.pathname === '/start' ? 'select' : /^\/r\/\d+(\/goal)?$/.test(loc.pathname) ? 'diag' : /\/(sim|result)$/.test(loc.pathname) ? 'result' : 'off'
   const mapRef = useRef<MapRef>(null)
   const [blocked, setBlocked] = useState<string | null>(null)
   const [picked, setPicked] = useState<string | null>(null)
@@ -67,8 +68,8 @@ function Shell() {
           <Route path="/test" element={<TestMap />} />
           <Route path="/start" element={<Select mapRef={mapRef} blocked={blocked} pick={pick} picked={picked} />} />
           <Route path="/r/:code" element={<RegionRoute><Diagnose mapRef={mapRef} /></RegionRoute>} />
-          <Route path="/r/:code/goal" element={<RegionRoute><Goal /></RegionRoute>} />
-          <Route path="/r/:code/sim" element={<RegionRoute><Simulate /></RegionRoute>} />
+          <Route path="/r/:code/goal" element={<RegionRoute><Goal mapRef={mapRef} /></RegionRoute>} />
+          <Route path="/r/:code/sim" element={<RegionRoute><Simulate mapRef={mapRef} /></RegionRoute>} />
           <Route path="/r/:code/result" element={<RegionRoute><Results mapRef={mapRef} /></RegionRoute>} />
           <Route path="/r/:code/whatif" element={<RegionRoute><WhatIf /></RegionRoute>} />
           <Route path="/r/:code/report" element={<RegionRoute><Report /></RegionRoute>} />
