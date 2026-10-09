@@ -1,0 +1,597 @@
+{
+    "service": "med",
+    "age": "a80",
+    "town": "v000",
+    "summary": {
+        "total": 2262.2,
+        "gap": 279.4,
+        "rate": 0.1235,
+        "noBus": 279.4,
+        "noFacility": 0.0,
+        "villagesNoBus": 14,
+        "villagesNoFacility": 0,
+        "gapVillages": 14
+    },
+    "busReasons": null,
+    "top": [
+        {
+            "id": "v011",
+            "name": "서면 다리목",
+            "people": 34.0,
+            "state": 1,
+            "stateText": "버스 없음",
+            "reason": "버스 하루 2번, 첫차 13:30"
+        },
+        {
+            "id": "v030",
+            "name": "북면 느티골",
+            "people": 31.2,
+            "state": 1,
+            "stateText": "버스 없음",
+            "reason": "정류장까지 걸어서 19분"
+        },
+        {
+            "id": "v041",
+            "name": "동면 외동",
+            "people": 30.3,
+            "state": 1,
+            "stateText": "버스 없음",
+            "reason": "정류장까지 걸어서 35분"
+        },
+        {
+            "id": "v007",
+            "name": "북면 양지말",
+            "people": 25.2,
+            "state": 1,
+            "stateText": "버스 없음",
+            "reason": "정류장까지 걸어서 19분"
+        },
+        {
+            "id": "v038",
+            "name": "상면 원터",
+            "people": 22.4,
+            "state": 1,
+            "stateText": "버스 없음",
+            "reason": "버스 하루 2번"
+        },
+        {
+            "id": "v020",
+            "name": "북면 큰말",
+            "people": 22.4,
+            "state": 1,
+            "stateText": "버스 없음",
+            "reason": "버스 하루 2번, 첫차 12:10"
+        },
+        {
+            "id": "v034",
+            "name": "상면 구렁말",
+            "people": 22.1,
+            "state": 1,
+            "stateText": "버스 없음",
+            "reason": "정류장까지 걸어서 19분"
+        },
+        {
+            "id": "v017",
+            "name": "동면 절골",
+            "people": 21.4,
+            "state": 1,
+            "stateText": "버스 없음",
+            "reason": "정류장까지 걸어서 21분"
+        },
+        {
+            "id": "v039",
+            "name": "북면 역말",
+            "people": 17.4,
+            "state": 1,
+            "stateText": "버스 없음",
+            "reason": "정류장까지 걸어서 29분"
+        },
+        {
+            "id": "v019",
+            "name": "하면 방앗간말",
+            "people": 15.8,
+            "state": 1,
+            "stateText": "버스 없음",
+            "reason": "버스 하루 2번, 첫차 13:20"
+        }
+    ],
+    "villages": [
+        {
+            "id": "v000",
+            "name": "읍내 중심가",
+            "myeon": "읍내",
+            "lon": 128.4583,
+            "lat": 35.38454,
+            "people": 540.0,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v001",
+            "name": "동면 윗말",
+            "myeon": "동면",
+            "lon": 128.52011,
+            "lat": 35.66555,
+            "people": 225.1,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v002",
+            "name": "서면 아랫말",
+            "myeon": "서면",
+            "lon": 128.38618,
+            "lat": 35.53661,
+            "people": 148.6,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v003",
+            "name": "남면 새터",
+            "myeon": "남면",
+            "lon": 128.6476,
+            "lat": 35.40775,
+            "people": 118.0,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v004",
+            "name": "북면 안골",
+            "myeon": "북면",
+            "lon": 128.54034,
+            "lat": 35.53438,
+            "people": 155.5,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v005",
+            "name": "상면 갈매",
+            "myeon": "상면",
+            "lon": 128.54691,
+            "lat": 35.44502,
+            "people": 105.1,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v006",
+            "name": "하면 솔미",
+            "myeon": "하면",
+            "lon": 128.39527,
+            "lat": 35.45251,
+            "people": 134.6,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v007",
+            "name": "북면 양지말",
+            "myeon": "북면",
+            "lon": 128.47213,
+            "lat": 35.55875,
+            "people": 25.2,
+            "state": 1,
+            "popEstimated": false
+        },
+        {
+            "id": "v008",
+            "name": "서면 음지말",
+            "myeon": "서면",
+            "lon": 128.45617,
+            "lat": 35.53206,
+            "people": 28.8,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v009",
+            "name": "북면 장터말",
+            "myeon": "북면",
+            "lon": 128.52399,
+            "lat": 35.51769,
+            "people": 36.9,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v010",
+            "name": "서면 주막거리",
+            "myeon": "서면",
+            "lon": 128.44902,
+            "lat": 35.49882,
+            "people": 21.3,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v011",
+            "name": "서면 다리목",
+            "myeon": "서면",
+            "lon": 128.41064,
+            "lat": 35.56566,
+            "people": 34.0,
+            "state": 1,
+            "popEstimated": false
+        },
+        {
+            "id": "v012",
+            "name": "서면 배나무골",
+            "myeon": "서면",
+            "lon": 128.43684,
+            "lat": 35.60781,
+            "people": 6.0,
+            "state": 1,
+            "popEstimated": false
+        },
+        {
+            "id": "v013",
+            "name": "북면 감나무골",
+            "myeon": "북면",
+            "lon": 128.50534,
+            "lat": 35.53641,
+            "people": 19.2,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v014",
+            "name": "상면 밤나무골",
+            "myeon": "상면",
+            "lon": 128.52998,
+            "lat": 35.4319,
+            "people": 22.6,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v015",
+            "name": "읍내 대추골",
+            "myeon": "읍내",
+            "lon": 128.47434,
+            "lat": 35.41882,
+            "people": 26.8,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v016",
+            "name": "북면 고랫골",
+            "myeon": "북면",
+            "lon": 128.49594,
+            "lat": 35.59079,
+            "people": 14.3,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v017",
+            "name": "동면 절골",
+            "myeon": "동면",
+            "lon": 128.52039,
+            "lat": 35.63663,
+            "people": 21.4,
+            "state": 1,
+            "popEstimated": false
+        },
+        {
+            "id": "v018",
+            "name": "읍내 서당골",
+            "myeon": "읍내",
+            "lon": 128.46559,
+            "lat": 35.43751,
+            "people": 26.6,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v019",
+            "name": "하면 방앗간말",
+            "myeon": "하면",
+            "lon": 128.42309,
+            "lat": 35.43005,
+            "people": 15.8,
+            "state": 1,
+            "popEstimated": false
+        },
+        {
+            "id": "v020",
+            "name": "북면 큰말",
+            "myeon": "북면",
+            "lon": 128.55055,
+            "lat": 35.58602,
+            "people": 22.4,
+            "state": 1,
+            "popEstimated": false
+        },
+        {
+            "id": "v021",
+            "name": "동면 작은말",
+            "myeon": "동면",
+            "lon": 128.46537,
+            "lat": 35.61851,
+            "people": 10.4,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v022",
+            "name": "동면 가운뎃말",
+            "myeon": "동면",
+            "lon": 128.53402,
+            "lat": 35.60923,
+            "people": 9.9,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v023",
+            "name": "상면 동녘말",
+            "myeon": "상면",
+            "lon": 128.55266,
+            "lat": 35.40101,
+            "people": 34.5,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v024",
+            "name": "하면 서녘말",
+            "myeon": "하면",
+            "lon": 128.39379,
+            "lat": 35.43558,
+            "people": 20.9,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v025",
+            "name": "남면 남촌",
+            "myeon": "남면",
+            "lon": 128.62522,
+            "lat": 35.38086,
+            "people": 39.2,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v026",
+            "name": "서면 북촌",
+            "myeon": "서면",
+            "lon": 128.38985,
+            "lat": 35.55228,
+            "people": 11.2,
+            "state": 1,
+            "popEstimated": false
+        },
+        {
+            "id": "v027",
+            "name": "서면 산막",
+            "myeon": "서면",
+            "lon": 128.45801,
+            "lat": 35.51573,
+            "people": 10.3,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v028",
+            "name": "서면 물방아골",
+            "myeon": "서면",
+            "lon": 128.43075,
+            "lat": 35.50801,
+            "people": 22.5,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v029",
+            "name": "북면 돌모루",
+            "myeon": "북면",
+            "lon": 128.47383,
+            "lat": 35.58743,
+            "people": 39.0,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v030",
+            "name": "북면 느티골",
+            "myeon": "북면",
+            "lon": 128.54369,
+            "lat": 35.55238,
+            "people": 31.2,
+            "state": 1,
+            "popEstimated": false
+        },
+        {
+            "id": "v031",
+            "name": "동면 버드내",
+            "myeon": "동면",
+            "lon": 128.49442,
+            "lat": 35.62065,
+            "people": 18.6,
+            "state": 0,
+            "popEstimated": true
+        },
+        {
+            "id": "v032",
+            "name": "상면 소나무골",
+            "myeon": "상면",
+            "lon": 128.55275,
+            "lat": 35.48911,
+            "people": 23.7,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v033",
+            "name": "서면 새말",
+            "myeon": "서면",
+            "lon": 128.41073,
+            "lat": 35.51095,
+            "people": 20.3,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v034",
+            "name": "상면 구렁말",
+            "myeon": "상면",
+            "lon": 128.55894,
+            "lat": 35.45632,
+            "people": 22.1,
+            "state": 1,
+            "popEstimated": false
+        },
+        {
+            "id": "v035",
+            "name": "상면 들말",
+            "myeon": "상면",
+            "lon": 128.51183,
+            "lat": 35.44331,
+            "people": 7.6,
+            "state": 1,
+            "popEstimated": true
+        },
+        {
+            "id": "v036",
+            "name": "서면 고개말",
+            "myeon": "서면",
+            "lon": 128.35706,
+            "lat": 35.60135,
+            "people": 12.4,
+            "state": 1,
+            "popEstimated": false
+        },
+        {
+            "id": "v037",
+            "name": "북면 장자골",
+            "myeon": "북면",
+            "lon": 128.49532,
+            "lat": 35.49022,
+            "people": 49.9,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v038",
+            "name": "상면 원터",
+            "myeon": "상면",
+            "lon": 128.52353,
+            "lat": 35.48582,
+            "people": 22.4,
+            "state": 1,
+            "popEstimated": false
+        },
+        {
+            "id": "v039",
+            "name": "북면 역말",
+            "myeon": "북면",
+            "lon": 128.50568,
+            "lat": 35.50289,
+            "people": 17.4,
+            "state": 1,
+            "popEstimated": false
+        },
+        {
+            "id": "v040",
+            "name": "북면 내동",
+            "myeon": "북면",
+            "lon": 128.57653,
+            "lat": 35.51914,
+            "people": 35.3,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v041",
+            "name": "동면 외동",
+            "myeon": "동면",
+            "lon": 128.51561,
+            "lat": 35.61075,
+            "people": 30.3,
+            "state": 1,
+            "popEstimated": false
+        },
+        {
+            "id": "v042",
+            "name": "읍내 신기",
+            "myeon": "읍내",
+            "lon": 128.44678,
+            "lat": 35.41692,
+            "people": 15.6,
+            "state": 0,
+            "popEstimated": false
+        },
+        {
+            "id": "v043",
+            "name": "남면 평촌",
+            "myeon": "남면",
+            "lon": 128.61278,
+            "lat": 35.41167,
+            "people": 9.3,
+            "state": 0,
+            "popEstimated": false
+        }
+    ],
+    "facilities": [
+        {
+            "id": "f00",
+            "name": "군립병원",
+            "kind": "병원",
+            "village": "v000"
+        },
+        {
+            "id": "f01",
+            "name": "동면 보건지소",
+            "kind": "보건지소",
+            "village": "v001"
+        },
+        {
+            "id": "f02",
+            "name": "서면 보건지소",
+            "kind": "보건지소",
+            "village": "v002"
+        },
+        {
+            "id": "f03",
+            "name": "남면 보건지소",
+            "kind": "보건지소",
+            "village": "v003"
+        },
+        {
+            "id": "f04",
+            "name": "북면 보건지소",
+            "kind": "보건지소",
+            "village": "v004"
+        },
+        {
+            "id": "f05",
+            "name": "상면 보건지소",
+            "kind": "보건지소",
+            "village": "v005"
+        },
+        {
+            "id": "f06",
+            "name": "하면 보건지소",
+            "kind": "보건지소",
+            "village": "v006"
+        },
+        {
+            "id": "f07",
+            "name": "장터말 보건진료소",
+            "kind": "보건진료소",
+            "village": "v009"
+        },
+        {
+            "id": "f08",
+            "name": "서당골 보건진료소",
+            "kind": "보건진료소",
+            "village": "v018"
+        }
+    ],
+    "estimatedVillages": 2
+}
