@@ -1,15 +1,20 @@
 // S7 가정과 출처 (보조 화면, 사이드 시트). 어느 화면에서든 출처 배지를 누르면 해당 행으로 스크롤되고 하이라이트된다.
-// 단가를 고치면 모든 결과가 다시 계산된다.
+// 단가·효과 가정을 고치면 서버 계산이 모두 다시 돈다. 값의 범위는 서버가 정한다(범위를 벗어나면 400).
 import { useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { DATA_SOURCES } from '../data/regions'
-import { DEFAULT_COSTS, FX, LEVERS, PRESETS, STD, type CostLevel } from '../sim/model'
+import { SUPPLY, SUPPLY_IDS } from '../api/meta'
+import { FIRST_BUS_LIMIT } from '../api/judge'
+import type { Cost, SupplyId } from '../api/types'
 import { useStore } from '../store'
 
-const LV: CostLevel[] = ['low', 'mid', 'high']
+const FIELDS: { key: keyof Cost; label: string; min: number; max: number; step: number }[] = [
+  { key: 'install', label: '설치(억)', min: 0, max: 100, step: 0.1 },
+  { key: 'yearly', label: '연 운영(억)', min: 0, max: 50, step: 0.1 },
+  { key: 'years', label: '수명(년)', min: 1, max: 50, step: 1 },
+]
 
 export function Sources() {
-  const { sources, costs, set } = useStore()
+  const { sources, state, defaults, data, patch, set } = useStore()
   const ref = useRef<HTMLDivElement>(null)
   const close = () => set({ sources: { ...sources, open: false } })
 
@@ -26,13 +31,15 @@ export function Sources() {
       rows.forEach((row) => { row.classList.remove('flash'); void row.offsetWidth; row.classList.add('flash') })
     }, 280)
     return () => { clearTimeout(t); window.removeEventListener('keydown', onKey) }
-  }, [sources.open, sources.focus, sources.at])
+  }, [sources.open, sources.focus, sources.at]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const setCost = (id: keyof typeof costs, lv: CostLevel, v: number) => {
-    if (!(v > 0)) return
-    set({ costs: { ...costs, [id]: { ...costs[id], [lv]: v } } })
+  const a = state?.assumptions
+  const edited = !!a && !!defaults && JSON.stringify(a) !== JSON.stringify(defaults.assumptions)
+  // 범위를 벗어난 값은 서버가 거절하므로 입력 단계에서 막는다
+  const setCost = (id: SupplyId, key: keyof Cost, v: number, min: number, max: number) => {
+    if (!Number.isFinite(v) || v < min || v > max) return
+    patch((s) => ({ ...s, assumptions: { ...s.assumptions, costs: { ...s.assumptions.costs, [id]: { ...s.assumptions.costs[id], [key]: key === 'years' ? Math.round(v) : v } } } }))
   }
-  const edited = JSON.stringify(costs) !== JSON.stringify(DEFAULT_COSTS)
 
   return (
     <AnimatePresence>
@@ -42,61 +49,61 @@ export function Sources() {
           <motion.aside ref={ref} className="sheet" role="dialog" aria-modal="true" aria-label="가정과 출처" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', stiffness: 300, damping: 34 }}>
             <button className="close" onClick={close} aria-label="닫기">×</button>
             <h2>이 시뮬레이션이 사용한 데이터와 가정</h2>
-            <p className="muted small">데이터와 가정을 나눠서 공개해요. 지금 지역 지표는 모두 수집 전 예시값이에요.</p>
+            <p className="muted small">데이터와 가정을 나눠서 공개해요. 계산은 모두 서버가 해요.</p>
 
-            <h3><span className="badge public">공공데이터</span> 지역 지표</h3>
-            <table className="stable">
-              <thead><tr><th>항목</th><th>출처</th><th>기준일</th></tr></thead>
+            <h3><span className="badge public">공공데이터</span> {data ? `${data.name} 자료` : '지역 자료'}</h3>
+            <table className="stable" data-src="public">
               <tbody>
-                {DATA_SOURCES.map((d) => <tr key={d.id} data-src={d.id}><td>{d.label} <span className="badge warnb">예시값</span></td><td>{d.source}</td><td>{d.date}</td></tr>)}
+                {data ? data.sources.map((s) => <tr key={s}><td>{s}</td></tr>) : <tr><td className="muted">지역을 고르면 그 지역의 출처가 보여요</td></tr>}
               </tbody>
             </table>
+            {data && <p className="muted small">{data.tier === 'precise' ? '정밀 지역: 버스 하루 운행 횟수와 읍내행 첫차까지 반영해요.' : '간이 판정 지역: 버스 운행 정보가 없어 정류장까지 걷는 거리만 반영해요.'}</p>}
 
-            <h3><span className="badge assume">가정값</span> 단가 (억 원 / 단위·년) {edited && <button className="link small" onClick={() => set({ costs: DEFAULT_COSTS })}>기본값으로</button>}</h3>
-            <p className="muted small" style={{ margin: '0 0 6px' }}>숫자를 고치면 결과가 바로 다시 계산돼요.</p>
-            <table className="stable" data-src="costs">
-              <thead><tr><th>정책 (단위)</th><th className="r">저</th><th className="r">중</th><th className="r">고</th><th>근거</th></tr></thead>
-              <tbody>
-                {LEVERS.map((l) => (
-                  <tr key={l.id} data-src={`cost-${l.id}`}>
-                    <td><span className="sw" style={{ background: l.color }} />{l.short} <span className="muted">(1{l.unit})</span></td>
-                    {LV.map((lv) => <td key={lv} className="r"><input type="number" step="0.1" min="0.1" value={costs[l.id][lv]} onChange={(e) => setCost(l.id, lv, +e.target.value)} aria-label={`${l.short} ${lv} 단가`} /></td>)}
-                    <td className="small">{l.sourceOk ? l.source : <span className="warn">⚠ 출처 확인 중 — {l.source}</span>}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <h3><span className="badge assume">가정값</span> 공급수단 단가 {edited && defaults && <button className="link small" onClick={() => patch((s) => ({ ...s, assumptions: defaults.assumptions }))}>기본값으로</button>}</h3>
+            {a ? (
+              <>
+                <p className="muted small" style={{ margin: '0 0 6px' }}>숫자를 고치면 결과가 바로 다시 계산돼요.</p>
+                <table className="stable" data-src="costs">
+                  <thead><tr><th>공급수단</th>{FIELDS.map((f) => <th key={f.key} className="r">{f.label}</th>)}</tr></thead>
+                  <tbody>
+                    {SUPPLY_IDS.map((id) => (
+                      <tr key={id} data-src={`cost-${id}`}>
+                        <td><span className="sw" style={{ background: SUPPLY[id].color }} />{SUPPLY[id].name}</td>
+                        {FIELDS.map((f) => (
+                          <td key={f.key} className="r">
+                            <input type="number" step={f.step} min={f.min} max={f.max} defaultValue={a.costs[id][f.key]} key={`${id}-${f.key}-${a.costs[id][f.key]}`}
+                              onChange={(e) => setCost(id, f.key, e.currentTarget.valueAsNumber, f.min, f.max)} aria-label={`${SUPPLY[id].name} ${f.label}`} />
+                          </td>
+                        ))}
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
 
-            <h3><span className="badge assume">가중치</span> 정책 목표 프리셋</h3>
-            <table className="stable" data-src="weights">
-              <thead><tr><th>프리셋</th><th className="r">γ 의료 비중</th><th className="r">의료 w1/w2/w3</th><th className="r">교통 w4/w5/w6</th></tr></thead>
-              <tbody>{PRESETS.map((p) => <tr key={p.id}><td>{p.icon} {p.name}</td><td className="r">{p.gamma}</td><td className="r">{p.wm.join(' / ')}</td><td className="r">{p.wt.join(' / ')}</td></tr>)}</tbody>
-            </table>
-            <p className="muted small">w1 E30 · w2 E60 · w3 의사 수 / w4 최소서비스 · w5 사망률 · w6 병원 대중교통시간. AHP 응답 전 예시값이며, 팀 AHP(일관성 CR &lt; 0.1)로 확정해 결과표를 여기에 공개해요.</p>
+                <h3><span className="badge assume">효과 가정</span></h3>
+                <table className="stable" data-src="effects">
+                  <tbody>
+                    <tr>
+                      <td>원격진료가 병원 방문을 줄이는 정도</td>
+                      <td className="r"><input type="number" step="0.05" min="0" max="1" defaultValue={a.teleEffect} key={a.teleEffect} aria-label="원격진료 효과"
+                        onChange={(e) => { const v = e.currentTarget.valueAsNumber; if (v >= 0 && v <= 1) patch((s) => ({ ...s, assumptions: { ...s.assumptions, teleEffect: v } })) }} /></td>
+                    </tr>
+                    <tr>
+                      <td>순회 진료 버스 주당 운행 횟수</td>
+                      <td className="r"><input type="number" step="1" min="1" max="7" defaultValue={a.tourWeekly} key={a.tourWeekly} aria-label="순회 진료 주당 횟수"
+                        onChange={(e) => { const v = Math.round(e.currentTarget.valueAsNumber); if (v >= 1 && v <= 7) patch((s) => ({ ...s, assumptions: { ...s.assumptions, tourWeekly: v } })) }} /></td>
+                    </tr>
+                  </tbody>
+                </table>
+              </>
+            ) : <p className="muted">지역을 고르면 단가를 고칠 수 있어요.</p>}
 
-            <h3><span className="badge assume">기준값</span> 공식 기준과 설정값</h3>
+            <h3><span className="badge assume">판정 기준</span></h3>
             <table className="stable" data-src="std">
               <tbody>
-                <tr><td>응급의료 취약지 기준 (E30 또는 E60)</td><td className="r">{STD.theta * 100}%</td><td className="small">복지부·NMC, 27%/30% 혼재 → 설정값</td></tr>
-                <tr><td>대중교통 최소서비스 확보 / 사각</td><td className="r">{STD.msTarget * 100}% / 60%</td><td className="small">대중교통현황조사 방법론</td></tr>
-                <tr><td>인구 1천명당 의사 수 전국 평균</td><td className="r">{STD.natD}명</td><td className="small">보건의료인력 통계 (확인 필요)</td></tr>
-                <tr><td>인구 10만명당 교통사고 사망자 전국 평균</td><td className="r">{STD.natAR}명</td><td className="small">TAAS (확인 필요) · 2배 = 100점</td></tr>
-                <tr><td>병원까지 대중교통시간 100점</td><td className="r">{STD.htFull}분</td><td className="small">설정값 (구현안 60분 → 예시 지역이 넘어 120분)</td></tr>
-                <tr><td>대중교통 이용자 병원 접근 기준</td><td className="r">{STD.ptLimit}분</td><td className="small">설정값 · 마을별 ±{STD.ptSpread * 100}% 분포 가정</td></tr>
-                <tr><td>대중교통 의존 비율 τ</td><td className="r">고령×{STD.tauPerElderly}</td><td className="small">가정값 (교차효과 연결)</td></tr>
-                <tr><td>교통사고 사망 1명 사회적 비용</td><td className="r">{STD.deathCost}억</td><td className="small">도로교통공단 2022</td></tr>
-              </tbody>
-            </table>
-
-            <h3><span className="badge assume">효과 가정</span></h3>
-            <table className="stable" data-src="effects">
-              <tbody>
-                <tr><td>응급 거점: E30 × e^(−k·개소)</td><td className="r">k = {FX.erK}</td><td className="small">E60은 {FX.erE60 * 100}%만 개선</td></tr>
-                <tr><td>의료인력 체감 기준</td><td className="r">{FX.docMax}명</td><td className="small">가정값</td></tr>
-                <tr><td>DRT 1대가 맡는 사각 인구</td><td className="r">{FX.drtCover.toLocaleString()}명</td><td className="small">커버 시 도보 {FX.drtWalkCut * 100}% 감소</td></tr>
-                <tr><td>교통안전시설 CMF</td><td className="r">{FX.safetyCMF}</td><td className="small">국내 16개 유형 20–30% 감소(대한교통학회지 2023)</td></tr>
-                <tr><td>구조개선 CMF (회전교차로)</td><td className="r">{FX.structCMF}</td><td className="small">FHWA CMF Clearinghouse 5229 · 다발지점 사망 비중 {FX.structShare * 100}%</td></tr>
-                <tr><td>대책 겹침 하한</td><td className="r">{FX.cmfFloor}</td><td className="small">HSM 관행</td></tr>
+                <tr><td>버스 정류장 탐색 범위</td><td className="r">2km</td><td className="small">2km 안에 정류장이 없으면 걸음 60분으로 보고 ‘정류장 없음’</td></tr>
+                <tr><td>읍내행 첫차 (정밀 지역)</td><td className="r">{FIRST_BUS_LIMIT / 60}시 전</td><td className="small">서버 판정 결과에서 알아낸 값. 서버 판정과 다르면 서버 결과로 보여 줘요</td></tr>
+                <tr><td>마을 안에 병의원이 있는 마을</td><td className="r">갈 수 있음</td><td className="small">가까운 병의원 시간과 상관없이 갈 수 있음으로 봐요</td></tr>
               </tbody>
             </table>
           </motion.aside>

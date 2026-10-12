@@ -1,134 +1,60 @@
-// S4 AI 시뮬레이션 (지도 위 왼쪽 패널): 도구 호출 칩과 '1억 블록 쌓기'가 진행되는 동안, 같은 안의 정책이 지도에 하나씩 놓인다.
-// 실제 계산은 즉시 끝나 있고 연출만 약 4초. 건너뛰기 가능, 동작 줄이기면 최종 상태를 바로 보여 준다.
-import { useEffect, useMemo, useRef, useState } from 'react'
-import type { MapRef } from 'react-map-gl/maplibre'
+// S4 안 만들기: 서버에 판정과 대안 계산을 부르는 동안 도구 호출 칩을 보여 주고, 끝나면 결과로 넘어간다.
+import { useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router'
-import { motion, useReducedMotion } from 'motion/react'
-import { regionOf } from '../data/regions'
-import { LEVERS, PRESETS, preset, type PresetId } from '../sim/model'
-import { usePlans, useStore, useUnitCost } from '../store'
-import { planMap } from '../map/planMap'
-import { planT } from '../map/MapView'
-import { fitCounty } from '../map/geo'
-import { AiBadge } from '../ui/Badges'
+import { motion } from 'motion/react'
+import { calcKey, judgeKey, useStore } from '../store'
+import { eok, fmt, pct } from '../api/meta'
 import { Tools, type ToolCall } from '../ui/Tools'
 
-const DIAG = 600, OPT = 2200, CMP = 500 // 안마다 지도에 정책이 놓일 시간을 준다
-const T_END = DIAG + OPT * 3 + CMP
-
-export function Simulate({ mapRef }: { mapRef: React.RefObject<MapRef | null> }) {
+export function Simulate() {
   const { code } = useParams()
   const nav = useNavigate()
-  const r = regionOf(code)!
-  const plans = usePlans(r)!
-  const { budget } = useStore()
-  const reduce = useReducedMotion()
-  const [t, setT] = useState(reduce ? T_END : 0)
-  const [tab, setTab] = useState<PresetId | null>(null)
-  const started = useRef(performance.now())
+  const { state, judge, plans, regions, fetchJudge, fetchPlans } = useStore()
+  const st = state!
+  const r = regions.find((x) => x.code === code)!
+  const jFresh = judge.status === 'ok' && judge.key === judgeKey(code!, st)
+  const pFresh = plans.status === 'ok' && plans.key === calcKey(code!, st)
 
-  useEffect(() => {
-    if (t >= T_END) return
-    let id = requestAnimationFrame(function tick() {
-      const now = performance.now() - started.current
-      setT(Math.min(T_END, now))
-      if (now < T_END) id = requestAnimationFrame(tick)
-    })
-    return () => cancelAnimationFrame(id)
-    // 시작할 때 한 번만 돈다 (건너뛰기는 started를 당겨서 처리)
-  }, [])
-  useEffect(() => {
-    if (t < T_END) return
-    const id = setTimeout(() => nav(`/r/${r.code}/result`), reduce ? 1500 : 900)
-    return () => clearTimeout(id)
-  }, [t, nav, r.code, reduce])
-  const skip = () => { started.current = performance.now() - T_END; setT(T_END) }
+  // 이미 같은 조건으로 받아 둔 결과가 있으면 다시 부르지 않는다
+  useEffect(() => { if (!jFresh) void fetchJudge() }, []) // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { if (!pFresh) void fetchPlans() }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // 시나리오별 진행률 (0~1)
-  const prog = (k: number) => Math.min(1, Math.max(0, (t - DIAG - k * OPT) / OPT))
-  const running = PRESETS.findIndex((_, k) => prog(k) < 1)
-  const recId = plans.find((p) => p.recommended)!.preset
-  // 계산 중에는 그 안, 다 끝나면 추천안을 지도와 블록에 보여 준다
-  const shownId = tab ?? (running === -1 ? recId : PRESETS[running].id)
-  const k = PRESETS.findIndex((p) => p.id === shownId)
-  const plan = plans.find((p) => p.preset === shownId)!
-  const nShown = Math.round(plan.opt.steps.length * prog(k))
-  const steps = plan.opt.steps.slice(0, nShown)
-  const g0 = plan.opt.steps[0]?.gain || 1
-  const rec = plans.find((p) => p.recommended)!
-
-  // 지도: 군 전체로 맞추고, 지금 보고 있는 안(기본은 계산 중인 안)의 정책을 진행률만큼 놓는다
-  const st = useStore()
-  const c = useUnitCost()
-  const g = st.grid?.region.code === r.code ? st.grid : null
+  const failed = plans.status === 'error' || judge.status === 'error'
+  const went = useRef(false)
   useEffect(() => {
-    if (!st.mapReady) return
-    useStore.getState().loadRegion(r.code).then((grid) => grid && fitCounty(mapRef.current, grid.bbox, { duration: 1000 }))
-  }, [st.mapReady, r.code, mapRef])
-  useEffect(() => () => useStore.getState().set({ mapPlan: null }), [])
-  const mode = plan.opt.alloc.er > 0 ? 'car' : 'bus'
-  const pm = useMemo(() => (g ? planMap(g, plan.opt, c, mode, planT(mode), st.age) : null), [g, plan, c, mode, st.age])
-  const reveal = pm ? prog(k) * pm.picks.length : 0
-  useEffect(() => {
-    if (pm) useStore.getState().set({ mapPlan: plan.preset, planMode: mode, reveal, simDone: t >= T_END && plan.preset === recId ? recId : null })
-  }, [pm, plan.preset, mode, reveal, t, recId])
+    if (pFresh && !went.current) {
+      went.current = true
+      const t = setTimeout(() => nav(`/r/${code}/result`, { replace: true }), 700)
+      return () => { clearTimeout(t); went.current = false }
+    }
+  }, [pFresh, code, nav])
 
   const calls: ToolCall[] = [
-    { id: 'd', label: `diagnose(${r.name})`, state: t >= DIAG ? 'done' : 'run', result: '현황 지표 6개', detail: `E30, E60, 의사 수, 최소서비스, 사망률, 병원 대중교통시간\n의료 취약도 ${Math.round(plans[1].before.mvi)} · 교통 취약도 ${Math.round(plans[1].before.tvi)}` },
-    ...PRESETS.map((p, i): ToolCall => {
-      const pl = plans.find((x) => x.preset === p.id)!
-      const st = prog(i) >= 1 ? 'done' : t >= DIAG + i * OPT ? 'run' : 'wait'
-      return { id: p.id, label: `optimize(${p.name}, ${budget}억)`, state: st, result: `종합 ${Math.round(pl.before.v)}→${Math.round(pl.after.v)}`, detail: LEVERS.filter((l) => pl.opt.alloc[l.id] > 0).map((l) => `${l.short} ${pl.opt.alloc[l.id]}억`).join(' · ') + `\n1억 단위 ${pl.opt.steps.length}번 배정` }
-    }),
-    { id: 'c', label: 'compare(3안)', state: t >= T_END ? 'done' : t >= DIAG + 3 * OPT ? 'run' : 'wait', result: `추천: ${preset(rec.preset).icon} ${preset(rec.preset).name}`, detail: '기준: 균형 가중치로 잰 종합 취약도 감소 × 수혜 인구' },
+    {
+      id: 'judge', label: `judge(${r.name})`, state: jFresh ? 'done' : judge.status === 'error' ? 'wait' : 'run',
+      result: judge.data ? `공백 ${fmt(judge.data.summary.gap)}명 (${pct(judge.data.summary.rate)})` : undefined,
+    },
+    {
+      id: 'plans', label: `plans(목표 ${Math.round(st.target * 100)}%, 연 ${eok(st.budget)})`, state: pFresh ? 'done' : plans.status === 'error' ? 'wait' : 'run',
+      result: plans.data ? `안 ${plans.data.plans.length}개 · 추천 ${plans.data.plans.find((p) => p.recommended)?.name ?? ''}` : undefined,
+    },
   ]
 
   return (
     <motion.aside className="panel sim-panel" initial={{ x: -40, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -40, opacity: 0 }} transition={{ type: 'spring', stiffness: 260, damping: 28 }}>
-      <p className="eyebrow">4단계 · 시뮬레이션 · {r.name} · {budget}억</p>
-      <div className="row">
-        <h1 style={{ margin: 0 }}>{t >= T_END ? 'AI가 예산안 3개를 만들었어요' : 'AI가 예산안을 만들고 있어요'}</h1>
-        <AiBadge />
-        <span className="spacer" />
-        {t < T_END ? <button className="ghost" onClick={skip}>건너뛰기 ⏭</button> : <button className="primary" onClick={() => nav(`/r/${r.code}/result`)}>결과 보기 →</button>}
-      </div>
-
-      <div className="sim">
-        <Tools calls={calls} />
-        <section className="blocks" aria-label="예산 블록 쌓기">
-          <div className="tabs" role="tablist">
-            {PRESETS.map((p, i) => (
-              <button key={p.id} role="tab" aria-selected={shownId === p.id} className={shownId === p.id ? 'on' : ''} onClick={() => setTab(p.id)} disabled={t < DIAG + i * OPT}>
-                {shownId === p.id && <motion.span layoutId="sim-tab" className="tab-bg" />}
-                <span>{p.icon} {p.name}</span>
-              </button>
-            ))}
+      <p className="eyebrow">4단계 · 안 만들기</p>
+      <h1>{r.name}의 예산안을 만들고 있어요</h1>
+      <p className="muted small">계산은 모두 서버가 해요. 화면은 받은 결과만 그려요.</p>
+      <Tools calls={calls} />
+      {failed && (
+        <div className="toast-inline" role="alert">
+          {plans.error ?? judge.error}
+          <div className="row" style={{ marginTop: 8 }}>
+            <button className="primary" onClick={() => { void fetchJudge(); void fetchPlans() }}>다시 시도</button>
+            <button className="ghost" onClick={() => nav(`/r/${code}/goal`)}>← 조건 바꾸기</button>
           </div>
-          <p className="muted small" style={{ margin: '0 0 8px' }}>1억 블록이 그 순간 효과가 가장 큰 정책으로 날아가요. 블록이 옅을수록 1억당 효과가 줄어든 것(체감)이에요.</p>
-          {LEVERS.map((l) => {
-            const mine = steps.filter((s) => s.lever === l.id)
-            return (
-              <div className="lane" key={l.id}>
-                <span className="lane-name">{l.short}</span>
-                <span className="lane-blocks">
-                  {mine.map((s, j) => (
-                    <motion.i key={j} className="blk" style={{ background: l.color, opacity: 0.3 + 0.7 * Math.min(1, s.gain / g0) }}
-                      initial={reduce ? false : { x: -30, y: -10, scale: 0.4, opacity: 0 }} animate={{ x: 0, y: 0, scale: 1, opacity: 0.3 + 0.7 * Math.min(1, s.gain / g0) }} transition={{ type: 'spring', stiffness: 500, damping: 30 }} />
-                  ))}
-                  {!mine.length && prog(k) >= 1 && <span className="zero">아직 0원</span>}
-                </span>
-                <span className="lane-sum">{mine.length}억</span>
-              </div>
-            )
-          })}
-          <div className="left-bar">
-            <span>남은 예산</span>
-            <span className="track"><span className="fill" style={{ width: `${((budget - nShown) / budget) * 100}%` }} /></span>
-            <span className="lane-sum">{budget - nShown}억</span>
-          </div>
-          {prog(k) >= 1 && plan.opt.left >= 1 && <p className="small bad">모든 정책이 실행 상한에 닿아 {plan.opt.left}억은 배정하지 못했어요.</p>}
-        </section>
-      </div>
+        </div>
+      )}
     </motion.aside>
   )
 }

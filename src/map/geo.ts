@@ -48,3 +48,9 @@ export function fitCounty(map: CamMap | undefined | null, bbox: Box, opts: { dur
 export function flyToArea(map: CamMap | undefined | null, area: Box, opts: { duration?: number; bottom?: number } = {}) {
   flyToBox(map, area, opts.duration ?? 1200, opts.bottom ? { bottom: opts.bottom } : {})
 }
+
+// 점들을 모두 담는 상자 [서, 남, 동, 북]
+export function boxOf(points: { lon: number; lat: number }[]): Box {
+  const lons = points.map((p) => p.lon), lats = points.map((p) => p.lat)
+  return [Math.min(...lons), Math.min(...lats), Math.max(...lons), Math.max(...lats)]
+}

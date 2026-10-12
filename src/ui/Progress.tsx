@@ -3,9 +3,8 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
-import { regionOf } from '../data/regions'
-import { indicators, preset, score } from '../sim/model'
-import { usePlans, useStore } from '../store'
+import { SERVICES, eok, pct } from '../api/meta'
+import { useStore } from '../store'
 
 export const STEPS = [
   { path: '', label: '지역' },
@@ -18,11 +17,10 @@ export const STEPS = [
 
 export function Progress({ code, at }: { code: string | null; at: number }) {
   const nav = useNavigate()
-  const { budget, main, reached, set } = useStore()
+  const { reached, set, regions, state, judge, plans } = useStore()
   const [open, setOpen] = useState(false)
   const ref = useRef<HTMLDivElement>(null)
-  const r = regionOf(code ?? undefined)
-  const plans = usePlans(r)
+  const r = regions.find((x) => x.code === code)
   // 지금까지 가 본 가장 먼 단계 (지역이 바뀌면 처음부터 센다)
   const max = r && reached.code === r.code ? Math.max(reached.max, at) : at
   useEffect(() => {
@@ -41,11 +39,11 @@ export function Progress({ code, at }: { code: string | null; at: number }) {
   const value = (i: number) => {
     if (!r || i > max) return ''
     if (i === 0) return r.name
-    if (i === 1) { const s = score(indicators(r), preset('bal')); return `의료 ${Math.round(s.mvi)} · 교통 ${Math.round(s.tvi)}점` }
-    if (i === 2) return `${preset(main).icon} ${preset(main).name} · ${budget}억`
-    if (i === 3) return '예산안 3개'
-    if (i === 4 && plans) return `추천 ${preset(plans.find((p) => p.recommended)!.preset).name}안`
-    if (i === 5) return 'AI 초안'
+    if (i === 1) return judge.data ? `공백 ${pct(judge.data.summary.rate)}` : ''
+    if (i === 2) return state ? `${SERVICES.find((x) => x.id === state.service)!.name} · 연 ${eok(state.budget)}` : ''
+    if (i === 3) return plans.data ? `대안 ${plans.data.plans.length}개` : ''
+    if (i === 4) return plans.data ? `추천 ${plans.data.plans.find((p) => p.recommended)?.name ?? ''}` : ''
+    if (i === 5) return '초안'
     return ''
   }
   const go = (i: number) => { setOpen(false); nav(i === 0 ? '/start' : `/r/${code}${STEPS[i].path}`) }

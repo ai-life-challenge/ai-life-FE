@@ -1,89 +1,80 @@
 # VillageCoverage-ai
 
-> "우리 군에 100억이 있다면, 어디에 써야 할까?"
+> "우리 군에 예산이 있다면, 어디에 써야 할까?"
 
-2026 AI 라이프 솔루션 챌린지 출품 시제품이에요. 의료·교통 공공데이터로 군의 취약도를 정부 공식 기준으로 진단하고, AI가 예산안 3개를 만들어 지도 위에서 시뮬레이션·비교한 뒤 근거가 담긴 레포트로 정리해요.
+2026 AI 라이프 솔루션 챌린지 출품 시제품이에요. 전국 72개 시군구에서 마을마다 병원과 버스에 닿을 수 있는지 진단하고, 목표 달성률과 연 예산에 맞는 대안 3개를 비교해 레포트까지 만들어요. **계산은 모두 서버가 하고 화면은 결과만 그려요.**
 
-- 대상 지역: 경남 창녕(정밀) · 의령 · 함안(추정 포함)
-- 기준 문서: 노션 `구현안`(D1–D9) · `스토리보드`(S0–S8)
-- 지도와 'AI에게 물어보기'는 [VillageCoverage](https://github.com/ai-life-challenge/AI-life-FE) 시제품과 같은 인터랙션으로 가져왔어요.
-
-> ⚠️ 지역 지표 숫자는 모두 **예시값**이고, 지도 격자의 마을·인구·버스는 **가상 데이터**예요.
+- 백엔드: `https://api.village-coverage.kro.kr` (API 문서: `/api/docs`, 팀 내부용)
+- 배포: Cloudflare Workers 정적 배포 (`npm run deploy`)
 
 ## 실행
 
 ```bash
 npm install
-npm run dev     # http://localhost:5173
-npm test        # 배분 엔진 · 격자 · AI mock · 레포트 숫자 대조 (11개)
+npm run dev      # http://localhost:5173 (운영 API를 바로 부른다)
+npm test         # 브라우저 판정 규칙 · 서버 판정 대조
 npm run build
+npm run deploy   # 빌드 + wrangler deploy
 ```
+
+API 주소는 `src/api/client.ts`의 기본값(운영 서버)이고, 다른 서버를 쓰려면 빌드할 때 `VITE_API_URL`을 넣어요. 값은 빌드 시점에 코드에 박히므로 바꾸면 다시 빌드·배포해야 해요.
+운영 서버는 `http://localhost:*`, `https://*.workers.dev`, `https://*.pages.dev`, `https://*.vercel.app`, `https://village-coverage.kro.kr`, `https://*.village-coverage.kro.kr`만 CORS로 받아요.
 
 ## 화면 흐름
 
 랜딩 → S0 인트로 → **지도 한 화면에서 S1~S5** → What-if / 레포트
 
-| 화면 | 경로 | 내용 |
-|---|---|---|
-| 랜딩 | `/` | 풀페이지 스크롤(한 번에 한 화면), 기능 소개·FAQ |
-| S0 인트로 | `/intro` | 문제 체감 문구 3줄 |
-| S1 지역 선택 | `/start` | 전국 지도, 후보 3군 맥동, 군에 호버하면 그 위에 지역 카드 |
-| S2 현황 진단 | `/r/:code` | 취약도 게이지·지표 6개(공식 기준선) + 500m 격자(시간 스윕·칸 클릭 경로) |
-| S3 목표·예산 | `/r/:code/goal` | 총예산 슬라이더, 목표 프리셋 3개, 분야 최소 보장 |
-| S4 시뮬레이션 | `/r/:code/sim` | 도구 호출 칩 + 1억 블록 쌓기, 세 안이 차례로 지도에 놓임 |
-| S5 결과 | `/r/:code/result` | 예산안 카드 3장, AI 추천, 단가 저/중/고 범위, 지도에 정책 배치 |
-| S6 What-if | `/r/:code/whatif` | 예산을 바꾸면 증감분이 어느 정책으로 가는지, 예산-효과 곡선 |
-| S7 가정과 출처 | 어디서든 (사이드 시트) | 데이터 출처, 단가(직접 수정 가능), 가중치, 기준값 |
-| S8 AI 레포트 | `/r/:code/report?b=&p=&c=` | 스트리밍 작성, 숫자 출처 툴팁, 숫자 대조 체크, PDF·링크 |
-| 데이터 미리보기 | `/test` | `public/data/mapdata.json`(창녕 예시)을 지도에 표시 |
+| 화면 | 경로 | 내용 | 서버 호출 |
+|---|---|---|---|
+| 랜딩 | `/` | 풀페이지 스크롤. 창녕군 서버 계산 결과를 마을 집계 격자로 그린 그림 6장(기준 슬라이더, 정책 핀 등) | regions, judge, plans, sensitivity, report |
+| S0 인트로 | `/intro` | 문제 체감 문구 3줄 (창녕군 서버 계산 값) | judge |
+| S1 지역 선택 | `/start` | 전국 지도에서 72곳 중 선택, 호버 카드 | `GET /api/regions` |
+| S2 현황 진단 | `/r/:code` | 마을별 판정 지도, 기준(자가용·걷기·운행 횟수) 바꾸기, 마을 상세 | `GET /api/regions/{code}`, `…/map`, `POST /api/judge`, `/api/village` |
+| S3 목표·예산 | `/r/:code/goal` | 연 예산, 목표 달성률, 쓸 공급수단 | – |
+| S4 안 만들기 | `/r/:code/sim` | 도구 호출 칩, 끝나면 결과로 | `POST /api/plans` |
+| S5 결과 | `/r/:code/result` | 대안 3개 카드, 추천, 지도에 고른 안, 단가 민감도 | `POST /api/plans`, `/api/sensitivity` |
+| S6 What-if | `/r/:code/whatif` | 예산을 바꿔 본 대안, 예산별 최대 달성률 곡선 | `POST /api/plans` (예산별) |
+| S7 가정과 출처 | 어디서든 (사이드 시트) | 지역 자료 출처, 단가·효과 가정 직접 수정 | – |
+| S8 레포트 | `/r/:code/report` | 공문/주민 안내문 초안, 문단 직접 고치기, PDF·링크 | `POST /api/report` |
+| AI 질문 | S2 이후 모든 화면 | 서버 에이전트에게 묻기 | `GET /api/examples`, `POST /api/ask` |
 
-- S2~S5는 지도가 그대로 있고 왼쪽 패널만 바뀌어요.
-- 오른쪽 위 단계 메뉴(`2 / 6 · 진단 ▾`)로 거쳐 온 단계와 바로 다음 단계로 이동할 수 있어요.
-- 'AI에게 물어보기'는 S2 이후 모든 화면에 떠요. 목표를 말로 정하거나("응급실 가는 시간을 줄이고 싶어요"), 예산·추천 이유·교차효과를 물어볼 수 있어요.
+## 판정과 서버 대조
 
-## 시뮬레이션 모델 (구현안 4장)
+기준(자가용 시간·정류장까지 걷는 시간·버스 운행 횟수)을 바꿀 때마다 서버를 부르면 느려서, `src/api/judge.ts`가 브라우저에서 바로 판정해 지도를 칠해요. 서버 판정(`POST /api/judge`)이 기준이라, 응답이 오면 마을별 판정과 합계를 대조해서 **다르면 서버 결과로 바꿔 보여 주고** 화면에 알려요.
 
-- **지표 6개:** E30·E60·인구 1천명당 의사 수 / 대중교통 최소서비스·10만명당 사망자·병원까지 대중교통시간
-- **점수 (D2-C):** 비율 지표는 값 그대로, 수량 지표는 전국 평균 대비 부족률 → 의료(MVI)·교통(TVI) → 종합 V
-- **목표 프리셋 (D3-C):** 응급의료 우선 / 균형 / 교통안전 우선. 가중치는 팀 AHP 확정 전 예시값이에요
-- **정책 레버 6개 (D6):** 응급 거점 · 의료인력 · 버스 증차 · DRT · 교통안전시설 · 구조개선. 한계효용이 체감하는 효과함수를 쓰고 실행 상한이 있어요
-- **배분 (4-4):** 1억씩 '그 순간 종합 취약도를 가장 많이 낮추는 정책'에 배정해요(greedy)
-- **교차효과 (D7):** 버스·DRT → 배차간격·도보 ↓ → 병원 대중교통시간 ↓ → 실효 E30 ↓ (의료 점수도 내려가요)
-- **AI 추천:** 같은 잣대(균형 가중치)로 잰 취약도 감소 × 수혜 인구가 가장 큰 안을 추천해요
+- 정밀 지역(5곳)은 하루 운행 횟수와 읍내행 첫차(낮 12시 전)까지, 나머지(간이 판정)는 정류장까지 걷는 거리만 봐요.
+- 마을 안에 병의원이 있으면 갈 수 있음, 자가용 기준 안에 병의원이 없으면 `병원이 너무 멀어 못 감`이에요.
+- 이 규칙은 API 문서에 없어서 서버 결과에 맞춰 알아낸 거예요(5개 시군구 · 여러 기준에서 일치 확인). 서버 규칙이 바뀌면 화면에 "서버와 N곳이 달라요"로 드러나요.
 
 ## 폴더 구조
 
 ```
 src/
-  data/regions.ts      3군 지표·출처 (예시값 — 실데이터는 이 파일만 바꾸면 돼요)
-  sim/model.ts         배분 엔진 (점수·프리셋·레버·greedy·교차효과·What-if)
-  api/agent.ts         AI 에이전트 mock (SSE와 같은 이벤트: tool_call / tool_result / text / clarify / apply / done)
-  api/report.ts        레포트 초안 (숫자는 { n, tip } 토큰 → 출처 툴팁·숫자 대조)
-  map/                 MapView(MapLibre + deck.gl) · grid(500m 격자, 가상) · planMap(정책 배치) · geo · colors
-  chat/ChatDock.tsx    AI에게 물어보기 버튼·창
-  screens/             Landing · Intro · Select · Diagnose · Goal · Simulate · Results · WhatIf · Report · Sources · TestMap
-  ui/                  단계 메뉴 · 배지 · 지역 카드 · 도구 칩 · 카운트업 · 구절 줄바꿈
-  store.ts             zustand 전역 상태
+  api/types.ts        API 요청·응답 타입
+  api/client.ts       fetch 래퍼 · 오류(ApiError) · 지역 자료 캐시
+  api/judge.ts        브라우저 판정 + 서버 판정 대조 (judge.test.ts)
+  api/meta.ts         이름·색·숫자 표기
+  api/cells.ts        마을을 칸으로 묶어 집계 (랜딩 그림용, cells.test.ts)
+  store.ts            zustand 전역 상태 (state · 지역 자료 · 서버 계산 결과와 로딩·오류)
+  hooks.ts            useShownJudge · useAutoFetch (조건이 바뀌면 서버 계산을 다시 부름)
+  map/                MapView(MapLibre + deck.gl) · geo
+  chat/ChatDock.tsx   AI에게 물어보기
+  screens/            Landing · Intro · Select · Diagnose · Goal · Simulate · Results · WhatIf · Report · Sources
+  ui/                 단계 메뉴 · 배지 · 지역 카드 · 도구 칩 · 카운트업
 ```
+
+## 알아둘 점
+
+- **AI 질문**: 서버 에이전트가 꺼져 있으면(`/api/health`의 `agent: false`) 입력창을 막고 안내만 보여요. 질문은 IP별 하루 횟수 제한이 있어요(429).
+- **state**: `GET /api/regions`의 `defaultState`에서 시작해, 바꾼 값만 바꿔 보내요. 서버는 범위를 벗어난 값을 400으로 거절해요(예: 예산 0~30억, 목표 50~100%).
+- **단가·효과**는 가정값이에요. S7에서 고치면 대안이 다시 계산돼요.
 
 ## 기술 스택
 
-React 19 · TypeScript · Vite · Motion · zustand · react-router · MapLibre GL + react-map-gl · deck.gl · Vitest · oxlint
+React 19 · TypeScript · Vite · Motion · zustand · react-router · MapLibre GL + react-map-gl · deck.gl · Vitest · oxlint · Cloudflare Workers(wrangler)
 
-## 구현안과 다르게 둔 것
+## 출처
 
-- 병원 대중교통시간 100점 기준을 60분 → **120분**으로 뒀어요. 예시 지역 값(74·91분)이 60분을 넘어서 버스 증차 효과가 점수에 잡히지 않았기 때문이에요 (`STD.htFull`).
-- 교차효과는 `실효 E30 = (1−τ)·E30 + τ·(대중교통 60분 밖 비율)`, τ = 고령비율 × 0.5로 연결했어요 (가정값, S7에 공개).
-- 응급 거점·의료인력·구조개선 단가와 효과 계수는 출처가 없어 가정값으로 두고, S7에서 고칠 수 있게 했어요.
-
-## 백엔드 연결
-
-- 지금은 모든 계산이 브라우저에서 돌아요.
-- AI는 `api/agent.ts`의 규칙 기반 mock이에요.
-- 백엔드가 준비되면 같은 이벤트를 SSE로 내는 http 구현으로 바꾸면 돼요. 숫자는 도구 결과에서만 가져온다는 규칙은 그대로 지켜요.
-
-## 데이터와 출처
-
-- 지표 출처: KOSIS · 국립중앙의료원(응급의료 취약지) · 심평원 · TAGO · TAAS · 지방재정365 (현재 값은 예시)
 - 행정 경계: [vuski/admdongkor](https://github.com/vuski/admdongkor) ver20260701 (통계청 SGIS 기반, CC BY 4.0)
 - 바탕 지도: OpenFreeMap (© OpenStreetMap 기여자)
+- 지역별 자료 출처는 서비스 안의 ‘가정과 출처’(S7)에 지역마다 나와요

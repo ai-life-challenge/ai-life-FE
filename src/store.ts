@@ -1,100 +1,103 @@
-import { useMemo } from 'react'
 import { create } from 'zustand'
-import { regionOf, type Region } from './data/regions'
-import { loadGrid, type AgeId, type Grid, type ModeId } from './map/grid'
-import { DEFAULT_COSTS, costAt, planSet, type CostLevel, type Costs, type PresetId } from './sim/model'
-
-interface State {
-  budget: number // 총예산(억)
-  main: PresetId // 사용자가 고른 주 시나리오 (3개 모두 계산한다)
-  level: CostLevel // 단가 저/중/고
-  costs: Costs // S7에서 고칠 수 있는 단가표
-  minMedOn: boolean // 고급 설정: 분야 최소 보장 (D6-C 옵션, 기본 끔)
-  minMed: number
-  goalText: string
-  aiPick: { preset: PresetId; reason: string } | null // S3 자연어 → 프리셋 추천
-  detail: PresetId | null // S5에서 펼친 카드
-  sources: { open: boolean; focus: string | null; at: number }
-  report: { key: string; overrides: Record<string, string> } // 레포트에서 직접 고친 문단 (조건 key가 바뀌면 버린다)
-  // 지도 (S1 지역 선택 · S2 진단 · S5 결과)
-  mapReady: boolean
-  grid: Grid | null // 지금 군의 500m 격자
-  hoverRegion: string | null // S1에서 마우스를 올린 군 (지도·카드 공통)
-  mode: ModeId // S2 격자: 자가용(E30) / 버스(병원 대중교통)
-  age: AgeId
-  T: number // 기준 시간(분)
-  unfolded: boolean // false = 군 평균 한 색, true = 격자마다 제 색 (펼침 연출)
-  sweep: number | null // 시간 스윕 재생 중이면 현재 분
-  selectedCell: number | null
-  hoverVillage: number | null
-  simDone: PresetId | null // 시뮬레이션이 지도에 다 그려 두고 끝난 안 (결과 화면이 같은 그림을 다시 그리지 않게)
-  mapPlan: PresetId | null // 시뮬레이션 중 지도에 그리는 안 (null이면 결과 화면 규칙: 고른 안 → 추천안)
-  planMode: ModeId // S5 지도: 응급 거점 효과(자가용) / 버스·DRT 효과(버스)
-  reveal: number // S5 지도에 놓인 정책 개수 (애니메이션 진행)
-  replay: number // 올리면 S5 지도 그리기를 처음부터 다시 한다
-  reached: { code: string | null; max: number } // 단계 메뉴: 이 군에서 가 본 가장 먼 단계
-  // AI에게 물어보기
-  chat: ChatMsg[]
-  chatOpen: boolean
-  set: (p: Partial<State>) => void
-  openSources: (focus?: string) => void
-  loadRegion: (code: string) => Promise<Grid | null>
-}
+import { api, ApiError, regionData, regionMap } from './api/client'
+import type { Judge, Plans, RegionData, RegionItem, Report, Sensitivity, State, Turn } from './api/types'
 
 export type ToolCallMsg = { id: string; label: string; result?: string }
 export type ChatMsg =
   | { role: 'user'; text: string }
-  | { role: 'ai'; text: string; tools: ToolCallMsg[]; basis?: string; clarify?: string[]; streaming?: boolean }
+  | { role: 'ai'; text: string; tools: ToolCallMsg[]; error?: boolean }
 
-export const useStore = create<State>((set, get) => ({
-  budget: 100,
-  main: 'bal',
-  level: 'mid',
-  costs: DEFAULT_COSTS,
-  minMedOn: false,
-  minMed: 0.3,
-  goalText: '',
-  aiPick: null,
-  detail: null,
-  sources: { open: false, focus: null, at: 0 },
-  report: { key: '', overrides: {} },
-  mapReady: false,
-  grid: null,
-  hoverRegion: null,
-  mode: 'car',
-  age: 'a80',
-  T: 30,
-  unfolded: false,
-  sweep: null,
-  selectedCell: null,
-  hoverVillage: null,
-  simDone: null,
-  mapPlan: null,
-  planMode: 'car',
-  reveal: 0,
-  replay: 0,
+// 서버 호출 상태. 오류는 화면에 그대로 보여 줘도 되는 message만 둔다
+// key: 이 결과를 받을 때의 조건. 지금 조건과 다르면 오래된 결과다
+export type Load<T> = { status: 'idle' | 'loading' | 'ok' | 'error'; data: T | null; error: string | null; key?: string }
+const idle = <T,>(): Load<T> => ({ status: 'idle', data: null, error: null })
+export const errText = (e: unknown) => (e instanceof ApiError ? e.message : '문제가 생겼어요. 다시 시도해 주세요.')
+
+interface Store {
+  regions: RegionItem[]
+  state: State | null // 화면 상태: 처음엔 서버가 준 defaultState, 화면에서 바꾼 값만 바뀐다
+  defaults: State | null
+  listError: string | null
+  code: string | null
+  data: RegionData | null
+  map: GeoJSON.FeatureCollection | null
+  regionError: string | null
+  judge: Load<Judge>
+  plans: Load<Plans>
+  sens: Load<Sensitivity>
+  report: Load<Report>
+  mapReady: boolean
+  hoverRegion: string | null
+  hoverVillage: string | null
+  reached: { code: string | null; max: number } // 단계 메뉴: 이 지역에서 가 본 가장 먼 단계
+  sources: { open: boolean; focus: string | null; at: number }
+  chat: ChatMsg[]
+  chatOpen: boolean
+  remainingToday: number | null
+  set: (p: Partial<Store>) => void
+  patch: (fn: (s: State) => State) => void
+  loadList: () => Promise<void>
+  loadRegion: (code: string) => Promise<void>
+  fetchJudge: () => Promise<void>
+  fetchPlans: () => Promise<void>
+  fetchSens: () => Promise<void>
+  fetchReport: () => Promise<void>
+  openSources: (focus?: string) => void
+}
+
+// 이 값들이 같으면 서버 계산 결과도 같다 (planShow · selectedVillage · report 는 계산에 쓰지 않는다)
+export const calcKey = (code: string | null, s: State | null) => s && JSON.stringify([code, s.service, s.age, s.criteria, s.assumptions, s.allowedSupply, s.budget, s.target])
+// 판정은 기준(서비스 · 나이대 · 걷는 시간 · 운행 횟수 · 자가용 시간)만 본다. 예산을 바꿔도 다시 부르지 않는다
+export const judgeKey = (code: string | null, s: State | null) => s && JSON.stringify([code, s.service, s.age, s.criteria])
+// 레포트는 고른 안과 고쳐 쓴 문단까지 반영한다
+export const reportKey = (code: string | null, s: State | null) => s && JSON.stringify([calcKey(code, s), s.planShow, s.report])
+
+// 같은 종류 요청이 겹치면 앞 요청은 버린다 (슬라이더를 빠르게 움직일 때)
+const inflight: Record<string, AbortController | undefined> = {}
+function run<T>(slot: 'judge' | 'plans' | 'sens' | 'report', stamp: string | null, call: (signal: AbortSignal) => Promise<T>, set: (p: Partial<Store>) => void, get: () => Store) {
+  inflight[slot]?.abort()
+  const ac = (inflight[slot] = new AbortController())
+  const key = stamp ?? undefined
+  set({ [slot]: { ...(get()[slot] as Load<T>), status: 'loading', error: null } } as Partial<Store>)
+  return call(ac.signal).then(
+    (data) => { if (!ac.signal.aborted) set({ [slot]: { status: 'ok', data, error: null, key } } as Partial<Store>) },
+    (e) => { if (!ac.signal.aborted) set({ [slot]: { status: 'error', data: null, error: errText(e), key } } as Partial<Store>) },
+  )
+}
+
+export const useStore = create<Store>((set, get) => ({
+  regions: [], state: null, defaults: null, listError: null,
+  code: null, data: null, map: null, regionError: null,
+  judge: idle(), plans: idle(), sens: idle(), report: idle(),
+  mapReady: false, hoverRegion: null, hoverVillage: null,
   reached: { code: null, max: 0 },
-  chat: [],
-  chatOpen: false,
+  sources: { open: false, focus: null, at: 0 },
+  chat: [], chatOpen: false, remainingToday: null,
   set: (p) => set(p),
-  loadRegion: async (code): Promise<Grid | null> => {
-    const r = regionOf(code)
-    if (!r) return null
-    const grid = await loadGrid(r)
-    if (get().grid !== grid) set({ grid, selectedCell: null, hoverVillage: null, unfolded: false, sweep: null })
-    return grid
+  patch: (fn) => set((s) => (s.state ? { state: fn(s.state) } : {})),
+  loadList: async () => {
+    if (get().regions.length) return
+    try {
+      const l = await api.regions()
+      set({ regions: l.regions, defaults: l.defaultState, state: get().state ?? l.defaultState, listError: null })
+    } catch (e) { set({ listError: errText(e) }) }
   },
+  loadRegion: async (code) => {
+    if (get().code === code && get().data) return
+    set({ code, data: null, map: null, regionError: null, judge: idle(), plans: idle(), sens: idle(), report: idle(), chat: [], hoverVillage: null })
+    try {
+      const [data, map] = await Promise.all([regionData(code), regionMap(code)])
+      if (get().code === code) set({ data, map })
+    } catch (e) { if (get().code === code) set({ regionError: errText(e) }) }
+  },
+  fetchJudge: () => { const { code, state } = get(); return code && state ? run('judge', judgeKey(code, state), (sg) => api.judge({ region: code, state }, sg), set, get) : Promise.resolve() },
+  fetchPlans: () => { const { code, state } = get(); return code && state ? run('plans', calcKey(code, state), (sg) => api.plans({ region: code, state }, sg), set, get) : Promise.resolve() },
+  fetchSens: () => { const { code, state } = get(); return code && state ? run('sens', calcKey(code, state), (sg) => api.sensitivity({ region: code, state }, sg), set, get) : Promise.resolve() },
+  fetchReport: () => { const { code, state } = get(); return code && state ? run('report', reportKey(code, state), (sg) => api.report({ region: code, state }, sg), set, get) : Promise.resolve() },
   openSources: (focus) => set({ sources: { open: true, focus: focus ?? null, at: Date.now() } }),
 }))
 
-// 세 안(+단가 저/고 범위)은 여러 화면이 같이 쓴다. 계산은 수 ms라 조건이 바뀔 때마다 다시 한다
-export function usePlans(r: Region | undefined) {
-  const { budget, costs, level, minMedOn, minMed } = useStore()
-  return useMemo(() => (r ? planSet(r, budget, costs, level, minMedOn ? minMed : 0) : null), [r, budget, costs, level, minMedOn, minMed])
-}
-export const useUnitCost = () => {
-  const { costs, level } = useStore()
-  return useMemo(() => costAt(costs, level), [costs, level])
-}
+export const historyOf = (chat: ChatMsg[]): Turn[] =>
+  chat.filter((m) => !(m.role === 'ai' && m.error)).slice(-6).map((m) => ({ role: m.role === 'user' ? 'user' : 'assistant', text: m.text.slice(0, 600) }))
 
-if (import.meta.env.DEV) (window as any).__store = useStore
+if (import.meta.env.DEV) (window as unknown as { __store: typeof useStore }).__store = useStore
