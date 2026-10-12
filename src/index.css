@@ -570,6 +570,7 @@ button.badge:hover { background: var(--gray-2); }
 
 /* FAQ */
 .faq-sec { background: var(--gray); padding: clamp(64px, 12vh, 120px) 0; }
+.faq-sec .wrap { width: 100%; }
 .faq-sec h2 { font-size: clamp(26px, 3vw, 36px); margin-bottom: 24px; }
 .faq { background: var(--bg); border-radius: var(--r-card); }
 .faq-item + .faq-item { border-top: 1px solid var(--gray); }
