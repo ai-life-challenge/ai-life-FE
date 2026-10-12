@@ -660,3 +660,16 @@ button.badge:hover { background: var(--gray-2); }
 .supply.on { background: var(--bg); box-shadow: inset 0 0 0 2px var(--accent); }
 .plan-hit { text-align: left; border: 0; background: none; padding: 0; display: grid; gap: 8px; width: 100%; }
 .dock .ai.err { background: var(--bad-soft); color: #7a2323; }
+
+/* 첫 화면 뒤에 흐리게 깔리는 사진 (창녕 우포늪). 글자가 잘 읽히게 흰색으로 덮고, 아래로 갈수록 흰색에 녹는다 */
+.hero-bleed { position: relative; isolation: isolate; overflow: clip; } /* hidden이면 스크롤 컨테이너가 되어 스냅이 깨진다 */
+.hero-bleed::before {
+  content: ''; position: absolute; inset: 0; z-index: -1;
+  background: linear-gradient(180deg, rgba(255,255,255,.78) 0%, rgba(255,255,255,.88) 60%, #fff 100%), url(/images/hero.jpg) center / cover;
+  filter: saturate(.8);
+}
+.credits { margin-top: 28px; font-size: 13px; color: #a3a2a2; }
+.credits summary { cursor: pointer; color: #d9d9d9; }
+.credits ul { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 4px; line-height: 1.6; }
+.credits a { color: #d9d9d9; text-underline-offset: 3px; }
+.credits a:hover { color: #fff; }

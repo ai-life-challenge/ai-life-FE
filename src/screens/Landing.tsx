@@ -85,6 +85,7 @@ export function Landing() {
         </nav>
       </header>
 
+      <div className="hero-bleed">
       <section className="wrap land-hero snap">
         <p className="hero-tagline">클릭 몇 번으로, 근거 있는 예산안.</p>
         <motion.div initial="hidden" animate="show" variants={stagger}>
@@ -99,6 +100,7 @@ export function Landing() {
         </motion.div>
         <UnfoldMap demo={demo} g={g} />
       </section>
+      </div>
 
       <section className="wrap statement snap">
         <motion.p className="say center" initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.5 }} transition={{ duration: 0.7 }}>
@@ -161,6 +163,14 @@ export function Landing() {
             <div><h4>데이터</h4><p>지역별 출처는 서비스 안의 ‘가정과 출처’에서 볼 수 있어요</p><p>경계: 통계청 SGIS 기반 admdongkor 2026.7 (CC BY 4.0)</p><p>지도: OpenFreeMap, © OpenStreetMap 기여자</p></div>
             <div><h4>시제품 안내</h4><p><Phrases text="정밀 판정은 5곳이고, 나머지 67곳은 정류장까지 걷는 거리만 보는 간이 판정이에요. 랜딩의 칸은 마을을 묶어 집계한 그림이에요." /></p><p>2026 AI 라이프 솔루션 챌린지 출품작</p></div>
           </div>
+          <details className="credits">
+            <summary>이미지 출처</summary>
+            <ul>
+              {CREDITS.map(([where, title, author, license, url]) => (
+                <li key={where}>{where}: <a href={url} target="_blank" rel="noopener noreferrer">{title}</a> · {author} · {license}</li>
+              ))}
+            </ul>
+          </details>
         </div>
       </footer>
     </motion.div>
@@ -404,7 +414,34 @@ function ReportDemo({ demo }: { demo: Demo | null }) {
   )
 }
 
+// 랜딩에 쓴 이미지 출처 (Wikimedia Commons). CC BY·BY-SA 이미지는 출처 표시가 필요해서 푸터에 모두 적는다
+const CREDITS: [string, string, string, string, string][] = [
+  ["첫 화면 배경 · 창녕 우포늪", "우포늪 ( 10 )", "최옥석", "CC BY-SA 3.0", "https://commons.wikimedia.org/wiki/File:%EC%9A%B0%ED%8F%AC%EB%8A%AA_(_10_).jpg"],
+  ["초중등학교", "Okcheon County Samyang Elementary School 20240730 (01)", "LandAndTree", "CC0", "https://commons.wikimedia.org/wiki/File:Okcheon_County_Samyang_Elementary_School_20240730_(01).jpg"],
+  ["약국", "2020-03-26 15.32.24 pharmacy in Hoengseong", "Choi Kwang-mo", "CC0", "https://commons.wikimedia.org/wiki/File:2020-03-26_15.32.24_pharmacy_in_Hoengseong.jpg"],
+  ["병원", "National Police Hospital of Korea", "IRTC1015", "Public domain", "https://commons.wikimedia.org/wiki/File:National_Police_Hospital_of_Korea.JPG"],
+  ["행정경계 (창녕군 행정구역도)", "Changnyeong-map", "장길산", "Public domain", "https://commons.wikimedia.org/wiki/File:Changnyeong-map.png"],
+  ["마을회관·경로당", "Wati village hall in Gonyang-myeon", "Choi2451", "CC BY-SA 3.0", "https://commons.wikimedia.org/wiki/File:Wati_village_hall_in_Gonyang-myeon.jpg"],
+  ["버스정류장", "Palyongdong Residents Center bus stop on April 22nd, 2016", "Choi2451", "CC BY-SA 3.0", "https://commons.wikimedia.org/wiki/File:Palyongdong_Residents_Center_bus_stop_on_April_22nd,_2016.jpg"],
+  ["농어촌버스", "A bus stop on the coastal road of Yokjido Island", "Pranay chakraborty 2004", "CC BY 4.0", "https://commons.wikimedia.org/wiki/File:A_bus_stop_on_the_coastal_road_of_Yokjido_Island.jpg"],
+  ["도서관", "National Library of Korea, front", "Christian Bolz", "CC BY-SA 4.0", "https://commons.wikimedia.org/wiki/File:National_Library_of_Korea,_front.jpg"],
+  ["인구·생명표 (인구 피라미드)", "South Korea population pyramid (2018)", "CIA Factbook", "Public domain", "https://commons.wikimedia.org/wiki/File:South_Korea_population_pyramid_(2018).jpg"],
+  ['지도 배경 (OpenStreetMap 도로망)', '우리 앱의 창녕군 지도 화면', 'OpenFreeMap · OpenMapTiles', '© OpenStreetMap contributors (ODbL)', 'https://www.openstreetmap.org/copyright'],
+]
+
+// 박스 이름에 이 낱말이 들어 있으면 그 이미지를 뒤에 깐다 (지역마다 출처 이름이 달라서 낱말로 찾는다). 위에서부터 먼저 맞는 것
+const TILE_IMG: [RegExp, string][] = [
+  [/학교/, 'school'], [/약국/, 'pharmacy'], [/병원|병의원|보건/, 'hospital'], [/경계/, 'boundary'], [/마을회관|경로당|복지시설/, 'hall'],
+  [/정류장/, 'busstop'], [/시간표|버스/, 'bus'], [/도서관/, 'library'], [/주민등록|인구|생명표/, 'population'], [/OpenStreetMap|도로망|지도/, 'osm'],
+]
+const imgOf = (name: string) => TILE_IMG.find(([re]) => re.test(name))?.[1]
+
 // 데이터 출처 마키: 두 줄이 반대로 천천히 흐르고, 마우스를 올리면 멈춘다 (동작 줄이기면 멈춘 격자)
+// 파스텔 색을 70% 덮어서 이미지가 은은하게 비치게 한다. 글자는 그대로 읽힌다
+const tileStyle = (name: string, color: string): React.CSSProperties => {
+  const img = imgOf(name)
+  return img ? { backgroundImage: `linear-gradient(${color}b3, ${color}b3), url(/images/${img}.jpg)`, backgroundSize: 'cover', backgroundPosition: 'center' } : { background: color }
+}
 const BG = ['#cfe2fb', '#f6d8cf', '#c9f0da', '#dccbfa', '#fde7b0', '#f9d2e4']
 function Marquee({ demo }: { demo: Demo | null }) {
   const tiles: [string, string][] = [
@@ -417,7 +454,7 @@ function Marquee({ demo }: { demo: Demo | null }) {
       {rows.map((row, r) => (
         <div key={r} className={`marquee-row ${r ? 'rev' : ''}`}>
           {[0, 1, 2].map((copy) => row.map(([name, org], i) => (
-            <div key={`${copy}-${name}`} className={`mtile ${copy ? 'dup' : ''}`} style={{ background: BG[(i + r * 3) % BG.length] }} aria-hidden={copy ? true : undefined}>
+            <div key={`${copy}-${name}`} className={`mtile ${copy ? 'dup' : ''}`} style={tileStyle(name, BG[(i + r * 3) % BG.length])} aria-hidden={copy ? true : undefined}>
               <span>{name}<small>{org}</small></span>
             </div>
           )))}
