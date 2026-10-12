@@ -128,7 +128,9 @@ function Legend() {
     <div className="legend">
       <p className="legend-title">마을 한 곳이 점 하나예요</p>
       {([0, 1, 2] as const).map((k) => <p key={k}><i className="sw" style={{ background: STATE_CSS[k] }} />{STATE_NAME[k]}</p>)}
-      <p><span className="dot-er" />병원·보건소</p>
+      <p><img className="legend-icon" src="/icons/hospital.png" alt="" />병원</p>
+      <p><img className="legend-icon" src="/icons/health-center.png" alt="" />보건소·보건지소·진료소</p>
+      <p><img className="legend-icon" src="/icons/clinic.png" alt="" />의원</p>
       <p className="muted">점이 클수록 사는 사람이 많아요</p>
     </div>
   )

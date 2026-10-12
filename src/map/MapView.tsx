@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Map, Popup, type MapRef } from 'react-map-gl/maplibre'
 import { MapLibreOverlay } from '@deck.gl/maplibre'
 import type { Layer } from '@deck.gl/core'
-import { GeoJsonLayer, PathLayer, ScatterplotLayer } from '@deck.gl/layers'
+import { GeoJsonLayer, IconLayer, PathLayer, ScatterplotLayer } from '@deck.gl/layers'
 import { useReducedMotion } from 'motion/react'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { setWorkerUrl } from 'maplibre-gl'
@@ -18,6 +18,15 @@ import type { JudgedVillage } from '../api/types'
 import { useRafTime } from './useRafTime'
 import { KOREA_VIEW, loadSigungu } from './geo'
 import { RegionCard } from '../ui/RegionCard'
+
+// 아래 가운데를 좌표에 맞춰 건물이 그 자리에 서 있게 한다
+const icon = (id: string) => ({ id, url: `/icons/${id}.png`, width: 256, height: 256, anchorY: 256 })
+const FACILITY = {
+  hospital: { icon: icon('hospital'), size: 34, priority: 2 },
+  'health-center': { icon: icon('health-center'), size: 28, priority: 1 },
+  clinic: { icon: icon('clinic'), size: 26, priority: 0 },
+}
+const facilityKind = (kind: string): keyof typeof FACILITY => (/병원|종합/.test(kind) ? 'hospital' : /보건/.test(kind) ? 'health-center' : 'clinic')
 
 setWorkerUrl(workerUrl)
 
@@ -106,10 +115,14 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   }
 
   const myeonLines = new GeoJsonLayer({ id: 'myeon-lines', data: myeon ?? [], filled: false, getLineColor: [60, 60, 70, 140], lineWidthMinPixels: 1, parameters: ON_TOP, beforeId: labelsBefore })
-  const facilities = data && new ScatterplotLayer({
-    id: 'facilities', data: data.facilities, getPosition: (f: any) => [f.lon, f.lat], getRadius: 6, radiusUnits: 'pixels', getFillColor: [255, 255, 255], getLineColor: [214, 69, 93],
-    stroked: true, lineWidthUnits: 'pixels', getLineWidth: 3, pickable: true, parameters: ON_TOP,
-  })
+  // 시설 3종을 3D 아이콘으로. 병원을 맨 뒤에 그려 겹칠 때 위에 오게 한다
+  const facilities = data ? [
+    new IconLayer({
+      id: 'facilities', data: [...data.facilities].sort((a, b) => FACILITY[facilityKind(a.kind)].priority - FACILITY[facilityKind(b.kind)].priority), getPosition: (f: any) => [f.lon, f.lat],
+      getIcon: (f: any) => FACILITY[facilityKind(f.kind)].icon, getSize: (f: any) => FACILITY[facilityKind(f.kind)].size, sizeUnits: 'pixels',
+      pickable: true, parameters: ON_TOP,
+    }),
+  ] : []
 
   if (data && local && screen === 'diag') {
     const sel = state?.selectedVillage ?? null
@@ -125,7 +138,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
         onClick: ({ object }: any) => object && patch((s) => ({ ...s, selectedVillage: object.id })),
         onHover: ({ object }: any) => { const id = object?.id ?? null; if (id !== useStore.getState().hoverVillage) set({ hoverVillage: id }) },
       }),
-      facilities!,
+      ...facilities,
     )
   }
 
@@ -151,7 +164,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
         id: 'plan-marks', data: planMarks, pickable: true, getPosition: (d: any) => d.at, radiusUnits: 'pixels', getRadius: 13, filled: false, stroked: true,
         getLineColor: (d: any) => [...hexRgb(SUPPLY[d.type as keyof typeof SUPPLY].color), 255], lineWidthUnits: 'pixels', getLineWidth: 3.5, parameters: ON_TOP,
       }),
-      facilities!,
+      ...facilities,
     )
   }
 
