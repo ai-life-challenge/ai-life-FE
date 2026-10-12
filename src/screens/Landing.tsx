@@ -292,14 +292,15 @@ const FAQS: [string, string][] = [
   ['다른 군도 쓸 수 있나요?', '전국 공통 공공데이터를 쓰기 때문에 같은 방식으로 다른 군에도 넓힐 수 있어요. 시제품은 데이터 수준이 서로 다른 경남 창녕·의령·함안으로 만들었어요.'],
 ]
 function Faq() {
-  const [open, setOpen] = useState<number | null>(0)
+  const [open, setOpen] = useState<Set<number>>(() => new Set())
+  const toggle = (i: number) => setOpen((prev) => { const next = new Set(prev); if (!next.delete(i)) next.add(i); return next })
   return (
     <div className="faq">
       {FAQS.map(([q, a], i) => (
         <div key={q} className="faq-item">
-          <button className="faq-q" aria-expanded={open === i} onClick={() => setOpen(open === i ? null : i)}>{q}<span aria-hidden>⌄</span></button>
+          <button className="faq-q" aria-expanded={open.has(i)} onClick={() => toggle(i)}>{q}<span aria-hidden>⌄</span></button>
           <AnimatePresence initial={false}>
-            {open === i && (
+            {open.has(i) && (
               <motion.div className="faq-a" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3 }}>
                 <p><Phrases text={a} /></p>
               </motion.div>
