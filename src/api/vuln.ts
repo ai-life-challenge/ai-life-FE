@@ -1,9 +1,9 @@
 // 진단 화면의 의료·교통 취약도(0점이 가장 좋고 100점이 가장 취약). 서버에 점수가 없어서 서버 지표와 마을 자료로 화면에서 계산한다.
 // 지표마다 정부 기준선(또는 군 평균)을 50점, 그 2배 나쁜 값을 100점으로 둔다 → 50점을 넘으면 기준 미달이라고 바로 읽힌다
-// - 병원까지 시간(E30)은 마을에서 가장 가까운 병원급 시설까지 직선거리로 어림한 추정이다(cells.ts hospitalMinutes)
+// - 병원까지 시간(E30)은 마을에서 가장 가까운 병원급 시설까지 직선거리에, 서버 도로 시간으로 보정한 1km당 분을 곱한 추정이다(cells.ts)
 // - 의사 수 · 대중교통 최소서비스 · 정류장까지 걷는 시간은 서버 지표(indicators) 그대로다
 // - 권역센터 60분(E60)·교통사고 사망률은 자료가 없어 빼고, 남은 지표에 가중치를 나눠 줬다
-import { hospitalMinutes, hospitalsOf } from './cells'
+import { hospitalMinutes, hospitalsOf, minutesPerKm } from './cells'
 import type { AgeId, RegionData } from './types'
 
 export const STD = {
@@ -21,6 +21,7 @@ export interface Vuln {
   doctors: number // 인구 1천명당 의사 수
   ms: number; sp: number; tp: number // 대중교통 최소서비스 = (공간 + 시간) / 2
   walk: number // 정류장까지 평균 걷는 시간(분)
+  perKm: number // 병원까지 시간 추정에 쓴 1km당 분 (서버 도로 시간으로 보정)
   parts: { e30: number; d: number; ms: number; walk: number } // 지표별 0~1 점수 (0.5 = 기준선)
   mvi: number; tvi: number
   vulnerable: boolean // 응급의료 취약지 기준(30분 밖 27%)을 넘는지
@@ -32,7 +33,8 @@ const clamp = (x: number) => Math.min(1, Math.max(0, x))
 export function villageTimes(data: RegionData, age: AgeId): VillageTime[] {
   const hs = hospitalsOf(data.facilities)
   if (!hs.length) return []
-  return data.villages.map((v) => ({ id: v.id, name: v.name, minutes: hospitalMinutes(v.lon, v.lat, hs), people: v.pop[age] }))
+  const perKm = minutesPerKm(data.villages, data.facilities)
+  return data.villages.map((v) => ({ id: v.id, name: v.name, minutes: hospitalMinutes(v.lon, v.lat, hs, perKm), people: v.pop[age] }))
 }
 
 // T분 넘게 걸리는 사람 수 · 비율 · 사람 수로 가중한 평균 시간
@@ -57,7 +59,7 @@ export function vulnOf(data: RegionData): Vuln {
     walk: clamp(walk / (2 * STD.walkStd)), // 15분 → 50점, 30분 → 100점
   }
   return {
-    e30, doctors, ms, sp, tp, walk, parts,
+    e30, doctors, ms, sp, tp, walk, parts, perKm: minutesPerKm(data.villages, data.facilities),
     mvi: 100 * (W.med.e30 * parts.e30 + W.med.d * parts.d),
     tvi: 100 * (W.tra.ms * parts.ms + W.tra.walk * parts.walk),
     vulnerable: e30 >= STD.theta,

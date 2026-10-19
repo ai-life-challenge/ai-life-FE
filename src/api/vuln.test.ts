@@ -3,7 +3,7 @@ import { overLimit, vulnOf } from './vuln'
 import type { RegionData } from './types'
 
 // 병원 하나(127.0, 36.0)와 마을 둘: 가까운 마을(약 0.6km)과 먼 마을(약 33km → 약 64분)
-const village = (id: string, lon: number, lat: number, all: number) => ({ id, name: id, myeon: 'm', lon, lat, pop: { all, a65: all / 2, a80: all / 4 } }) as RegionData['villages'][number]
+const village = (id: string, lon: number, lat: number, all: number) => ({ id, name: id, myeon: 'm', lon, lat, pop: { all, a65: all / 2, a80: all / 4 }, nearest: { med: null } }) as RegionData['villages'][number]
 const data = {
   villages: [village('near', 127.005, 36.003, 300), village('far', 127.3, 36.15, 100)],
   facilities: [{ id: 'h', name: '군립병원', kind: '병원', village: null, lon: 127.0, lat: 36.0, doctors: 10 }],

@@ -27,6 +27,17 @@ export function judgeLocal(data: RegionData, rule: Rule): LocalJudge {
   return { villages, summary: summarize(villages) }
 }
 
+// 자가용 이용(차가 있는 주민) 판정. 서버에는 이 판정이 없어 화면에서만 계산한다.
+// 마을 안에 병의원이 있거나, 가장 가까운 병의원까지 자가용 시간(서버 값, 도로 기준)이 기준 안이면 갈 수 있음, 아니면 '병원이 너무 멀어 못 감'
+export function judgeCar(data: RegionData, age: Rule['age'], carMinutes: number): LocalJudge {
+  const withFacility = new Set(data.facilities.map((f) => f.village).filter(Boolean))
+  const villages = data.villages.map((v): JudgedVillage => ({
+    id: v.id, name: v.name, myeon: v.myeon, lon: v.lon, lat: v.lat, people: v.pop[age],
+    state: withFacility.has(v.id) || (v.nearest.med != null && v.nearest.med.minutes <= carMinutes) ? 0 : 2,
+  }))
+  return { villages, summary: summarize(villages) }
+}
+
 function summarize(villages: JudgedVillage[]): JudgeSummary {
   const sum = (state: VillageState) => villages.filter((v) => v.state === state)
   const total = villages.reduce((a, v) => a + v.people, 0)

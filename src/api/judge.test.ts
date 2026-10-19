@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { compare, judgeLocal } from './judge'
+import { compare, judgeCar, judgeLocal } from './judge'
 import type { Judge, RawVillage, RegionData } from './types'
 
 const village = (id: string, o: Partial<RawVillage['bus']> = {}, med: number | null = 5): RawVillage => ({
@@ -26,6 +26,13 @@ describe('브라우저 판정', () => {
   test('자가용 기준 안에 시설이 없으면 2, 마을 안에 병의원이 있으면 버스와 상관없이 0', () => {
     const d = data('auto', [village('far', {}, 31), village('null', {}, null), village('inside', { noStop: true }, 99)], 'inside')
     expect(judgeLocal(d, rule).villages.map((v) => v.state)).toEqual([2, 2, 0])
+  })
+  test('자가용 이용은 버스를 보지 않고 병의원까지 자가용 시간만 본다', () => {
+    const d = data('precise', [village('nobus', { noStop: true }, 10), village('far', {}, 31), village('null', {}, null), village('inside', {}, 99)], 'inside')
+    const r = judgeCar(d, 'a80', 30)
+    expect(r.villages.map((v) => v.state)).toEqual([0, 2, 2, 0])
+    expect(r.summary.noBus).toBe(0)
+    expect(r.summary.noFacility).toBe(20)
   })
   test('버스 서비스는 시설을 보지 않는다', () => {
     const d = data('auto', [village('far', {}, 99), village('nostop', { noStop: true })])

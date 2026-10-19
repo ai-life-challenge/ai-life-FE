@@ -3,7 +3,7 @@ import type { AgeId, Service, SupplyId, VillageState } from './types'
 
 export const AGES: { id: AgeId; name: string }[] = [{ id: 'a80', name: '80세 이상' }, { id: 'a65', name: '65세 이상' }, { id: 'all', name: '전체 주민' }]
 export const SERVICES: { id: Service; name: string; desc: string }[] = [
-  { id: 'med', name: '병원 가는 길', desc: '자가용으로 갈 수 있는 병원이 있는지, 차가 없으면 버스로 갈 수 있는지 봐요' },
+  { id: 'med', name: '병원 가는 길', desc: '차가 없는 주민이 마을 안 병의원이나 버스로 병원에 갈 수 있는지 봐요' },
   { id: 'bus', name: '버스 이용', desc: '정류장까지 걷는 거리와 버스 운행만 봐요' },
 ]
 export const SUPPLY: Record<SupplyId, { name: string; color: string }> = {

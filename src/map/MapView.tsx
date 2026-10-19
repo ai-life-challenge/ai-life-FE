@@ -16,7 +16,7 @@ import { useShownJudge } from '../hooks'
 import { STATE_NAME, STATE_RGB, SUPPLY } from '../api/meta'
 import type { JudgedVillage, RawFacility } from '../api/types'
 import { useRafTime } from './useRafTime'
-import { hospitalsOf, minuteRgb, timeGrid, type TimeCell } from '../api/cells'
+import { hospitalsOf, minuteRgb, minutesPerKm, timeGrid, type TimeCell } from '../api/cells'
 import { KOREA_VIEW, loadSigungu } from './geo'
 import { clusterByPixel, type Cluster } from './cluster'
 import { RegionCard } from '../ui/RegionCard'
@@ -30,7 +30,7 @@ const FACILITY = {
   'health-center': { icon: icon('hospital'), size: 900, min: 28, max: 80 },
   hospital: { icon: icon('hospital'), size: 900, min: 28, max: 80 },
 }
-// 버스가 없어 못 가는 마을은 원 대신 빨간 X로 그린다 (흰 테두리를 둘러 바탕색 위에서도 보이게)
+// 못 가는 마을은 원 대신 빨간 X로 그린다 (흰 테두리를 둘러 바탕색 위에서도 보이게)
 const X_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M14 14L50 50M50 14L14 50" stroke="#fff" stroke-width="20" stroke-linecap="round"/><path d="M14 14L50 50M50 14L14 50" stroke="#d6455d" stroke-width="11" stroke-linecap="round"/></svg>`
 const X_ICON = { id: 'x', url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(X_SVG)}`, width: 64, height: 64 }
 const facilityKind = (kind: string): keyof typeof FACILITY => (/병원|종합/.test(kind) ? 'hospital' : /보건/.test(kind) ? 'health-center' : 'clinic')
@@ -43,7 +43,7 @@ const STYLE = 'https://tiles.openfreemap.org/styles/positron'
 const ON_TOP = { depthCompare: 'always', depthWriteEnabled: false } as const
 const NEW_RGB: [number, number, number] = [47, 91, 211] // 이 안으로 새로 닿는 마을
 const radius = (people: number) => Math.min(24, 4 + Math.sqrt(people) * 0.9)
-// 진단 지도 묶음: 시설만 묶는다. 위험 마을(빨간 X·보라)은 묶지 않고 항상 보인다('갈 수 있음' 마을은 그리지 않는다). 이 줌부터는 묶지 않는다
+// 진단 지도 묶음: 시설만 묶는다. 못 가는 마을(빨간 X)은 묶지 않고 항상 보인다('갈 수 있음' 마을은 그리지 않는다). 이 줌부터는 묶지 않는다
 const CLUSTER_MAX_ZOOM = 15
 type Pin = { kind: 'village'; v: JudgedVillage } | { kind: 'facility'; f: RawFacility }
 const pinAt = (p: Pin): [number, number] => (p.kind === 'village' ? [p.v.lon, p.v.lat] : [p.f.lon, p.f.lat])
@@ -69,7 +69,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   onBlocked: (name: string) => void
   mapRef: React.RefObject<MapRef | null>
 }) {
-  const { regions, hoverRegion, hoverVillage, showDots, showFar, showFacilities, sweep, map: myeon, data, state, plans, judge, set, patch } = useStore()
+  const { regions, hoverRegion, hoverVillage, showDots, showFacilities, sweep, map: myeon, data, state, plans, judge, set, patch } = useStore()
   const reduce = useReducedMotion()
   const [sigungu, setSigungu] = useState<any>(null)
   const [, setTick] = useState(0)
@@ -109,7 +109,8 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   // 진단 화면 바탕: 레퍼런스 지도처럼 1km 안팎의 칸마다 병원까지 걸리는 시간(추정)을 초록~주황으로 칠한다 칸과 이웃은 지역이 바뀔 때만 다시 계산한다
   const hospitalsForTime = useMemo(() => hospitalsOf(data?.facilities ?? []), [data])
   const age = state?.age ?? 'a80'
-  const timeCells = useMemo(() => (data && myeon ? timeGrid(data.villages.map((v) => ({ lon: v.lon, lat: v.lat, people: v.pop[age] })), hospitalsForTime, myeon) : []), [data, myeon, hospitalsForTime, age])
+  const perKm = useMemo(() => (data ? minutesPerKm(data.villages, data.facilities) : undefined), [data]) // 지역마다 서버 도로 시간에 맞춘 1km당 분
+  const timeCells = useMemo(() => (data && myeon ? timeGrid(data.villages.map((v) => ({ lon: v.lon, lat: v.lat, people: v.pop[age] })), hospitalsForTime, myeon, 60, perKm) : []), [data, myeon, hospitalsForTime, age, perKm])
 
   const countyGeo = useMemo(() => sigungu && data && { ...sigungu, features: sigungu.features.filter((f: any) => f.properties.sgg === data.code) }, [sigungu, data])
 
@@ -164,16 +165,6 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
       } as any),
       myeonLines,
       new GeoJsonLayer({ id: 'county-line', data: countyGeo ?? [], filled: false, getLineColor: [110, 110, 120, 200], lineWidthMinPixels: 1.2, parameters: ON_TOP }),
-      new ScatterplotLayer<JudgedVillage>({
-        id: 'villages', data: showFar ? local.villages.filter((v) => v.state === 2) : [], pickable: true, autoHighlight: true, highlightColor: [255, 255, 255, 140],
-        getPosition: (v) => [v.lon, v.lat], getRadius: (v) => radius(v.people), radiusUnits: 'pixels',
-        getFillColor: (v) => [...STATE_RGB[v.state], v.id === sel || v.id === hoverVillage ? 255 : 205],
-        stroked: true, getLineColor: (v) => (v.id === sel ? [28, 28, 26, 255] : [255, 255, 255, 230]), lineWidthUnits: 'pixels', getLineWidth: (v) => (v.id === sel ? 3 : 1),
-        updateTriggers: { getFillColor: [sel, hoverVillage, local], getLineColor: sel, getLineWidth: sel },
-        transitions: reduce ? {} : { getFillColor: 400, getRadius: 400 },
-        onClick: ({ object }: any) => object && patch((s) => ({ ...s, selectedVillage: object.id })),
-        onHover: ({ object }: any) => { const id = object?.id ?? null; if (id !== useStore.getState().hoverVillage) set({ hoverVillage: id }) },
-      }),
       ...facilityLayers(singles.flatMap((p) => (p.kind === 'facility' ? [p.f] : []))),
       new ScatterplotLayer<Cluster<Pin>>({
         id: 'clusters', data: groups, pickable: true, getPosition: (c) => [c.lon, c.lat], radiusUnits: 'pixels', getRadius: (c) => 13 + Math.min(10, Math.sqrt(c.items.length) * 2.5),
@@ -189,7 +180,8 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
         getSize: 13, fontWeight: 700, getColor: [28, 28, 26, 255], getTextAnchor: 'middle', getAlignmentBaseline: 'center', parameters: ON_TOP,
       }),
       new IconLayer<JudgedVillage>({
-        id: 'villages-x', data: local.villages.filter((v) => v.state === 1), visible: showDots, pickable: true,
+        // 못 가는 마을은 이유(버스 없음 · 너무 멂)와 상관없이 모두 X. 대중교통/자가용 중 무엇을 보는지는 useShownJudge가 정한다
+        id: 'villages-x', data: local.villages.filter((v) => v.state !== 0), visible: showDots, pickable: true,
         getPosition: (v) => [v.lon, v.lat], getIcon: () => X_ICON, sizeUnits: 'pixels',
         getSize: (v) => radius(v.people) * 2 * (v.id === sel || v.id === hoverVillage ? 1.25 : 1), updateTriggers: { getSize: [sel, hoverVillage] },
         parameters: ON_TOP,

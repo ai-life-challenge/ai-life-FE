@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { cellRate, gridOf, minuteRgb, rateColor, timeGrid } from './cells'
+import { DEFAULT_MIN_PER_KM, cellRate, gridOf, minuteRgb, minutesPerKm, rateColor, timeGrid } from './cells'
 
 const vs = [{ lon: 127.0, lat: 36.0 }, { lon: 127.001, lat: 36.001 }, { lon: 127.1, lat: 36.1 }, { lon: 127.05, lat: 36.05 }]
 
@@ -58,5 +58,18 @@ describe('병원까지 시간 격자', () => {
     expect(minuteRgb(0)).toEqual([86, 172, 100])
     expect(minuteRgb(40)).toEqual([242, 138, 78])
     expect(minuteRgb(20)[1]).toBeLessThan(minuteRgb(12)[1])
+  })
+})
+
+describe('1km당 분 보정', () => {
+  const f = [{ lon: 127.0, lat: 36.0 }]
+  // 병원에서 동쪽으로 1~12km 떨어진 마을들, 서버 도로 시간은 1km당 2.5분
+  const vs = Array.from({ length: 12 }, (_, i) => ({ lon: 127.0 + (i + 1) / 89.9, lat: 36.0, nearest: { med: { minutes: (i + 1) * 2.5 } } }))
+  test('서버 도로 시간 ÷ 직선거리의 중앙값을 쓴다', () => expect(minutesPerKm(vs, f)).toBeCloseTo(2.5, 1))
+  test('쓸 마을이 10곳 미만이면 기본값', () => expect(minutesPerKm(vs.slice(0, 5), f)).toBe(DEFAULT_MIN_PER_KM))
+  test('보정값을 주면 격자 시간도 그만큼 늘어난다', () => {
+    const outline = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[[127.0, 36.0], [127.1, 36.0], [127.1, 36.1], [127.0, 36.1], [127.0, 36.0]]] } }] } as GeoJSON.FeatureCollection
+    const a = timeGrid([], f, outline, 10), b = timeGrid([], f, outline, 10, DEFAULT_MIN_PER_KM * 2)
+    expect(b[5].minutes).toBeCloseTo(a[5].minutes * 2)
   })
 })

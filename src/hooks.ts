@@ -1,5 +1,5 @@
 import { useEffect, useMemo } from 'react'
-import { compare, judgeLocal } from './api/judge'
+import { compare, judgeCar, judgeLocal } from './api/judge'
 import { calcKey, judgeKey, reportKey, useStore } from './store'
 import type { JudgedVillage, JudgeSummary } from './api/types'
 
@@ -23,10 +23,16 @@ export function useJudgeCompare() {
 }
 
 // 화면에 보이는 판정: 브라우저 판정을 바로 쓰고, 서버와 다르면 서버 판정으로 바꾼다 (서버가 기준)
-export function useShownJudge(): { villages: JudgedVillage[]; summary: JudgeSummary; source: 'local' | 'server' } | null {
+// 자가용 이용을 보고 있으면 서버에 없는 자가용 판정(화면 계산)을 보여 준다
+export function useShownJudge(): { villages: JudgedVillage[]; summary: JudgeSummary; source: 'local' | 'server' | 'car' } | null {
   const local = useLocalJudge()
   const server = useFreshServerJudge()
   const cmp = useJudgeCompare()
+  const travel = useStore((s) => s.travel)
+  const data = useStore((s) => s.data)
+  const st = useStore((s) => s.state)
+  const car = useMemo(() => (travel === 'car' && data && st ? judgeCar(data, st.age, st.criteria.carMinutes) : null), [travel, data, st?.age, st?.criteria.carMinutes]) // eslint-disable-line react-hooks/exhaustive-deps
+  if (car) return { villages: car.villages, summary: car.summary, source: 'car' }
   if (server && cmp && !cmp.same) return { villages: server.villages, summary: server.summary, source: 'server' }
   return local && { villages: local.villages, summary: local.summary, source: 'local' }
 }
