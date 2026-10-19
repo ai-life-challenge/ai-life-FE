@@ -45,7 +45,7 @@ export function RegionCard({ r, compact, on, dim, onClick, onHover }: { r: Regio
         <div><dt>의료 · 교통 취약도</dt><dd>{s ? <>{Math.round(s.mvi)} · {Math.round(s.tvi)}<small className="muted">점</small></> : '…'}</dd></div>
       </dl>
       <p className="muted small" style={{ margin: 0 }}>마을 <b className="num">{fmt(r.villages)}</b>곳 · 병원 30분 밖은 추정</p>
-      {compact && <p className="pop-hint">눌러서 이 군으로 시작 →</p>}
+      {compact && <p className="pop-hint">눌러서 이 군으로 시작 &gt;</p>}
     </>
   )
   if (compact) return <div className="region pop">{body}</div>
