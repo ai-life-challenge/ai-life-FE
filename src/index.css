@@ -380,9 +380,10 @@ button.badge:hover { background: var(--gray-2); }
 .region-pop { pointer-events: none; z-index: 4; }
 .region-pop .maplibregl-popup-content { padding: 0; background: transparent; box-shadow: none; border-radius: var(--r-card); }
 .region-pop .maplibregl-popup-tip { border-top-color: #fff !important; }
-.region.pop { background: #fff; box-shadow: var(--float); width: 290px; border-radius: var(--r-card); padding: 16px 18px; display: grid; gap: 6px; animation: pop-in .18s ease-out; }
+.region.pop { background: #fff; box-shadow: var(--float); width: 290px; min-height: 0; border-radius: var(--r-card); padding: 16px 18px; display: grid; gap: 6px; }
 .region.pop h2 { font-size: 21px; }
-.pop-hint { margin: 4px 0 0; font-size: 13px; color: var(--accent); font-weight: 600; text-align: right; }
+.pop-wrap { display: grid; justify-items: end; gap: 6px; animation: pop-in .18s ease-out; }
+.pop-hint { margin: 0; padding: 6px 10px 6px 12px; border-radius: 999px; background: var(--ink); color: #fff; font-size: 13px; font-weight: 600; display: inline-flex; align-items: center; gap: 2px; box-shadow: var(--float); }
 @keyframes pop-in { from { opacity: 0; transform: translateY(6px) scale(.97); } to { opacity: 1; transform: none; } }
 
 /* 지도 조건 칩 · 공백 인구 · 마을 목록 */

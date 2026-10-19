@@ -45,10 +45,10 @@ export function RegionCard({ r, compact, on, dim, onClick, onHover }: { r: Regio
         <div><dt>의료 · 교통 취약도</dt><dd>{s ? <>{Math.round(s.mvi)} · {Math.round(s.tvi)}<small className="muted">점</small></> : '…'}</dd></div>
       </dl>
       <p className="muted small" style={{ margin: 0 }}>마을 <b className="num">{fmt(r.villages)}</b>곳 · 병원 30분 밖은 추정</p>
-      {compact && <p className="pop-hint">눌러서 이 군으로 시작 &gt;</p>}
     </>
   )
-  if (compact) return <div className="region pop">{body}</div>
+  // 지도 위 카드: 시작 안내는 흰 카드 밖, 카드 위에 따로 띄운다
+  if (compact) return <div className="pop-wrap"><p className="pop-hint">눌러서 이 군으로 시작<svg aria-hidden width="14" height="14" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><path d="M7.5 5l5 5-5 5" /></svg></p><div className="region pop">{body}</div></div>
   return (
     <motion.button ref={ref} className={`region ${on ? 'on' : ''}`} onClick={onClick} onMouseEnter={() => onHover?.(true)} onMouseLeave={() => onHover?.(false)} onFocus={() => onHover?.(true)} onBlur={() => onHover?.(false)}
       animate={{ opacity: dim ? 0.35 : 1, scale: dim ? 0.98 : 1 }} whileHover={{ y: -2 }}>
