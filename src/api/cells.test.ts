@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { cellRate, gridOf, rateColor } from './cells'
+import { cellRate, gridOf, minuteRgb, rateColor, timeGrid } from './cells'
 
 const vs = [{ lon: 127.0, lat: 36.0 }, { lon: 127.001, lat: 36.001 }, { lon: 127.1, lat: 36.1 }, { lon: 127.05, lat: 36.05 }]
 
@@ -30,5 +30,33 @@ describe('마을 집계 격자', () => {
     const red = (c: string) => +c.match(/\d+/g)![0]
     expect(red(rateColor(0))).toBeLessThan(red(rateColor(0.3)))
     expect(rateColor(null)).toBe('#e7e4dc')
+  })
+})
+
+describe('병원까지 시간 격자', () => {
+  const outline = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[[127.0, 36.0], [127.1, 36.0], [127.1, 36.1], [127.0, 36.1], [127.0, 36.0]]] } }] } as GeoJSON.FeatureCollection
+  const vs = [{ lon: 127.005, lat: 36.005, people: 10 }, { lon: 127.095, lat: 36.095, people: 20 }]
+  const g = timeGrid(vs, [{ lon: 127.0, lat: 36.0 }], outline, 10)
+  const at = (lon: number, lat: number) => g.find((c) => c.polygon[0][0] <= lon && lon < c.polygon[2][0] && c.polygon[0][1] <= lat && lat < c.polygon[2][1])!
+  test('경계 안만 칸으로 채우고, 병원에서 멀수록 시간이 길다', () => {
+    expect(g.length).toBeGreaterThan(50)
+    expect(at(127.005, 36.005).minutes).toBeLessThan(2)
+    expect(at(127.095, 36.095).minutes).toBeGreaterThan(at(127.05, 36.05).minutes)
+    expect(at(127.095, 36.095).minutes).toBeCloseTo((Math.hypot(0.095 * 88.7, 0.095 * 111.2) * 1.3 / 40) * 60, 0)
+  })
+  test('칸에는 가장 가까운 마을과 칸 안 인구가 붙는다', () => {
+    expect(at(127.095, 36.095).village).toBe(1)
+    expect(at(127.095, 36.095).people).toBe(20)
+    expect(at(127.05, 36.05).people).toBe(0)
+  })
+  test('마을에서 1.2km 안 칸만 사람이 사는 칸', () => {
+    expect(at(127.095, 36.095).lived).toBe(true)
+    expect(at(127.05, 36.05).lived).toBe(false)
+  })
+  test('병원이 없으면 칸을 만들지 않는다', () => expect(timeGrid(vs, [], outline, 10)).toEqual([]))
+  test('색은 5분 이하 진초록, 25분 이상 주황', () => {
+    expect(minuteRgb(0)).toEqual([86, 172, 100])
+    expect(minuteRgb(40)).toEqual([242, 138, 78])
+    expect(minuteRgb(20)[1]).toBeLessThan(minuteRgb(12)[1])
   })
 })

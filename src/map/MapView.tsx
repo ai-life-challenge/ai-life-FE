@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Map, Popup, type MapRef } from 'react-map-gl/maplibre'
 import { MapLibreOverlay } from '@deck.gl/maplibre'
 import type { Layer } from '@deck.gl/core'
-import { GeoJsonLayer, IconLayer, PathLayer, ScatterplotLayer } from '@deck.gl/layers'
+import { GeoJsonLayer, IconLayer, PathLayer, PolygonLayer, ScatterplotLayer } from '@deck.gl/layers'
 import { useReducedMotion } from 'motion/react'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { setWorkerUrl } from 'maplibre-gl'
@@ -14,17 +14,20 @@ import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import { useStore } from '../store'
 import { useShownJudge } from '../hooks'
 import { STATE_NAME, STATE_RGB, SUPPLY } from '../api/meta'
-import type { JudgedVillage } from '../api/types'
+import type { JudgedVillage, RawFacility } from '../api/types'
 import { useRafTime } from './useRafTime'
+import { minuteRgb, timeGrid, type TimeCell } from '../api/cells'
 import { KOREA_VIEW, loadSigungu } from './geo'
 import { RegionCard } from '../ui/RegionCard'
 
 // 아래 가운데를 좌표에 맞춰 건물이 그 자리에 서 있게 한다
 const icon = (id: string) => ({ id, url: `/icons/${id}.png`, width: 256, height: 256, anchorY: 256 })
+// size는 미터라 확대하면 커지고, 화면에서는 min~max 픽셀 사이로만 움직인다. 그림마다 건물이 차지하는 비율이 달라 최소 크기를 따로 둔다
+// 그리는 순서(의원 → 보건소 → 병원)대로 적어 둔다: 겹치면 병원이 위에 온다
 const FACILITY = {
-  hospital: { icon: icon('hospital'), size: 34, priority: 2 },
-  'health-center': { icon: icon('health-center'), size: 28, priority: 1 },
-  clinic: { icon: icon('clinic'), size: 26, priority: 0 },
+  clinic: { icon: icon('hospital'), size: 900, min: 28, max: 80 }, // 시험: 모든 시설을 병원 아이콘으로 통일
+  'health-center': { icon: icon('hospital'), size: 900, min: 28, max: 80 },
+  hospital: { icon: icon('hospital'), size: 900, min: 28, max: 80 },
 }
 const facilityKind = (kind: string): keyof typeof FACILITY => (/병원|종합/.test(kind) ? 'hospital' : /보건/.test(kind) ? 'health-center' : 'clinic')
 
@@ -38,7 +41,7 @@ const NEW_RGB: [number, number, number] = [47, 91, 211] // 이 안으로 새로 
 const radius = (people: number) => Math.min(24, 4 + Math.sqrt(people) * 0.9)
 
 // deck.gl 오버레이는 지도 객체에 한 번만 붙이고 레이어만 갈아 끼운다
-type MapWithDeck = import('maplibre-gl').Map & { __deck?: MapLibreOverlay; __labelsBefore?: string }
+type MapWithDeck = import('maplibre-gl').Map & { __deck?: MapLibreOverlay; __labelsBefore?: string; __roadsBefore?: string }
 function deckOf(map: MapWithDeck) {
   if (!map.__deck) {
     map.__deck = new MapLibreOverlay({ interleaved: true })
@@ -53,11 +56,12 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   onBlocked: (name: string) => void
   mapRef: React.RefObject<MapRef | null>
 }) {
-  const { regions, hoverRegion, hoverVillage, map: myeon, data, state, plans, judge, set, patch } = useStore()
+  const { regions, hoverRegion, hoverVillage, showDots, showFacilities, map: myeon, data, state, plans, judge, set, patch } = useStore()
   const reduce = useReducedMotion()
   const [sigungu, setSigungu] = useState<any>(null)
   const [, setTick] = useState(0)
   const labelsBefore = (mapRef.current?.getMap() as MapWithDeck | undefined)?.__labelsBefore
+  const roadsBefore = (mapRef.current?.getMap() as MapWithDeck | undefined)?.__roadsBefore
   useEffect(() => { loadSigungu().then(setSigungu) }, [])
 
   const local = useShownJudge()
@@ -88,6 +92,17 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   const planMarks = useMemo(() => (shown?.picks ?? []).flatMap((p) => p.villages.flatMap((id) => { const v = byId.get(id); return v ? [{ at: [v.lon, v.lat] as [number, number], type: p.type, label: `${p.label} · ${v.name}` }] : [] })), [shown, byId])
   const drtGeo = useMemo(() => myeon && shown && { ...myeon, features: myeon.features.filter((f) => shown.picks.some((p) => p.myeon && p.myeon === f.properties?.name)) }, [myeon, shown])
 
+  // 진단 화면 바탕: 레퍼런스 지도처럼 1km 안팎의 칸마다 병원까지 걸리는 시간(추정)을 초록~주황으로 칠한다 칸과 이웃은 지역이 바뀔 때만 다시 계산한다
+  // 병원급 시설(병원·종합병원·보건의료원)이 없는 군이면 모든 시설로 잰다
+  const hospitalsForTime = useMemo(() => { const fs = data?.facilities ?? []; const h = fs.filter((f) => /병원|종합|보건의료원/.test(f.kind)); return h.length ? h : fs }, [data])
+  const age = state?.age ?? 'a80'
+  const timeCells = useMemo(() => (data && myeon ? timeGrid(data.villages.map((v) => ({ lon: v.lon, lat: v.lat, people: v.pop[age] })), hospitalsForTime, myeon) : []), [data, myeon, hospitalsForTime, age])
+
+  // deck.gl은 data가 새 배열이면 다시 계산하므로 종류별 시설 목록을 고정해 둔다
+  const byKind = useMemo(() => Object.fromEntries((Object.keys(FACILITY) as (keyof typeof FACILITY)[]).map((k) => [k, (data?.facilities ?? []).filter((f) => facilityKind(f.kind) === k)])) as Record<keyof typeof FACILITY, RawFacility[]>, [data])
+
+  const countyGeo = useMemo(() => sigungu && data && { ...sigungu, features: sigungu.features.filter((f: any) => f.properties.sgg === data.code) }, [sigungu, data])
+
   const ring = useRafTime(screen === 'select' && !reduce)
   const layers: Layer[] = []
 
@@ -115,21 +130,25 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   }
 
   const myeonLines = new GeoJsonLayer({ id: 'myeon-lines', data: myeon ?? [], filled: false, getLineColor: [60, 60, 70, 140], lineWidthMinPixels: 1, parameters: ON_TOP, beforeId: labelsBefore })
-  // 시설 3종을 3D 아이콘으로. 병원을 맨 뒤에 그려 겹칠 때 위에 오게 한다
-  const facilities = data ? [
-    new IconLayer({
-      id: 'facilities', data: [...data.facilities].sort((a, b) => FACILITY[facilityKind(a.kind)].priority - FACILITY[facilityKind(b.kind)].priority), getPosition: (f: any) => [f.lon, f.lat],
-      getIcon: (f: any) => FACILITY[facilityKind(f.kind)].icon, getSize: (f: any) => FACILITY[facilityKind(f.kind)].size, sizeUnits: 'pixels',
-      pickable: true, parameters: ON_TOP,
-    }),
-  ] : []
+  // 시설 3종을 3D 아이콘으로. 종류마다 레이어를 나눠야 최소 크기를 따로 줄 수 있다
+  const facilities = data ? (Object.keys(FACILITY) as (keyof typeof FACILITY)[]).map((k) => new IconLayer({
+    id: `facilities-${k}`, data: byKind[k], getPosition: (f: any) => [f.lon, f.lat],
+    getIcon: () => FACILITY[k].icon, getSize: FACILITY[k].size, sizeUnits: 'meters', sizeMinPixels: FACILITY[k].min, sizeMaxPixels: FACILITY[k].max,
+    visible: showFacilities, pickable: true, parameters: ON_TOP,
+  })) : []
 
   if (data && local && screen === 'diag') {
     const sel = state?.selectedVillage ?? null
     layers.push(
+      new PolygonLayer<TimeCell>({
+        id: 'time', data: timeCells, pickable: true, getPolygon: (c: TimeCell) => c.polygon,
+        getFillColor: (c: TimeCell) => [...minuteRgb(c.minutes), c.lived ? 150 : 45],
+        stroked: true, getLineColor: [255, 255, 255, 120], lineWidthUnits: 'pixels', getLineWidth: 1, beforeId: roadsBefore,
+      } as any),
       myeonLines,
+      new GeoJsonLayer({ id: 'county-line', data: countyGeo ?? [], filled: false, getLineColor: [110, 110, 120, 200], lineWidthMinPixels: 1.2, parameters: ON_TOP }),
       new ScatterplotLayer<JudgedVillage>({
-        id: 'villages', data: local.villages, pickable: true, autoHighlight: true, highlightColor: [255, 255, 255, 140],
+        id: 'villages', data: local.villages, visible: showDots, pickable: true, autoHighlight: true, highlightColor: [255, 255, 255, 140],
         getPosition: (v) => [v.lon, v.lat], getRadius: (v) => radius(v.people), radiusUnits: 'pixels',
         getFillColor: (v) => [...STATE_RGB[v.state], v.id === sel || v.id === hoverVillage ? 255 : 205],
         stroked: true, getLineColor: (v) => (v.id === sel ? [28, 28, 26, 255] : [255, 255, 255, 230]), lineWidthUnits: 'pixels', getLineWidth: (v) => (v.id === sel ? 3 : 1),
@@ -170,7 +189,8 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
 
   const getTooltip = ({ object, layer }: any) => {
     if (!object) return null
-    if (layer?.id === 'facilities') return { text: `${object.name}\n${object.kind}${object.doctors ? ` · 의사 ${object.doctors}명` : ''}` }
+    if (layer?.id.startsWith('facilities')) return { text: `${object.name}\n${object.kind}${object.doctors ? ` · 의사 ${object.doctors}명` : ''}` }
+    if (layer?.id === 'time') return { text: `${data?.villages[object.village]?.name ?? ''}\n병원까지 약 ${Math.round(object.minutes)}분 · ${object.lived ? `${Math.round(object.people)}명` : '사람이 안 사는 곳'} (추정)` }
     if (layer?.id === 'plan-marks') return { text: object.label }
     if (layer?.id === 'villages') {
       const c = screen === 'result' ? cover?.get(object.id) : undefined
@@ -203,6 +223,8 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
           const symbols = map.getStyle().layers.filter((l) => l.type === 'symbol')
           symbols.forEach((l) => { if (map.getLayoutProperty(l.id, 'text-field')) map.setLayoutProperty(l.id, 'text-field', ['coalesce', ['get', 'name:ko'], ['get', 'name']]) })
           ;(map as MapWithDeck).__labelsBefore = symbols[0]?.id
+          // 바탕 격자는 도로 아래에 깔아 도로가 보이게 한다
+          ;(map as MapWithDeck).__roadsBefore = map.getStyle().layers.find((l) => (l as any)['source-layer'] === 'transportation')?.id ?? symbols[0]?.id
           setTick((n) => n + 1)
           useStore.getState().set({ mapReady: true })
         }}

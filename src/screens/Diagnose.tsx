@@ -9,6 +9,7 @@ import type { VillageDetail } from '../api/types'
 import { AGES, SERVICES, STATE_CSS, STATE_NAME, fmt, pct } from '../api/meta'
 import { useAutoFetch, useJudgeCompare, useShownJudge } from '../hooks'
 import { calcKey, errText, useStore } from '../store'
+import { MINUTE_STOPS, minuteRgb } from '../api/cells'
 import { boxOf, fitCounty } from '../map/geo'
 import { Count } from '../ui/Count'
 import { LevelBadge } from '../ui/Badges'
@@ -124,14 +125,18 @@ function Slider({ label, unit, min, max, step, value, onChange, disabled, note }
 }
 
 function Legend() {
+  const { showDots, showFacilities, set } = useStore()
+  const rgb = (m: number) => `rgb(${minuteRgb(m).join(',')})`
   return (
     <div className="legend">
-      <p className="legend-title">마을 한 곳이 점 하나예요</p>
+      <label className="legend-title legend-toggle"><input type="checkbox" checked={showDots} onChange={(e) => set({ showDots: e.target.checked })} />마을 원 보기 · 한 곳이 점 하나예요</label>
       {([0, 1, 2] as const).map((k) => <p key={k}><i className="sw" style={{ background: STATE_CSS[k] }} />{STATE_NAME[k]}</p>)}
-      <p><img className="legend-icon" src="/icons/hospital.png" alt="" />병원</p>
-      <p><img className="legend-icon" src="/icons/health-center.png" alt="" />보건소·보건지소·진료소</p>
-      <p><img className="legend-icon" src="/icons/clinic.png" alt="" />의원</p>
+      <label className="legend-toggle"><input type="checkbox" checked={showFacilities} onChange={(e) => set({ showFacilities: e.target.checked })} /><img className="legend-icon" src="/icons/hospital.png" alt="" />병원·의원·보건소</label>
       <p className="muted">점이 클수록 사는 사람이 많아요</p>
+      <p className="legend-title" style={{ marginTop: 8 }}>바탕색: 병원까지 걸리는 시간(추정)</p>
+      <i className="time-bar" style={{ background: `linear-gradient(90deg, ${MINUTE_STOPS.map(([m]) => `${rgb(m)} ${(m / 25) * 100}%`).join(', ')})` }} />
+      <p className="muted time-scale"><span>5분 이하</span><span>25분 이상</span></p>
+      <p className="muted">옅은 칸은 근처에 마을이 없는 곳이에요</p>
     </div>
   )
 }

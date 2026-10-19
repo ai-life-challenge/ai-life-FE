@@ -70,3 +70,52 @@ export function rateColor(r: number | null): string {
   }
   return '#e7e4dc'
 }
+
+// 병원까지 걸리는 시간 격자(레퍼런스 지도 방식): 군 경계 안을 정사각형 칸으로 나누고, 칸 가운데에서 가장 가까운 병원급 시설까지의 자가용 시간을 어림한다.
+// 서버에 칸 단위 이동시간이 없어서 직선거리 × 1.3(도로 우회) ÷ 시속 40km로 계산한 추정이다. cols는 긴 변의 칸 수
+// village: 가장 가까운 마을 번호. lived: 마을이 LIVED_KM 안에 있으면 사람이 사는 칸으로 본다(칸 단위 인구가 없어 마을 좌표로 어림). 레퍼런스처럼 안 사는 칸은 옅게 칠한다
+export interface TimeCell { polygon: [number, number][]; minutes: number; village: number; people: number; lived: boolean }
+const DETOUR = 1.3, KMH = 40, LIVED_KM = 1.2
+const km = (lon1: number, lat1: number, lon2: number, lat2: number) => {
+  const r = Math.PI / 180, a = Math.sin(((lat2 - lat1) * r) / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(((lon2 - lon1) * r) / 2) ** 2
+  return 12742 * Math.asin(Math.sqrt(a))
+}
+export function timeGrid(villages: { lon: number; lat: number; people: number }[], hospitals: { lon: number; lat: number }[], outline: GeoJSON.FeatureCollection, cols = 60): TimeCell[] {
+  const rings = ringsOf(outline)
+  if (!rings.length || !hospitals.length) return []
+  const pts = rings.flat()
+  const [lon0, lon1] = [Math.min(...pts.map((p) => p[0])), Math.max(...pts.map((p) => p[0]))]
+  const [lat0, lat1] = [Math.min(...pts.map((p) => p[1])), Math.max(...pts.map((p) => p[1]))]
+  const cos = Math.cos((((lat0 + lat1) / 2) * Math.PI) / 180)
+  const dLat = Math.max((lon1 - lon0) * cos, lat1 - lat0) / cols, dLon = dLat / cos
+  const out: TimeCell[] = []
+  for (let lat = lat0; lat < lat1; lat += dLat) {
+    for (let lon = lon0; lon < lon1; lon += dLon) {
+      const cx = lon + dLon / 2, cy = lat + dLat / 2
+      if (!rings.some((r) => inRing(cx, cy, r))) continue
+      const d = Math.min(...hospitals.map((h) => km(cx, cy, h.lon, h.lat)))
+      let village = -1, bd = Infinity, people = 0
+      villages.forEach((v, i) => {
+        const dv = km(cx, cy, v.lon, v.lat)
+        if (dv < bd) { bd = dv; village = i }
+        if (v.lon >= lon && v.lon < lon + dLon && v.lat >= lat && v.lat < lat + dLat) people += v.people
+      })
+      out.push({ polygon: [[lon, lat], [lon + dLon, lat], [lon + dLon, lat + dLat], [lon, lat + dLat]], minutes: (d * DETOUR / KMH) * 60, village, people, lived: bd <= LIVED_KM })
+    }
+  }
+  return out
+}
+
+// 분 → 색: 5분 이하 진초록 → 10분 연두 → 15분 노랑 → 25분 이상 주황 (모든 군에 같은 기준이라 지역끼리 비교된다)
+export const MINUTE_STOPS: [number, [number, number, number]][] = [[5, [86, 172, 100]], [10, [158, 207, 112]], [15, [246, 214, 120]], [25, [242, 138, 78]]]
+export function minuteRgb(m: number): [number, number, number] {
+  if (m <= MINUTE_STOPS[0][0]) return MINUTE_STOPS[0][1]
+  for (let i = 1; i < MINUTE_STOPS.length; i++) {
+    const [m1, c1] = MINUTE_STOPS[i]
+    if (m <= m1) {
+      const [m0, c0] = MINUTE_STOPS[i - 1], u = (m - m0) / (m1 - m0)
+      return c0.map((v, j) => Math.round(v + (c1[j] - v) * u)) as [number, number, number]
+    }
+  }
+  return MINUTE_STOPS[MINUTE_STOPS.length - 1][1]
+}

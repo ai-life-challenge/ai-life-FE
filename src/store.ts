@@ -29,6 +29,8 @@ interface Store {
   mapReady: boolean
   hoverRegion: string | null
   hoverVillage: string | null
+  showDots: boolean // 진단 지도에 마을 원을 그릴지
+  showFacilities: boolean // 진단 지도에 병원·의원·보건소 아이콘을 그릴지
   reached: { code: string | null; max: number } // 단계 메뉴: 이 지역에서 가 본 가장 먼 단계
   sources: { open: boolean; focus: string | null; at: number }
   chat: ChatMsg[]
@@ -69,7 +71,7 @@ export const useStore = create<Store>((set, get) => ({
   regions: [], state: null, defaults: null, listError: null,
   code: null, data: null, map: null, regionError: null,
   judge: idle(), plans: idle(), sens: idle(), report: idle(),
-  mapReady: false, hoverRegion: null, hoverVillage: null,
+  mapReady: false, hoverRegion: null, hoverVillage: null, showDots: true, showFacilities: true,
   reached: { code: null, max: 0 },
   sources: { open: false, focus: null, at: 0 },
   chat: [], chatOpen: false, remainingToday: null,
