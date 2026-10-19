@@ -5,7 +5,7 @@ import { useEffect, useMemo, useState } from 'react'
 import { Map, Popup, type MapRef } from 'react-map-gl/maplibre'
 import { MapLibreOverlay } from '@deck.gl/maplibre'
 import type { Layer } from '@deck.gl/core'
-import { GeoJsonLayer, IconLayer, PathLayer, PolygonLayer, ScatterplotLayer } from '@deck.gl/layers'
+import { GeoJsonLayer, IconLayer, PathLayer, PolygonLayer, ScatterplotLayer, TextLayer } from '@deck.gl/layers'
 import { useReducedMotion } from 'motion/react'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { setWorkerUrl } from 'maplibre-gl'
@@ -18,6 +18,7 @@ import type { JudgedVillage, RawFacility } from '../api/types'
 import { useRafTime } from './useRafTime'
 import { minuteRgb, timeGrid, type TimeCell } from '../api/cells'
 import { KOREA_VIEW, loadSigungu } from './geo'
+import { clusterByPixel, type Cluster } from './cluster'
 import { RegionCard } from '../ui/RegionCard'
 
 // 아래 가운데를 좌표에 맞춰 건물이 그 자리에 서 있게 한다
@@ -29,6 +30,9 @@ const FACILITY = {
   'health-center': { icon: icon('hospital'), size: 900, min: 28, max: 80 },
   hospital: { icon: icon('hospital'), size: 900, min: 28, max: 80 },
 }
+// 버스가 없어 못 가는 마을은 원 대신 빨간 X로 그린다 (흰 테두리를 둘러 바탕색 위에서도 보이게)
+const X_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M14 14L50 50M50 14L14 50" stroke="#fff" stroke-width="20" stroke-linecap="round"/><path d="M14 14L50 50M50 14L14 50" stroke="#d6455d" stroke-width="11" stroke-linecap="round"/></svg>`
+const X_ICON = { id: 'x', url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(X_SVG)}`, width: 64, height: 64 }
 const facilityKind = (kind: string): keyof typeof FACILITY => (/병원|종합/.test(kind) ? 'hospital' : /보건/.test(kind) ? 'health-center' : 'clinic')
 
 setWorkerUrl(workerUrl)
@@ -39,6 +43,15 @@ const STYLE = 'https://tiles.openfreemap.org/styles/positron'
 const ON_TOP = { depthCompare: 'always', depthWriteEnabled: false } as const
 const NEW_RGB: [number, number, number] = [47, 91, 211] // 이 안으로 새로 닿는 마을
 const radius = (people: number) => Math.min(24, 4 + Math.sqrt(people) * 0.9)
+// 진단 지도 묶음: 시설만 묶는다. 위험 마을(빨간 X·보라)은 묶지 않고 항상 보인다('갈 수 있음' 마을은 그리지 않는다). 이 줌부터는 묶지 않는다
+const CLUSTER_MAX_ZOOM = 15
+type Pin = { kind: 'village'; v: JudgedVillage } | { kind: 'facility'; f: RawFacility }
+const pinAt = (p: Pin): [number, number] => (p.kind === 'village' ? [p.v.lon, p.v.lat] : [p.f.lon, p.f.lat])
+const clusterText = (c: Cluster<Pin>) => {
+  const n = { village: 0, hospital: 0, 'health-center': 0, clinic: 0 }
+  c.items.forEach((p) => { n[p.kind === 'village' ? 'village' : facilityKind(p.f.kind)]++ })
+  return [n.village && `갈 수 있는 마을 ${n.village}`, n.hospital && `병원 ${n.hospital}`, n.clinic && `의원 ${n.clinic}`, n['health-center'] && `보건소 ${n['health-center']}`].filter(Boolean).join(' · ')
+}
 
 // deck.gl 오버레이는 지도 객체에 한 번만 붙이고 레이어만 갈아 끼운다
 type MapWithDeck = import('maplibre-gl').Map & { __deck?: MapLibreOverlay; __labelsBefore?: string; __roadsBefore?: string }
@@ -60,6 +73,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   const reduce = useReducedMotion()
   const [sigungu, setSigungu] = useState<any>(null)
   const [, setTick] = useState(0)
+  const [zoom, setZoom] = useState(KOREA_VIEW.zoom) // 0.5 단위로만 바꿔 매 프레임 다시 그리지 않는다
   const labelsBefore = (mapRef.current?.getMap() as MapWithDeck | undefined)?.__labelsBefore
   const roadsBefore = (mapRef.current?.getMap() as MapWithDeck | undefined)?.__roadsBefore
   useEffect(() => { loadSigungu().then(setSigungu) }, [])
@@ -98,10 +112,14 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   const age = state?.age ?? 'a80'
   const timeCells = useMemo(() => (data && myeon ? timeGrid(data.villages.map((v) => ({ lon: v.lon, lat: v.lat, people: v.pop[age] })), hospitalsForTime, myeon) : []), [data, myeon, hospitalsForTime, age])
 
-  // deck.gl은 data가 새 배열이면 다시 계산하므로 종류별 시설 목록을 고정해 둔다
-  const byKind = useMemo(() => Object.fromEntries((Object.keys(FACILITY) as (keyof typeof FACILITY)[]).map((k) => [k, (data?.facilities ?? []).filter((f) => facilityKind(f.kind) === k)])) as Record<keyof typeof FACILITY, RawFacility[]>, [data])
-
   const countyGeo = useMemo(() => sigungu && data && { ...sigungu, features: sigungu.features.filter((f: any) => f.properties.sgg === data.code) }, [sigungu, data])
+
+  const pins: Pin[] = local && data && screen === 'diag' ? [
+    ...(showFacilities ? data.facilities.map((f) => ({ kind: 'facility' as const, f })) : []),
+  ] : []
+  const clusters = zoom >= CLUSTER_MAX_ZOOM ? pins.map((p) => ({ lon: pinAt(p)[0], lat: pinAt(p)[1], items: [p] })) : clusterByPixel(pins, pinAt, zoom)
+  const singles = clusters.filter((c) => c.items.length === 1).map((c) => c.items[0])
+  const groups = clusters.filter((c) => c.items.length > 1)
 
   const ring = useRafTime(screen === 'select' && !reduce)
   const layers: Layer[] = []
@@ -131,11 +149,11 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
 
   const myeonLines = new GeoJsonLayer({ id: 'myeon-lines', data: myeon ?? [], filled: false, getLineColor: [60, 60, 70, 140], lineWidthMinPixels: 1, parameters: ON_TOP, beforeId: labelsBefore })
   // 시설 3종을 3D 아이콘으로. 종류마다 레이어를 나눠야 최소 크기를 따로 줄 수 있다
-  const facilities = data ? (Object.keys(FACILITY) as (keyof typeof FACILITY)[]).map((k) => new IconLayer({
-    id: `facilities-${k}`, data: byKind[k], getPosition: (f: any) => [f.lon, f.lat],
+  const facilityLayers = (list: RawFacility[]) => (Object.keys(FACILITY) as (keyof typeof FACILITY)[]).map((k) => new IconLayer({
+    id: `facilities-${k}`, data: list.filter((f) => facilityKind(f.kind) === k), getPosition: (f: any) => [f.lon, f.lat],
     getIcon: () => FACILITY[k].icon, getSize: FACILITY[k].size, sizeUnits: 'meters', sizeMinPixels: FACILITY[k].min, sizeMaxPixels: FACILITY[k].max,
     visible: showFacilities, pickable: true, parameters: ON_TOP,
-  })) : []
+  }))
 
   if (data && local && screen === 'diag') {
     const sel = state?.selectedVillage ?? null
@@ -148,7 +166,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
       myeonLines,
       new GeoJsonLayer({ id: 'county-line', data: countyGeo ?? [], filled: false, getLineColor: [110, 110, 120, 200], lineWidthMinPixels: 1.2, parameters: ON_TOP }),
       new ScatterplotLayer<JudgedVillage>({
-        id: 'villages', data: local.villages, visible: showDots, pickable: true, autoHighlight: true, highlightColor: [255, 255, 255, 140],
+        id: 'villages', data: showDots ? local.villages.filter((v) => v.state === 2) : [], pickable: true, autoHighlight: true, highlightColor: [255, 255, 255, 140],
         getPosition: (v) => [v.lon, v.lat], getRadius: (v) => radius(v.people), radiusUnits: 'pixels',
         getFillColor: (v) => [...STATE_RGB[v.state], v.id === sel || v.id === hoverVillage ? 255 : 205],
         stroked: true, getLineColor: (v) => (v.id === sel ? [28, 28, 26, 255] : [255, 255, 255, 230]), lineWidthUnits: 'pixels', getLineWidth: (v) => (v.id === sel ? 3 : 1),
@@ -157,7 +175,28 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
         onClick: ({ object }: any) => object && patch((s) => ({ ...s, selectedVillage: object.id })),
         onHover: ({ object }: any) => { const id = object?.id ?? null; if (id !== useStore.getState().hoverVillage) set({ hoverVillage: id }) },
       }),
-      ...facilities,
+      ...facilityLayers(singles.flatMap((p) => (p.kind === 'facility' ? [p.f] : []))),
+      new ScatterplotLayer<Cluster<Pin>>({
+        id: 'clusters', data: groups, pickable: true, getPosition: (c) => [c.lon, c.lat], radiusUnits: 'pixels', getRadius: (c) => 13 + Math.min(10, Math.sqrt(c.items.length) * 2.5),
+        getFillColor: [255, 255, 255, 245], stroked: true, getLineColor: [60, 60, 70, 160], lineWidthUnits: 'pixels', getLineWidth: 1.5, parameters: ON_TOP,
+        onClick: ({ object }: any) => {
+          if (!object) return
+          const ll = (object as Cluster<Pin>).items.map(pinAt), lons = ll.map((p) => p[0]), lats = ll.map((p) => p[1])
+          mapRef.current?.fitBounds([[Math.min(...lons), Math.min(...lats)], [Math.max(...lons), Math.max(...lats)]], { padding: 120, maxZoom: CLUSTER_MAX_ZOOM + 0.5, duration: 600 })
+        },
+      }),
+      new TextLayer<Cluster<Pin>>({
+        id: 'cluster-count', data: groups, getPosition: (c) => [c.lon, c.lat], getText: (c) => String(c.items.length),
+        getSize: 13, fontWeight: 700, getColor: [28, 28, 26, 255], getTextAnchor: 'middle', getAlignmentBaseline: 'center', parameters: ON_TOP,
+      }),
+      new IconLayer<JudgedVillage>({
+        id: 'villages-x', data: local.villages.filter((v) => v.state === 1), visible: showDots, pickable: true,
+        getPosition: (v) => [v.lon, v.lat], getIcon: () => X_ICON, sizeUnits: 'pixels',
+        getSize: (v) => radius(v.people) * 2 * (v.id === sel || v.id === hoverVillage ? 1.25 : 1), updateTriggers: { getSize: [sel, hoverVillage] },
+        parameters: ON_TOP,
+        onClick: ({ object }: any) => object && patch((s) => ({ ...s, selectedVillage: object.id })),
+        onHover: ({ object }: any) => { const id = object?.id ?? null; if (id !== useStore.getState().hoverVillage) set({ hoverVillage: id }) },
+      }),
     )
   }
 
@@ -183,7 +222,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
         id: 'plan-marks', data: planMarks, pickable: true, getPosition: (d: any) => d.at, radiusUnits: 'pixels', getRadius: 13, filled: false, stroked: true,
         getLineColor: (d: any) => [...hexRgb(SUPPLY[d.type as keyof typeof SUPPLY].color), 255], lineWidthUnits: 'pixels', getLineWidth: 3.5, parameters: ON_TOP,
       }),
-      ...facilities,
+      ...(data ? facilityLayers(data.facilities) : []),
     )
   }
 
@@ -191,8 +230,9 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
     if (!object) return null
     if (layer?.id.startsWith('facilities')) return { text: `${object.name}\n${object.kind}${object.doctors ? ` · 의사 ${object.doctors}명` : ''}` }
     if (layer?.id === 'time') return { text: `${data?.villages[object.village]?.name ?? ''}\n병원까지 약 ${Math.round(object.minutes)}분 · ${object.lived ? `${Math.round(object.people)}명` : '사람이 안 사는 곳'} (추정)` }
+    if (layer?.id === 'clusters') return { text: `${object.items.length}곳 · 누르면 펼쳐져요\n${clusterText(object)}` }
     if (layer?.id === 'plan-marks') return { text: object.label }
-    if (layer?.id === 'villages') {
+    if (layer?.id.startsWith('villages')) {
       const c = screen === 'result' ? cover?.get(object.id) : undefined
       return { text: `${object.name}\n${Math.round(object.people)}명 · ${STATE_NAME[object.state as 0]}${c != null && object.state !== 0 ? `\n이 안으로 ${Math.round(c * 100)}% 닿음` : ''}` }
     }
@@ -201,9 +241,12 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   // 렌더마다 지금 화면의 레이어로 바꿔 끼운다
   useEffect(() => {
     const map = mapRef.current?.getMap() as MapWithDeck | undefined
-    if (!map?.isStyleLoaded()) return
-    deckOf(map).setProps({ layers, getTooltip })
+    if (!map) return
+    const apply = () => deckOf(map).setProps({ layers, getTooltip })
     if (import.meta.env.DEV) (window as any).__map = map
+    // 타일을 불러오는 중(확대 직후 등)에는 isStyleLoaded가 false라, 그때 바뀐 레이어는 다 불러온 뒤에 끼운다
+    if (map.isStyleLoaded()) apply()
+    else { map.once('idle', apply); return () => { map.off('idle', apply) } }
   })
 
   const hover = screen === 'select' && hoverRegion ? regions.find((r) => r.code === hoverRegion) : null
@@ -216,7 +259,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
         style={{ position: 'absolute', inset: 0 }}
         maxPitch={0}
         attributionControl={{ compact: true }}
-        onMove={() => hover && setTick((n) => n + 1)}
+        onMove={(e) => { const z = Math.round(e.viewState.zoom * 2) / 2; if (z !== zoom) setZoom(z); if (hover) setTick((n) => n + 1) }}
         onLoad={(e) => {
           // 지명은 한글을 먼저 쓰고, 데이터 레이어는 첫 지명 레이어 아래에 깔다
           const map = e.target

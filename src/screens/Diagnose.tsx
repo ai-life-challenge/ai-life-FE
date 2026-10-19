@@ -127,13 +127,21 @@ function Slider({ label, unit, min, max, step, value, onChange, disabled, note }
 function Legend() {
   const { showDots, showFacilities, set } = useStore()
   const rgb = (m: number) => `rgb(${minuteRgb(m).join(',')})`
+  const toggle = (on: boolean, label: React.ReactNode, onClick: () => void) => (
+    <button type="button" role="switch" aria-checked={on} className={`map-toggle ${on ? 'on' : ''}`} onClick={onClick}>
+      <span className="map-toggle-label">{label}</span><span className="switch" aria-hidden><i /></span>
+    </button>
+  )
   return (
     <div className="legend">
-      <label className="legend-title legend-toggle"><input type="checkbox" checked={showDots} onChange={(e) => set({ showDots: e.target.checked })} />마을 원 보기 · 한 곳이 점 하나예요</label>
-      {([0, 1, 2] as const).map((k) => <p key={k}><i className="sw" style={{ background: STATE_CSS[k] }} />{STATE_NAME[k]}</p>)}
-      <label className="legend-toggle"><input type="checkbox" checked={showFacilities} onChange={(e) => set({ showFacilities: e.target.checked })} /><img className="legend-icon" src="/icons/hospital.png" alt="" />병원·의원·보건소</label>
-      <p className="muted">점이 클수록 사는 사람이 많아요</p>
-      <p className="legend-title" style={{ marginTop: 8 }}>바탕색: 병원까지 걸리는 시간(추정)</p>
+      <p className="legend-title">지도에 보이기</p>
+      {toggle(showDots, <><i className="sw-x" aria-hidden>✕</i>못 가는 마을</>, () => set({ showDots: !showDots }))}
+      {toggle(showFacilities, <><img className="legend-icon" src="/icons/hospital.png" alt="" />병원·의원·보건소</>, () => set({ showFacilities: !showFacilities }))}
+      <p><i className="sw-x" aria-hidden>✕</i>{STATE_NAME[1]}</p>
+      <p><i className="sw" style={{ background: STATE_CSS[2] }} />{STATE_NAME[2]}</p>
+      <p><i className="sw-num" aria-hidden>3</i>가까운 시설 묶음 · 누르면 펼쳐져요</p>
+      <p className="muted">표시가 클수록 사는 사람이 많아요</p>
+      <p className="legend-title" style={{ marginTop: 10 }}>바탕색: 병원까지 걸리는 시간(추정)</p>
       <i className="time-bar" style={{ background: `linear-gradient(90deg, ${MINUTE_STOPS.map(([m]) => `${rgb(m)} ${(m / 25) * 100}%`).join(', ')})` }} />
       <p className="muted time-scale"><span>5분 이하</span><span>25분 이상</span></p>
       <p className="muted">옅은 칸은 근처에 마을이 없는 곳이에요</p>
