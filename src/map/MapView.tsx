@@ -16,7 +16,7 @@ import { useShownJudge } from '../hooks'
 import { STATE_NAME, STATE_RGB, SUPPLY } from '../api/meta'
 import type { JudgedVillage, RawFacility } from '../api/types'
 import { useRafTime } from './useRafTime'
-import { minuteRgb, timeGrid, type TimeCell } from '../api/cells'
+import { hospitalsOf, minuteRgb, timeGrid, type TimeCell } from '../api/cells'
 import { KOREA_VIEW, loadSigungu } from './geo'
 import { clusterByPixel, type Cluster } from './cluster'
 import { RegionCard } from '../ui/RegionCard'
@@ -69,7 +69,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   onBlocked: (name: string) => void
   mapRef: React.RefObject<MapRef | null>
 }) {
-  const { regions, hoverRegion, hoverVillage, showDots, showFacilities, map: myeon, data, state, plans, judge, set, patch } = useStore()
+  const { regions, hoverRegion, hoverVillage, showDots, showFar, showFacilities, sweep, map: myeon, data, state, plans, judge, set, patch } = useStore()
   const reduce = useReducedMotion()
   const [sigungu, setSigungu] = useState<any>(null)
   const [, setTick] = useState(0)
@@ -107,8 +107,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   const drtGeo = useMemo(() => myeon && shown && { ...myeon, features: myeon.features.filter((f) => shown.picks.some((p) => p.myeon && p.myeon === f.properties?.name)) }, [myeon, shown])
 
   // 진단 화면 바탕: 레퍼런스 지도처럼 1km 안팎의 칸마다 병원까지 걸리는 시간(추정)을 초록~주황으로 칠한다 칸과 이웃은 지역이 바뀔 때만 다시 계산한다
-  // 병원급 시설(병원·종합병원·보건의료원)이 없는 군이면 모든 시설로 잰다
-  const hospitalsForTime = useMemo(() => { const fs = data?.facilities ?? []; const h = fs.filter((f) => /병원|종합|보건의료원/.test(f.kind)); return h.length ? h : fs }, [data])
+  const hospitalsForTime = useMemo(() => hospitalsOf(data?.facilities ?? []), [data])
   const age = state?.age ?? 'a80'
   const timeCells = useMemo(() => (data && myeon ? timeGrid(data.villages.map((v) => ({ lon: v.lon, lat: v.lat, people: v.pop[age] })), hospitalsForTime, myeon) : []), [data, myeon, hospitalsForTime, age])
 
@@ -160,13 +159,13 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
     layers.push(
       new PolygonLayer<TimeCell>({
         id: 'time', data: timeCells, pickable: true, getPolygon: (c: TimeCell) => c.polygon,
-        getFillColor: (c: TimeCell) => [...minuteRgb(c.minutes), c.lived ? 150 : 45],
+        getFillColor: (c: TimeCell) => [...minuteRgb(c.minutes), sweep != null && c.minutes > sweep ? 0 : c.lived ? 150 : 45], updateTriggers: { getFillColor: sweep }, // 스윕 중에는 아직 못 닿은 칸을 비운다
         stroked: true, getLineColor: [255, 255, 255, 120], lineWidthUnits: 'pixels', getLineWidth: 1, beforeId: roadsBefore,
       } as any),
       myeonLines,
       new GeoJsonLayer({ id: 'county-line', data: countyGeo ?? [], filled: false, getLineColor: [110, 110, 120, 200], lineWidthMinPixels: 1.2, parameters: ON_TOP }),
       new ScatterplotLayer<JudgedVillage>({
-        id: 'villages', data: showDots ? local.villages.filter((v) => v.state === 2) : [], pickable: true, autoHighlight: true, highlightColor: [255, 255, 255, 140],
+        id: 'villages', data: showFar ? local.villages.filter((v) => v.state === 2) : [], pickable: true, autoHighlight: true, highlightColor: [255, 255, 255, 140],
         getPosition: (v) => [v.lon, v.lat], getRadius: (v) => radius(v.people), radiusUnits: 'pixels',
         getFillColor: (v) => [...STATE_RGB[v.state], v.id === sel || v.id === hoverVillage ? 255 : 205],
         stroked: true, getLineColor: (v) => (v.id === sel ? [28, 28, 26, 255] : [255, 255, 255, 230]), lineWidthUnits: 'pixels', getLineWidth: (v) => (v.id === sel ? 3 : 1),

@@ -1,24 +1,56 @@
 // 지역 카드: S1 왼쪽 패널 목록과, 지도에서 군에 마우스를 올렸을 때 그 군 위에 뜨는 카드가 같이 쓴다.
-import { motion } from 'motion/react'
+// 인구·고령 비율·병원 30분 밖·취약도는 지역 자료(지역마다 70KB 안팎)가 있어야 해서, 카드가 화면에 보일 때(지도 카드는 바로) 받아 온다.
+import { useEffect, useRef, useState } from 'react'
+import { motion, useInView } from 'motion/react'
 import type { RegionItem } from '../api/types'
+import { regionData } from '../api/client'
+import { fmt, pct } from '../api/meta'
+import { STD, vulnOf } from '../api/vuln'
+import { Count } from './Count'
 import { LevelBadge } from './Badges'
 
+interface Summary { pop: number; elderly: number; e30: number; vulnerable: boolean; mvi: number; tvi: number }
+
+function useSummary(code: string, enabled: boolean) {
+  const [s, setS] = useState<Summary | null>(null)
+  useEffect(() => {
+    if (!enabled) return
+    let alive = true
+    regionData(code).then((d) => {
+      const v = vulnOf(d)
+      if (alive) setS({ pop: d.indicators.pop ?? 0, elderly: d.indicators.elderly ?? 0, e30: v.e30, vulnerable: v.vulnerable, mvi: v.mvi, tvi: v.tvi })
+    }, () => {})
+    return () => { alive = false }
+  }, [code, enabled])
+  return s
+}
+
 export function RegionCard({ r, compact, on, dim, onClick, onHover }: { r: RegionItem; compact?: boolean; on?: boolean; dim?: boolean; onClick?: () => void; onHover?: (on: boolean) => void }) {
+  const ref = useRef<HTMLButtonElement>(null)
+  const seen = useInView(ref, { once: true, margin: '200px' })
+  const s = useSummary(r.code, compact || seen)
   const body = (
     <>
       <div className="row">
         <h2>{r.name}</h2>
+        {s?.vulnerable && <span className="badge red" title={`병원 30분 밖 주민이 ${pct(STD.theta)}를 넘어요 (추정)`}>응급취약</span>}
         <span className="muted small">{r.sido}</span>
         <span className="spacer" />
         <LevelBadge tier={r.tier} />
       </div>
-      <p className="muted small" style={{ margin: 0 }}>마을 <b className="num">{r.villages}</b>곳</p>
+      <dl className="stats">
+        <div><dt>인구</dt><dd>{s ? <><Count value={s.pop} ms={compact ? 500 : 900} />명</> : '…'}</dd></div>
+        <div><dt>65세 이상</dt><dd>{s ? pct(s.elderly) : '…'}</dd></div>
+        <div><dt>병원 30분 밖</dt><dd className={s && s.e30 >= STD.theta ? 'bad' : ''}>{s ? pct(s.e30) : '…'}</dd></div>
+        <div><dt>의료 · 교통 취약도</dt><dd>{s ? <>{Math.round(s.mvi)} · {Math.round(s.tvi)}<small className="muted">점</small></> : '…'}</dd></div>
+      </dl>
+      <p className="muted small" style={{ margin: 0 }}>마을 <b className="num">{fmt(r.villages)}</b>곳 · 병원 30분 밖은 추정</p>
       {compact && <p className="pop-hint">눌러서 이 군으로 시작 →</p>}
     </>
   )
   if (compact) return <div className="region pop">{body}</div>
   return (
-    <motion.button className={`region ${on ? 'on' : ''}`} onClick={onClick} onMouseEnter={() => onHover?.(true)} onMouseLeave={() => onHover?.(false)} onFocus={() => onHover?.(true)} onBlur={() => onHover?.(false)}
+    <motion.button ref={ref} className={`region ${on ? 'on' : ''}`} onClick={onClick} onMouseEnter={() => onHover?.(true)} onMouseLeave={() => onHover?.(false)} onFocus={() => onHover?.(true)} onBlur={() => onHover?.(false)}
       animate={{ opacity: dim ? 0.35 : 1, scale: dim ? 0.98 : 1 }} whileHover={{ y: -2 }}>
       {body}
     </motion.button>

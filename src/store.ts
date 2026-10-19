@@ -29,8 +29,10 @@ interface Store {
   mapReady: boolean
   hoverRegion: string | null
   hoverVillage: string | null
-  showDots: boolean // 진단 지도에 마을 원을 그릴지
+  showDots: boolean // 진단 지도에 '버스가 없어 못 감' 마을(빨간 X)을 그릴지
+  showFar: boolean // 진단 지도에 '병원이 너무 멀어 못 감' 마을(보라 원)을 그릴지
   showFacilities: boolean // 진단 지도에 병원·의원·보건소 아이콘을 그릴지
+  sweep: number | null // 시간 스윕 중이면 지금 분: 바탕 격자에서 이 시간 안에 닿는 칸만 칠한다
   reached: { code: string | null; max: number } // 단계 메뉴: 이 지역에서 가 본 가장 먼 단계
   sources: { open: boolean; focus: string | null; at: number }
   chat: ChatMsg[]
@@ -71,7 +73,7 @@ export const useStore = create<Store>((set, get) => ({
   regions: [], state: null, defaults: null, listError: null,
   code: null, data: null, map: null, regionError: null,
   judge: idle(), plans: idle(), sens: idle(), report: idle(),
-  mapReady: false, hoverRegion: null, hoverVillage: null, showDots: true, showFacilities: true,
+  mapReady: false, hoverRegion: null, hoverVillage: null, showDots: true, showFar: true, showFacilities: true, sweep: null,
   reached: { code: null, max: 0 },
   sources: { open: false, focus: null, at: 0 },
   chat: [], chatOpen: false, remainingToday: null,

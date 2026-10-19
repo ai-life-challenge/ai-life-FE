@@ -76,10 +76,16 @@ export function rateColor(r: number | null): string {
 // village: 가장 가까운 마을 번호. lived: 마을이 LIVED_KM 안에 있으면 사람이 사는 칸으로 본다(칸 단위 인구가 없어 마을 좌표로 어림). 레퍼런스처럼 안 사는 칸은 옅게 칠한다
 export interface TimeCell { polygon: [number, number][]; minutes: number; village: number; people: number; lived: boolean }
 const DETOUR = 1.3, KMH = 40, LIVED_KM = 1.2
-const km = (lon1: number, lat1: number, lon2: number, lat2: number) => {
+export const km = (lon1: number, lat1: number, lon2: number, lat2: number) => {
   const r = Math.PI / 180, a = Math.sin(((lat2 - lat1) * r) / 2) ** 2 + Math.cos(lat1 * r) * Math.cos(lat2 * r) * Math.sin(((lon2 - lon1) * r) / 2) ** 2
   return 12742 * Math.asin(Math.sqrt(a))
 }
+// 병원급 시설(병원·종합병원·보건의료원). 군에 하나도 없으면 모든 시설로 잰다
+export const hospitalsOf = <F extends { kind: string }>(fs: F[]) => { const h = fs.filter((f) => /병원|종합|보건의료원/.test(f.kind)); return h.length ? h : fs }
+// 한 지점에서 가장 가까운 병원까지 자가용 추정 시간(분)
+export const hospitalMinutes = (lon: number, lat: number, hospitals: { lon: number; lat: number }[]) =>
+  (Math.min(...hospitals.map((h) => km(lon, lat, h.lon, h.lat))) * DETOUR / KMH) * 60
+
 export function timeGrid(villages: { lon: number; lat: number; people: number }[], hospitals: { lon: number; lat: number }[], outline: GeoJSON.FeatureCollection, cols = 60): TimeCell[] {
   const rings = ringsOf(outline)
   if (!rings.length || !hospitals.length) return []
@@ -93,14 +99,13 @@ export function timeGrid(villages: { lon: number; lat: number; people: number }[
     for (let lon = lon0; lon < lon1; lon += dLon) {
       const cx = lon + dLon / 2, cy = lat + dLat / 2
       if (!rings.some((r) => inRing(cx, cy, r))) continue
-      const d = Math.min(...hospitals.map((h) => km(cx, cy, h.lon, h.lat)))
       let village = -1, bd = Infinity, people = 0
       villages.forEach((v, i) => {
         const dv = km(cx, cy, v.lon, v.lat)
         if (dv < bd) { bd = dv; village = i }
         if (v.lon >= lon && v.lon < lon + dLon && v.lat >= lat && v.lat < lat + dLat) people += v.people
       })
-      out.push({ polygon: [[lon, lat], [lon + dLon, lat], [lon + dLon, lat + dLat], [lon, lat + dLat]], minutes: (d * DETOUR / KMH) * 60, village, people, lived: bd <= LIVED_KM })
+      out.push({ polygon: [[lon, lat], [lon + dLon, lat], [lon + dLon, lat + dLat], [lon, lat + dLat]], minutes: hospitalMinutes(cx, cy, hospitals), village, people, lived: bd <= LIVED_KM })
     }
   }
   return out
