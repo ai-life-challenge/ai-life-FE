@@ -1,7 +1,7 @@
 // 랜딩 스크롤 연출(GSAP ScrollTrigger · SplitText · DrawSVG + Lenis 관성 스크롤). 스크롤을 막지 않고, 스크롤한 만큼 장면이 움직인다(scrub).
 // 히어로 · 3D · 쇼케이스 셋은 화면에 고정해 둔 채(pin) 장면이 다 바뀐 뒤에야 아래로 내려간다.
 // 그림 대부분이 서버 결과로 그려져서, 결과가 온 뒤(ready) 위에서 아래 순서로 한 번에 건다. 고정 장면의 위치를 위에서부터 차례로 재야 아래 연출이 밀리지 않는다.
-// 스크롤 영역은 랜딩 레이어(.landing)이고 내용은 .landing-inner다. 움직임 줄이기 설정이면 움직이지 않고 끝난 모습을 보여 준다.
+// 스크롤 영역은 랜딩 레이어(.landing)이고 내용은 .landing-inner다. 움직임 줄이기(prefers-reduced-motion) 설정과 상관없이 연출을 보여 준다.
 import { useEffect, type RefObject } from 'react'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
@@ -12,7 +12,8 @@ import Lenis from 'lenis'
 import { criteria, setV3d } from './progress'
 
 gsap.registerPlugin(ScrollTrigger, SplitText, DrawSVGPlugin, useGSAP)
-const MOTION_OK = '(prefers-reduced-motion: no-preference)'
+// 윈도우 '애니메이션 효과'가 꺼진 PC는 브라우저가 움직임 줄이기(reduce)로 알려서 연출이 통째로 빠졌다. 랜딩은 그 설정과 상관없이 늘 연출을 보여 준다
+const MOTION_OK = 'all'
 const HERO_PIN = 140 // 히어로를 붙잡아 두는 스크롤 길이(화면 높이의 %). 앞 45%는 지도 펼침, 뒤는 빠져나가기
 const STAGE_PIN = 320 // 쇼케이스 하나를 붙잡아 두는 길이
 
@@ -59,12 +60,6 @@ export function useLandingScroll(root: RefObject<HTMLDivElement | null>, ready: 
     const el = root.current
     if (!el || !ready) return
     const mm = gsap.matchMedia()
-
-    // 움직임 줄이기: 움직이지 않고 끝난 모습(칸은 바뀐 뒤 색, 점은 숨김)을 바로 보여 준다
-    mm.add('(prefers-reduced-motion: reduce)', () => {
-      el.querySelectorAll<SVGElement>('.ucell[data-to]').forEach((c) => { c.style.fill = c.dataset.to! })
-      gsap.set(el.querySelectorAll('.agg-pt'), { opacity: 0 })
-    })
 
     mm.add(MOTION_OK, () => {
       ScrollTrigger.defaults({ scroller: el })

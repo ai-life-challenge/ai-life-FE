@@ -700,12 +700,7 @@ button.badge:hover { background: var(--gray-2); }
   .land-nav nav a { display: none; }
   .sec-nav { top: 64px; }
 }
-@media (prefers-reduced-motion: reduce) {
-  .landing { scroll-behavior: auto; }
-  .ucell, .sweep-demo i { transition: none; }
-  .marquee-row { flex-wrap: wrap; width: auto; }
-  .marquee-row .dup { display: none; }
-}
+/* 랜딩은 움직임 줄이기 설정과 상관없이 연출을 보여 준다(useLandingScroll). 그래서 여기서 줄이지 않는다 */
 
 /* ---------- 반응형·접근성 ---------- */
 @media (max-width: 900px) {

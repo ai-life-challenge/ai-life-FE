@@ -11,7 +11,7 @@ import { SplitText } from 'gsap/SplitText'
 import { useGSAP } from '@gsap/react'
 
 gsap.registerPlugin(SplitText, useGSAP)
-const MOTION_OK = '(prefers-reduced-motion: no-preference)'
+const MOTION_OK = 'all' // 움직임 줄이기 설정과 상관없이 연출을 보여 준다(윈도우 애니메이션 효과가 꺼진 PC에서도)
 
 const REGION = '48740'
 const load = () => cached('intro-facts', async () => {
@@ -42,10 +42,8 @@ export function Intro() {
   // 숫자 줄 · 버튼: 서버 숫자가 온 뒤에
   useGSAP(() => {
     if (!f) return
-    const nums = gsap.utils.toArray<HTMLElement>('.intro [data-count]')
     const show = (n: HTMLElement, v: number) => { n.textContent = Math.round(v).toLocaleString('ko-KR') }
     gsap.matchMedia()
-      .add('(prefers-reduced-motion: reduce)', () => nums.forEach((n) => show(n, Number(n.dataset.count))))
       .add(MOTION_OK, () => {
         const tl = gsap.timeline({ delay: 0.9, defaults: { ease: 'expo.out' } })
         gsap.utils.toArray<HTMLElement>('.intro .fact').forEach((fact, i) => {
