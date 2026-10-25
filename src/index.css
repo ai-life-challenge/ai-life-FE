@@ -665,8 +665,8 @@ button.badge:hover { background: var(--gray-2); }
 
 
 /* 풀페이지 스크롤: 화면(.snap) 하나씩 딱 맞춰 넘어간다. 위쪽 64px는 고정 메뉴 자리 */
-.landing { scroll-snap-type: y mandatory; scroll-padding-top: 64px; }
-.snap { scroll-snap-align: start; scroll-snap-stop: always; min-height: calc(100vh - 64px); }
+.landing { scroll-padding-top: 64px; } /* 상단 메뉴 링크(#diag 등)로 갈 때 */
+.snap { scroll-snap-align: start; min-height: calc(100vh - 64px); }
 .statement.snap, .show-page, .sources-sec.snap, .faq-sec.snap, .land-foot.snap { display: flex; flex-direction: column; justify-content: center; }
 .showcase { padding: 0; }
 .show-page { padding-top: 32px; padding-bottom: 32px; }

@@ -1,4 +1,4 @@
-// 첫 화면(랜딩). 한 번 스크롤하면 한 화면씩 넘어간다(scroll-snap): 히어로 → 선언문 → 쇼케이스(회색/검정 번갈아) → 데이터 출처 마키 → FAQ → 검정 푸터.
+// 첫 화면(랜딩). 휠을 한 번 굴릴 때마다 한 화면씩 넘어간다(ui/sectionScroll.ts). 화면보다 긴 곳은 안쪽을 그냥 스크롤한다: 히어로 → 선언문 → 쇼케이스(회색/검정 번갈아) → 데이터 출처 마키 → FAQ → 검정 푸터.
 // 그림은 서버가 실제로 계산한 창녕군 결과로 그린다. 서버에는 칸 단위 자료가 없어서, 마을을 칸으로 묶어 집계한 '마을 집계 격자'다(src/api/cells.ts).
 // 서버에 닿지 못하면 그림 자리는 비워 둔다. 애니메이션은 화면에 들어올 때 한 번만 재생한다 (마키만 천천히 흐르고, 마우스를 올리면 멈춘다).
 import { useEffect, useMemo, useRef, useState } from 'react'
@@ -13,6 +13,7 @@ import { useCountUp } from '../motion/useCountUp'
 import { AiBadge } from '../ui/Badges'
 import { Phrases } from '../ui/Phrases'
 import { Chevron } from '../ui/Chevron'
+import { useSectionScroll } from '../ui/sectionScroll'
 
 const fade = { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] } } } as const
 const stagger = { show: { transition: { staggerChildren: 0.1 } } }
@@ -70,6 +71,7 @@ export function Landing() {
   const nav = useNavigate()
   const start = () => nav('/intro')
   const rootRef = useRef<HTMLDivElement>(null)
+  useSectionScroll(rootRef)
   const demo = useDemo()
   const g = useGrid(demo)
 
