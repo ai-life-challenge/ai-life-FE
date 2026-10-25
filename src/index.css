@@ -431,7 +431,21 @@ button.badge:hover { background: var(--gray-2); }
 .map-card .chip { background: var(--bg); font-size: 14px; }
 .chip-bg { position: absolute; inset: 0; border-radius: 8px; background: var(--ink); z-index: 0; }
 .chip-text { position: relative; z-index: 1; }
-.map-card .chip.on { background: var(--ink); color: #fff; }
+/* 진단 카드 조작부: 항목 라벨 · 세그먼트(하나 고르기) · 누르는 느낌이 나는 칩 */
+.map-card .field { margin-top: 12px; }
+.field-label { display: block; margin-bottom: 5px; font-size: 12px; font-weight: 600; color: var(--muted); }
+.field-label .muted { font-weight: 400; }
+.seg { display: flex; padding: 3px; gap: 2px; border-radius: 11px; background: var(--gray-2); }
+.seg button { position: relative; flex: 1; border: 0; background: transparent; border-radius: 9px; padding: 8px 6px; font-size: 14px; color: var(--muted); cursor: pointer; transition: color .15s; }
+.seg button:hover:not(.on) { color: var(--ink); }
+.seg button:active { transform: scale(.97); }
+.seg button.on { color: var(--ink); font-weight: 600; }
+.seg-pill { position: absolute; inset: 0; border-radius: 9px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.18); }
+.seg-text { position: relative; }
+.map-card .chip { border: 1px solid var(--gray-2); box-shadow: 0 1px 1px rgba(0,0,0,.05); cursor: pointer; transition: background .15s, border-color .15s, transform .1s; }
+.map-card .chip:hover:not(.on) { border-color: var(--muted); }
+.map-card .chip:active { transform: scale(.97); }
+.map-card .chip.on { background: var(--ink); border-color: var(--ink); color: #fff; font-weight: 600; box-shadow: none; }
 .slider { display: grid; gap: 6px; margin: 12px 0 4px; font-size: 14px; }
 .slider input { width: 100%; accent-color: var(--accent); }
 .hero { margin: 12px 0; padding: 14px; border-radius: var(--r-btn); background: var(--bg); }

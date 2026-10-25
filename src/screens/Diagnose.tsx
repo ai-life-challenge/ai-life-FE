@@ -86,22 +86,17 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
 
       <section className="map-card">
         <h3>🗺 병원까지 가는 길 <span className="muted small">시간은 서버 도로 기준</span></h3>
-        <div className="chips" role="radiogroup" aria-label="이동 수단" style={{ marginTop: 8 }}>
-          {TRAVEL.map((x) => (
-            <button key={x.id} role="radio" aria-checked={travel === x.id} className={`chip ${travel === x.id ? 'on' : ''}`}
-              onClick={() => { set({ travel: x.id }); if (x.id === 'transit' && st.service !== 'med') patch((s) => ({ ...s, service: 'med' })) }}>{x.name}</button>
-          ))}
-        </div>
-        <div className="chips" role="radiogroup" aria-label="나이대" style={{ marginTop: 8 }}>
-          {AGES.map((a) => (
-            <button key={a.id} role="radio" aria-checked={st.age === a.id} className={`chip ${st.age === a.id ? 'on' : ''}`} onClick={() => patch((s) => ({ ...s, age: a.id }))}>{a.name}</button>
-          ))}
-        </div>
-        <div className="chips" role="radiogroup" aria-label="어느 시설 기준" style={{ marginTop: 8 }}>
-          {CAR_TARGETS.map((x) => (
-            <button key={x.id} role="radio" aria-checked={carTarget === x.id} className={`chip ${carTarget === x.id ? 'on' : ''}`} onClick={() => set({ carTarget: x.id })}>{x.name}</button>
-          ))}
-        </div>
+        <div className="field"><span className="field-label" id="lb-travel">이동 수단</span>
+          <Seg id="travel" label="이동 수단" options={TRAVEL.map((x) => ({ id: x.id, name: x.name }))} value={travel}
+            onChange={(id) => { set({ travel: id }); if (id === 'transit' && st.service !== 'med') patch((s) => ({ ...s, service: 'med' })) }} /></div>
+        <div className="field"><span className="field-label">나이대</span>
+          <Seg id="age" label="나이대" options={AGES.map((a) => ({ id: a.id, name: a.name }))} value={st.age} onChange={(id) => patch((s) => ({ ...s, age: id }))} /></div>
+        <div className="field"><span className="field-label">어디까지 가나요 <span className="muted">· 고르면 지도 색과 ✕가 바뀌어요</span></span>
+          <div className="chips" role="radiogroup" aria-label="어느 시설 기준">
+            {CAR_TARGETS.map((x) => (
+              <button key={x.id} role="radio" aria-checked={carTarget === x.id} className={`chip ${carTarget === x.id ? 'on' : ''}`} onClick={() => set({ carTarget: x.id })}>{carTarget === x.id && <span aria-hidden>✓ </span>}{x.name}</button>
+            ))}
+          </div></div>
         <p className="muted small" style={{ margin: '6px 0 0' }}>{travel === 'transit' ? (carTarget === 'er' ? '응급의료센터는 버스를 보지 않고, 지역응급의료센터 이상까지 자가용 시간만 봐요.' : `차가 없는 주민 기준이에요. 마을 안에 ${targetName}${josa(targetName, '이', '가')} 있거나, 정류장까지 걸어가 버스로 ${targetName}에 갈 수 있는지 봐요.`) : TRAVEL.find((x) => x.id === travel)!.desc}</p>
         {travel === 'car' ? (
           <>
@@ -289,6 +284,20 @@ function ServerCheck() {
   }
   if (judge.status === 'error') return null
   return <p className="small muted" role="status">서버 판정 확인 중…</p>
+}
+
+// 이동 수단 · 나이대처럼 하나만 고르는 선택: 둘러싼 막대 안에서 선택된 알약이 미끄러져 옮겨 간다
+function Seg<T extends string>({ id, label, options, value, onChange }: { id: string; label: string; options: { id: T; name: string }[]; value: T; onChange: (id: T) => void }) {
+  return (
+    <div className="seg" role="radiogroup" aria-label={label}>
+      {options.map((o) => (
+        <button key={o.id} role="radio" aria-checked={value === o.id} className={value === o.id ? 'on' : ''} onClick={() => onChange(o.id)}>
+          {value === o.id && <motion.span className="seg-pill" layoutId={`seg-${id}`} transition={{ type: 'spring', stiffness: 500, damping: 36 }} />}
+          <span className="seg-text">{o.name}</span>
+        </button>
+      ))}
+    </div>
+  )
 }
 
 function Slider({ label, unit, min, max, step, value, onChange, disabled, note }: { label: string; unit: string; min: number; max: number; step: number; value: number; onChange: (v: number) => void; disabled?: boolean; note?: string }) {
