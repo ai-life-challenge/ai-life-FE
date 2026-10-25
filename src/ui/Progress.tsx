@@ -1,10 +1,11 @@
-// 오른쪽 위 단계 표시: '2 / 6 · 진단 ▾' 알약 버튼. 누르면 6단계 목록이 펼쳐지고, 거쳐 온 단계와 바로 다음 단계로 이동할 수 있다.
+// 오른쪽 위 단계 표시: '2 / 6 · 진단' 알약 버튼. 누르면 6단계 목록이 펼쳐지고, 거쳐 온 단계와 바로 다음 단계로 이동할 수 있다.
 // 목록에는 그 단계에서 정한 값(지역, 목표·예산, 추천안 등)을 같이 보여 준다.
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import { SERVICES, eok, pct } from '../api/meta'
 import { useStore } from '../store'
+import { Chevron } from './Chevron'
 
 export const STEPS = [
   { path: '', label: '지역' },
@@ -51,7 +52,7 @@ export function Progress({ code, at }: { code: string | null; at: number }) {
   return (
     <div className="step-menu" ref={ref}>
       <button className="step-pill" onClick={() => setOpen(!open)} aria-haspopup="menu" aria-expanded={open} aria-label={`${STEPS.length}단계 중 ${at + 1}단계 ${STEPS[at].label}. 눌러서 다른 단계로 이동`}>
-        <b className="num">{at + 1} / {STEPS.length}</b> · {STEPS[at].label} <span aria-hidden className={`caret-down ${open ? 'up' : ''}`}>▾</span>
+        <b className="num">{at + 1} / {STEPS.length}</b> · {STEPS[at].label} <Chevron open={open} />
       </button>
       <AnimatePresence>
         {open && (

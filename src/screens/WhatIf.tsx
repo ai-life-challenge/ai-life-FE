@@ -63,10 +63,10 @@ export function WhatIf() {
   const best = base?.[base.length - 1], altBest = altPlans?.[altPlans.length - 1]
 
   // 곡선 SVG
-  const W = 460, H = 220, pad = 40
+  const W = 460, H = 220, pad = 40, TOP = 36 // TOP: 맨 위 점 위에 달성률 글자(보라)가 잘리지 않고 들어갈 자리
   const X = (b: number) => pad + (W - pad - 14) * Math.sqrt(b / 30) // 작은 예산 쪽이 펼쳐지게 제곱근 눈금
   const yMin = Math.max(0, Math.floor((Math.min(st.target, best?.rate ?? 1, ...curve.map((q) => q.rate)) - 0.05) * 20) / 20)
-  const Y = (rate: number) => 16 + (H - pad - 16) * (1 - (rate - yMin) / (1 - yMin))
+  const Y = (rate: number) => TOP + (H - pad - TOP) * (1 - (rate - yMin) / (1 - yMin))
   const d = curve.map((q, i) => `${i ? 'L' : 'M'}${X(q.b).toFixed(1)},${Y(q.rate).toFixed(1)}`).join(' ')
   const here = curve.find((q) => q.b === next)
 
@@ -108,7 +108,7 @@ export function WhatIf() {
             </table>
           )}
           {best && altBest && (
-            <p className="muted small" style={{ margin: '12px 0 0' }}>
+            <p className="muted small card-note">
               연 예산 {eok(st.budget)} → {eok(next)}일 때 예산 안에서 가장 많이 닿는 안의 달성률은 {pct(best.rate)}에서 {pct(altBest.rate)}로
               {Math.abs(altBest.rate - best.rate) < 0.0005 ? ' 달라지지 않아요(이미 거의 다 닿아요).' : ` ${altBest.rate > best.rate ? '+' : '−'}${Math.round(Math.abs(altBest.rate - best.rate) * 1000) / 10}%p 달라져요.`}
               {' '}남는 공백은 {fmt(best.gapAfter)}명 → {fmt(altBest.gapAfter)}명이에요.
@@ -130,7 +130,7 @@ export function WhatIf() {
             {altBest && <motion.circle animate={{ cx: X(next), cy: Y(altBest.rate) }} r="8" fill="#9b3fe8" stroke="#fff" strokeWidth="2.5" transition={{ type: 'spring', stiffness: 260, damping: 26 }} />}
             {here && <text x={X(next)} y={Y(here.rate) - 14} fontSize="13" fontWeight="600" textAnchor="middle" fill="#6c22b0">{pct(here.rate)}</text>}
           </svg>
-          <p className="muted small" style={{ margin: 0 }}>
+          <p className="muted small card-note">
             {curve.length < CURVE_BUDGETS.length ? `서버에 물어 점을 찍는 중이에요 (${curve.length}/${CURVE_BUDGETS.length}). ` : ''}
             흰 점 = 기준 예산, 보라 점 = 바꿔 본 예산. 점은 서버가 예산별로 계산한 값이에요.
           </p>

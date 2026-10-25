@@ -17,6 +17,7 @@ import { KIND_RE, targetMinutes } from '../api/judge'
 import { boxOf, fitCounty } from '../map/geo'
 import { Count } from '../ui/Count'
 import { LevelBadge, SrcBadge } from '../ui/Badges'
+import { Chevron } from '../ui/Chevron'
 import { Seg } from '../ui/Seg'
 
 // 이동 수단 탭: 대중교통은 서버 판정('병원 가는 길'), 자가용은 서버에 없는 판정이라 화면에서 계산한다(api/judge.ts judgeCar)
@@ -220,7 +221,7 @@ function Indicators({ v }: { v: Vuln }) {
       <IndGroup title="🚌 교통" rows={tra} open={open} toggle={toggle} />
       <div className="legend-row"><span><i style={{ background: 'var(--ok)' }} />기준 충족</span><span><i style={{ background: '#d39a14' }} />근접</span><span><i style={{ background: 'var(--bad)' }} />미달</span></div>
       <div className="formula">
-        <button onClick={() => setFormula(!formula)} aria-expanded={formula}>점수 계산 방법 보기 <span>{formula ? '▴' : '▾'}</span></button>
+        <button onClick={() => setFormula(!formula)} aria-expanded={formula}>점수 계산 방법 보기 <Chevron open={formula} /></button>
         <AnimatePresence>
           {formula && (
             <motion.div className="formula-body" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
@@ -243,7 +244,7 @@ function IndGroup({ title, rows, open, toggle }: { title: string; rows: Row[]; o
       {rows.map((row, k) => (
         <div className="ind" key={row.id}>
           <button className="ind-head" onClick={() => toggle(row.id)} aria-expanded={open === row.id}>
-            <span>{row.label} <span className="muted small">{open === row.id ? '▴' : '▾'}</span></span>
+            <span>{row.label} <Chevron open={open === row.id} /></span>
             <span className="track">
               <motion.span className={`fill ${row.status}`} initial={{ width: 0 }} animate={{ width: `${row.bar * 100}%` }} transition={{ duration: 0.8, delay: 0.2 + k * 0.08, ease: 'easeOut' }} />
               <span className="std-line" style={{ left: `${row.std * 100}%` }}><span>{row.stdLabel}</span></span>

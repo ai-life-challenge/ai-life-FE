@@ -85,8 +85,8 @@ p, li { text-wrap: pretty; } /* 마지막 줄에 한두 글자만 남지 않게 
 .step-pill { border: 0; background: var(--ink); color: #fff; border-radius: 999px; padding: 9px 14px; font-size: 14px; display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
 .step-pill:hover { filter: brightness(1.25); }
 .step-pill b { font-weight: 600; }
-.caret-down { display: inline-block; transition: transform .2s; margin-left: 2px; }
-.caret-down.up { transform: rotate(180deg); }
+.chev { flex-shrink: 0; vertical-align: -3px; margin-left: 2px; transition: transform .2s; }
+.chev.up { transform: rotate(180deg); }
 .step-list { position: absolute; right: 0; top: calc(100% + 8px); z-index: 50; list-style: none; margin: 0; padding: 6px; width: 290px; background: var(--bg); border-radius: var(--r-card); box-shadow: 0 12px 36px rgba(0, 0, 0, 0.14); transform-origin: top right; }
 .step-item { width: 100%; border: 0; background: none; border-radius: 10px; padding: 10px 10px; display: grid; grid-template-columns: 18px 16px auto 1fr; gap: 8px; align-items: center; text-align: left; font-size: 15px; }
 .step-item:hover:not(:disabled) { background: var(--gray); }
@@ -169,7 +169,7 @@ button.badge:hover { background: var(--gray-2); }
 .calc { background: var(--bg); border-radius: 8px; padding: 10px 12px; font-size: 15px; }
 .calc code, .formula code { font-family: ui-monospace, Menlo, monospace; font-size: 14px; }
 .formula { margin-top: 18px; background: var(--gray); border-radius: var(--r-card); padding: 0 18px; }
-.formula > button { width: 100%; border: 0; background: none; padding: 16px 0; text-align: left; font-weight: 500; display: flex; justify-content: space-between; }
+.formula > button { width: 100%; border: 0; background: none; padding: 16px 0; text-align: left; font-weight: 500; display: flex; justify-content: space-between; align-items: center; }
 .formula-body { padding: 0 0 16px; display: grid; gap: 8px; }
 .formula-body p { margin: 0; }
 .legend-row { display: flex; gap: 14px; flex-wrap: wrap; font-size: 13px; color: var(--muted); margin-top: 8px; }
@@ -287,7 +287,10 @@ button.badge:hover { background: var(--gray-2); }
 .icon-btn.on { background: var(--accent-soft); }
 
 /* ---------- S6 What-if ---------- */
-.wi { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 18px; align-items: start; }
+.wi .card { display: flex; flex-direction: column; }
+.wi .card-note { margin: 0; padding-top: 12px; } /* 설명 글은 카드 맨 아래에 붙인다 */
+.wi .card > .card-note:last-child { margin-top: auto; }
+.wi { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 18px; align-items: stretch; }
 .delta-list { list-style: none; padding: 0; margin: 10px 0 0; display: grid; gap: 4px; }
 .delta-list li { display: grid; grid-template-columns: 1fr auto auto; gap: 10px; align-items: center; background: var(--bg); border-radius: 8px; padding: 10px 12px; }
 .delta-list .amt { font-weight: 600; font-variant-numeric: tabular-nums; }
@@ -652,8 +655,6 @@ button.badge:hover { background: var(--gray-2); }
 .faq { background: var(--bg); border-radius: var(--r-card); }
 .faq-item + .faq-item { border-top: 1px solid var(--gray); }
 .faq-q { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 12px; border: 0; background: none; padding: 26px 24px; text-align: left; font-size: 17px; }
-.faq-q span { transition: transform .25s; }
-.faq-q[aria-expanded='true'] span { transform: rotate(180deg); }
 .faq-a { overflow: hidden; }
 .faq-a p { margin: 0; padding: 0 24px 24px; color: var(--muted); line-height: 1.7; max-width: 52em; }
 

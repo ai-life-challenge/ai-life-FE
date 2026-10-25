@@ -12,6 +12,7 @@ import { STATE_CSS, SUPPLY, eok, fmt, pct } from '../api/meta'
 import { useCountUp } from '../motion/useCountUp'
 import { AiBadge } from '../ui/Badges'
 import { Phrases } from '../ui/Phrases'
+import { Chevron } from '../ui/Chevron'
 
 const fade = { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] } } } as const
 const stagger = { show: { transition: { staggerChildren: 0.1 } } }
@@ -464,12 +465,6 @@ function Marquee({ demo }: { demo: Demo | null }) {
   )
 }
 
-// FAQ 펼침 표시 (글자 대신 선 아이콘). 펼쳐지면 .faq-q span이 뒤집힌다
-const Chevron = () => (
-  <span aria-hidden style={{ display: 'inline-flex' }}>
-    <svg width="20" height="20" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round"><path d="M5 7.5l5 5 5-5" /></svg>
-  </span>
-)
 
 const FAQS: [string, string][] = [
   ['숫자는 어떻게 계산하나요?', '판정, 대안, 레포트 숫자는 모두 서버가 계산해요. 화면은 기준을 바꿀 때 바로 반응하도록 브라우저에서도 판정하는데, 서버 판정이 기준이라 결과를 대조해서 다르면 서버 결과로 보여 줘요.'],
@@ -485,7 +480,7 @@ function Faq() {
     <div className="faq">
       {FAQS.map(([q, a], i) => (
         <div key={q} className="faq-item">
-          <button className="faq-q" aria-expanded={open.has(i)} onClick={() => toggle(i)}>{q}<Chevron /></button>
+          <button className="faq-q" aria-expanded={open.has(i)} onClick={() => toggle(i)}>{q}<Chevron open={open.has(i)} /></button>
           <AnimatePresence initial={false}>
             {open.has(i) && (
               <motion.div className="faq-a" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }} transition={{ duration: 0.3 }}>

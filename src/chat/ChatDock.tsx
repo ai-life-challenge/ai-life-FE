@@ -7,6 +7,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { api, cached } from '../api/client'
 import { askServer, buildAskBody, stageOf, STAGE_NAME } from '../api/ask'
 import { historyOf, useStore, type ChatMsg, type ToolCallMsg } from '../store'
+import { Chevron } from '../ui/Chevron'
 import { Md } from '../ui/Md'
 import { hidePendingRefs } from '../ui/mdText'
 
@@ -154,7 +155,7 @@ function AiMsg({ id, msg, last, busy, onPick }: { id: string; msg: Extract<ChatM
     <motion.div className={`ai ${msg.error ? 'err' : ''}`} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
       {msg.tools.length > 0 && (
         <div className="dock-tools">
-          <button className="tools-head" onClick={() => setOpen(!open)}>계산 도구 {msg.tools.length}번 호출 {open ? '▴' : '▾'}</button>
+          <button className="tools-head" onClick={() => setOpen(!open)}>계산 도구 {msg.tools.length}번 호출 <Chevron open={open} /></button>
           <AnimatePresence initial={false}>
             {open && (
               <motion.ul initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
