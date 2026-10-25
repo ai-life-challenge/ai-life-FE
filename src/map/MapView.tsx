@@ -16,7 +16,7 @@ import { useShownJudge } from '../hooks'
 import { STATE_NAME, STATE_RGB, SUPPLY } from '../api/meta'
 import type { JudgedVillage, RawFacility } from '../api/types'
 import { useRafTime } from './useRafTime'
-import { hospitalsOf, minuteRgb, minutesPerKm, timeGrid, type TimeCell } from '../api/cells'
+import { erGrid, minuteRgb, type TimeCell } from '../api/cells'
 import { KOREA_VIEW, loadSigungu } from './geo'
 import { clusterByPixel, type Cluster } from './cluster'
 import { RegionCard } from '../ui/RegionCard'
@@ -69,7 +69,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   onBlocked: (name: string) => void
   mapRef: React.RefObject<MapRef | null>
 }) {
-  const { regions, hoverRegion, hoverVillage, showDots, showFacilities, sweep, map: myeon, data, state, plans, judge, set, patch } = useStore()
+  const { regions, hoverRegion, hoverVillage, showDots, showFacilities, sweep, thinking, map: myeon, data, state, plans, judge, set, patch } = useStore()
   const reduce = useReducedMotion()
   const [sigungu, setSigungu] = useState<any>(null)
   const [, setTick] = useState(0)
@@ -106,11 +106,9 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   const planMarks = useMemo(() => (shown?.picks ?? []).flatMap((p) => p.villages.flatMap((id) => { const v = byId.get(id); return v ? [{ at: [v.lon, v.lat] as [number, number], type: p.type, label: `${p.label} · ${v.name}` }] : [] })), [shown, byId])
   const drtGeo = useMemo(() => myeon && shown && { ...myeon, features: myeon.features.filter((f) => shown.picks.some((p) => p.myeon && p.myeon === f.properties?.name)) }, [myeon, shown])
 
-  // 진단 화면 바탕: 레퍼런스 지도처럼 1km 안팎의 칸마다 병원까지 걸리는 시간(추정)을 초록~주황으로 칠한다 칸과 이웃은 지역이 바뀔 때만 다시 계산한다
-  const hospitalsForTime = useMemo(() => hospitalsOf(data?.facilities ?? []), [data])
+  // 진단 화면 바탕: 레퍼런스 지도처럼 600m 안팎의 칸마다 응급실까지 걸리는 시간(서버 마을 값을 이어 칠함)을 초록~주황으로 칠한다 칸과 이웃은 지역이 바뀔 때만 다시 계산한다
   const age = state?.age ?? 'a80'
-  const perKm = useMemo(() => (data ? minutesPerKm(data.villages, data.facilities) : undefined), [data]) // 지역마다 서버 도로 시간에 맞춘 1km당 분
-  const timeCells = useMemo(() => (data && myeon ? timeGrid(data.villages.map((v) => ({ lon: v.lon, lat: v.lat, people: v.pop[age] })), hospitalsForTime, myeon, 60, perKm) : []), [data, myeon, hospitalsForTime, age, perKm])
+  const timeCells = useMemo(() => (data && myeon ? erGrid(data.villages.map((v) => ({ lon: v.lon, lat: v.lat, people: v.pop[age], minutes: v.nearest.er?.center?.minutes ?? null })), myeon, 60) : []), [data, myeon, age])
 
   const countyGeo = useMemo(() => sigungu && data && { ...sigungu, features: sigungu.features.filter((f: any) => f.properties.sgg === data.code) }, [sigungu, data])
 
@@ -121,7 +119,8 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   const singles = clusters.filter((c) => c.items.length === 1).map((c) => c.items[0])
   const groups = clusters.filter((c) => c.items.length > 1)
 
-  const ring = useRafTime(screen === 'select' && !reduce)
+  const scanning = thinking && screen === 'result' && !reduce // 예산안을 계산하는 동안 못 가는 마을을 훑는다
+  const ring = useRafTime((screen === 'select' || scanning) && !reduce)
   const layers: Layer[] = []
 
   if (sigungu && screen === 'select') {
@@ -213,6 +212,13 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
         id: 'plan-marks', data: planMarks, pickable: true, getPosition: (d: any) => d.at, radiusUnits: 'pixels', getRadius: 13, filled: false, stroked: true,
         getLineColor: (d: any) => [...hexRgb(SUPPLY[d.type as keyof typeof SUPPLY].color), 255], lineWidthUnits: 'pixels', getLineWidth: 3.5, parameters: ON_TOP,
       }),
+      ...(scanning ? [new ScatterplotLayer<JudgedVillage>({
+        id: 'scan', data: local.villages.filter((v) => v.state !== 0), getPosition: (v) => [v.lon, v.lat], radiusUnits: 'pixels', stroked: true, filled: false, lineWidthUnits: 'pixels', getLineWidth: 2, parameters: ON_TOP,
+        // 마을마다 시작 시점을 어긋나게 해서, 파동이 하나씩 번져 나가는 것처럼 보인다
+        getRadius: (_v: JudgedVillage, { index }: { index: number }) => 6 + 34 * ((ring / 1400 + index * 0.37) % 1),
+        getLineColor: (_v: JudgedVillage, { index }: { index: number }) => [214, 69, 93, Math.round(220 * (1 - ((ring / 1400 + index * 0.37) % 1)))],
+        updateTriggers: { getRadius: ring, getLineColor: ring },
+      })] : []),
       ...(data ? facilityLayers(data.facilities) : []),
     )
   }
@@ -220,7 +226,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   const getTooltip = ({ object, layer }: any) => {
     if (!object) return null
     if (layer?.id.startsWith('facilities')) return { text: `${object.name}\n${object.kind}${object.doctors ? ` · 의사 ${object.doctors}명` : ''}` }
-    if (layer?.id === 'time') return { text: `${data?.villages[object.village]?.name ?? ''}\n병원까지 약 ${Math.round(object.minutes)}분 · ${object.lived ? `${Math.round(object.people)}명` : '사람이 안 사는 곳'} (추정)` }
+    if (layer?.id === 'time') return { text: `${data?.villages[object.village]?.name ?? ''}\n응급실까지 약 ${Math.round(object.minutes)}분 · ${object.lived ? `${Math.round(object.people)}명` : '사람이 안 사는 곳'} (마을 값을 이어 칠함)` }
     if (layer?.id === 'clusters') return { text: `${object.items.length}곳 · 누르면 펼쳐져요\n${clusterText(object)}` }
     if (layer?.id === 'plan-marks') return { text: object.label }
     if (layer?.id.startsWith('villages')) {

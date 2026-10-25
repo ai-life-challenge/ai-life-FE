@@ -29,9 +29,10 @@ export function useShownJudge(): { villages: JudgedVillage[]; summary: JudgeSumm
   const server = useFreshServerJudge()
   const cmp = useJudgeCompare()
   const travel = useStore((s) => s.travel)
+  const carTarget = useStore((s) => s.carTarget)
   const data = useStore((s) => s.data)
   const st = useStore((s) => s.state)
-  const car = useMemo(() => (travel === 'car' && data && st ? judgeCar(data, st.age, st.criteria.carMinutes) : null), [travel, data, st?.age, st?.criteria.carMinutes]) // eslint-disable-line react-hooks/exhaustive-deps
+  const car = useMemo(() => (travel === 'car' && data && st ? judgeCar(data, st.age, st.criteria.carMinutes, carTarget) : null), [travel, carTarget, data, st?.age, st?.criteria.carMinutes]) // eslint-disable-line react-hooks/exhaustive-deps
   if (car) return { villages: car.villages, summary: car.summary, source: 'car' }
   if (server && cmp && !cmp.same) return { villages: server.villages, summary: server.summary, source: 'server' }
   return local && { villages: local.villages, summary: local.summary, source: 'local' }

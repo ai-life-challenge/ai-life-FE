@@ -1,15 +1,19 @@
 import { describe, expect, test } from 'vitest'
 import { compare, judgeCar, judgeLocal } from './judge'
-import type { Judge, RawVillage, RegionData } from './types'
+import type { Judge, KindFilter, RawVillage, RegionData } from './types'
 
-const village = (id: string, o: Partial<RawVillage['bus']> = {}, med: number | null = 5): RawVillage => ({
+const village = (id: string, o: Partial<RawVillage['bus']> = {}, med: number | null = 5, er: number | null = 20, byKind?: Partial<Record<KindFilter, number | null>>): RawVillage => ({
   id, name: id, myeon: 'm', lon: 127, lat: 36, a80In10y: 1, seniorCenter: false,
   pop: { all: 100, a65: 40, a80: 10 },
   bus: { stopWalkMin: 3, noStop: false, dailyRuns: 5, firstToTownMin: 480, firstEstimated: false, ...o },
-  nearest: { med: med == null ? null : { minutes: med, name: 'x', kind: '의원', outside: false }, school: 1, library: 1 },
+  nearest: {
+    med: med == null ? null : { minutes: med, name: 'x', kind: '의원', outside: false }, school: 1, library: 1,
+    er: er == null ? { regional: null, center: null, facility: null } : { regional: null, center: { minutes: er, name: 'e', kind: '지역응급의료센터' }, facility: null },
+    ...(byKind && { byKind: Object.fromEntries((['hospital', 'clinic', 'public'] as const).map((k) => [k, byKind[k] == null ? null : { minutes: byKind[k]!, name: 'k', kind: k, outside: false }])) as RawVillage['nearest']['byKind'] }),
+  },
 })
 const data = (tier: 'precise' | 'auto', villages: RawVillage[], facilityVillage: string | null = null): RegionData => ({
-  code: '00000', name: 't', sido: 's', tier, town: '', depot: '', sources: [], myeons: [], indicators: {},
+  code: '00000', name: 't', sido: 's', tier, town: '', depot: '', sources: [], myeons: [], indicators: {} as RegionData['indicators'], shrinkingArea: false, erVulnerable: false,
   villages, facilities: facilityVillage ? [{ id: 'f', name: 'f', kind: '의원', village: facilityVillage, lon: 0, lat: 0, doctors: 1 }] : [],
 })
 const rule = { service: 'med', age: 'a80', criteria: { carMinutes: 30, stopWalkMinutes: 15, dailyRuns: 3 } } as const
@@ -33,6 +37,21 @@ describe('브라우저 판정', () => {
     expect(r.villages.map((v) => v.state)).toEqual([0, 2, 2, 0])
     expect(r.summary.noBus).toBe(0)
     expect(r.summary.noFacility).toBe(20)
+  })
+  test('자가용 이용 · 응급실 기준은 마을 안 병의원을 보지 않고, 응급센터 시간이 없으면 못 간다', () => {
+    const d = data('auto', [village('near', {}, 99, 20), village('far', {}, 5, 45), village('none', {}, 5, null), village('inside', {}, 99, 45)], 'inside')
+    expect(judgeCar(d, 'a80', 30, 'er').villages.map((v) => v.state)).toEqual([0, 2, 2, 2])
+    expect(judgeCar(d, 'a80', 30, 'med').villages.map((v) => v.state)).toEqual([2, 0, 0, 0])
+  })
+  test('자가용 이용 · 종류별(병원급 · 의원 · 보건기관)은 서버 byKind와 마을 안 그 종류 시설만 본다', () => {
+    const d: RegionData = {
+      ...data('auto', [village('a', {}, 5, 20, { hospital: 40, clinic: 5, public: 40 }), village('b', {}, 5, 20, { hospital: 10, clinic: 50, public: 10 }), village('c', {}, 5, 20, { hospital: 99, clinic: 99, public: 99 }), village('none', {}, 5, 20)], 'c'),
+      facilities: [{ id: 'f', name: '의원', kind: '의원', village: 'c', lon: 0, lat: 0, doctors: 1 }, { id: 'g', name: '보건지소', kind: '보건지소', village: 'a', lon: 0, lat: 0, doctors: 0 }],
+    }
+    const st = (t: Parameters<typeof judgeCar>[3]) => judgeCar(d, 'a80', 30, t).villages.map((v) => v.state)
+    expect(st('hospital')).toEqual([2, 0, 2, 2]) // 병원급은 마을 안 시설이 없어서 거리만: a 40분 · c 99분 못 감, byKind가 없는 마을도 못 감
+    expect(st('clinic')).toEqual([0, 2, 0, 2]) // c는 마을 안에 의원이 있어 갈 수 있음
+    expect(st('public')).toEqual([0, 0, 2, 2]) // a는 마을 안에 보건지소가 있어 갈 수 있음(40분이어도)
   })
   test('버스 서비스는 시설을 보지 않는다', () => {
     const d = data('auto', [village('far', {}, 99), village('nostop', { noStop: true })])

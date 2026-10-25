@@ -9,7 +9,7 @@ import { STD, vulnOf } from '../api/vuln'
 import { Count } from './Count'
 import { LevelBadge } from './Badges'
 
-interface Summary { pop: number; elderly: number; e30: number; vulnerable: boolean; mvi: number; tvi: number }
+interface Summary { pop: number; elderly: number; e30: number | null; vulnerable: boolean; mvi: number; tvi: number }
 
 function useSummary(code: string, enabled: boolean) {
   const [s, setS] = useState<Summary | null>(null)
@@ -33,7 +33,7 @@ export function RegionCard({ r, compact, on, dim, onClick, onHover }: { r: Regio
     <>
       <div className="row">
         <h2>{r.name}</h2>
-        {s?.vulnerable && <span className="badge red" title={`병원 30분 밖 주민이 ${pct(STD.theta)}를 넘어요 (추정)`}>응급취약</span>}
+        {s?.vulnerable && <span className="badge red" title={`응급실 30분 밖 또는 권역센터 60분 밖 주민이 ${pct(STD.theta)} 이상이에요`}>응급취약</span>}
         <span className="muted small">{r.sido}</span>
         <span className="spacer" />
         <LevelBadge tier={r.tier} />
@@ -41,10 +41,10 @@ export function RegionCard({ r, compact, on, dim, onClick, onHover }: { r: Regio
       <dl className="stats">
         <div><dt>인구</dt><dd>{s ? <><Count value={s.pop} ms={compact ? 500 : 900} />명</> : '…'}</dd></div>
         <div><dt>65세 이상</dt><dd>{s ? pct(s.elderly) : '…'}</dd></div>
-        <div><dt>병원 30분 밖</dt><dd className={s && s.e30 >= STD.theta ? 'bad' : ''}>{s ? pct(s.e30) : '…'}</dd></div>
+        <div><dt>응급실 30분 밖</dt><dd className={s && s.e30 != null && s.e30 >= STD.theta ? 'bad' : ''}>{s ? (s.e30 == null ? '자료 없음' : pct(s.e30)) : '…'}</dd></div>
         <div><dt>의료 · 교통 취약도</dt><dd>{s ? <>{Math.round(s.mvi)} · {Math.round(s.tvi)}<small className="muted">점</small></> : '…'}</dd></div>
       </dl>
-      <p className="muted small" style={{ margin: 0 }}>마을 <b className="num">{fmt(r.villages)}</b>곳 · 병원 30분 밖은 추정</p>
+      <p className="muted small" style={{ margin: 0 }}>마을 <b className="num">{fmt(r.villages)}</b>곳</p>
     </>
   )
   // 지도 위 카드: 시작 안내는 흰 카드 밖, 카드 위에 따로 띄운다

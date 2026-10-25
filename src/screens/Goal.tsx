@@ -54,7 +54,7 @@ export function Goal() {
 
       <div className="next-row">
         <button className="ghost" onClick={() => nav(`/r/${code}`)}>← 진단으로</button>
-        <button className="primary big-btn" onClick={() => nav(`/r/${code}/sim`)}>안 만들기 →</button>
+        <button className="primary big-btn" onClick={() => nav(`/r/${code}/sim`)}>예산안 만들기 →</button>
       </div>
     </motion.aside>
   )

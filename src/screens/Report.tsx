@@ -1,13 +1,15 @@
-// S8 레포트: 서버가 계산 결과로 채운 공문(또는 주민 안내문) 초안. 문단은 눌러서 고칠 수 있고, 고친 글은 서버에 다시 보내 그대로 실린다.
-// 인쇄 CSS로 PDF 저장, 링크 복사로 같은 조건을 공유한다.
+// S8 레포트: 서버가 계산 결과로 채운 공문(또는 주민 안내문) 초안. 문단은 마크다운이고 본문 속 [n]은 맨 아래 '출처와 근거'의 n번 각주로 이어진다.
+// 문단은 눌러서 고칠 수 있고(원문 그대로), 고친 글은 서버에 다시 보내 그대로 실린다. 인쇄 CSS로 PDF 저장, 링크 복사로 같은 조건을 공유한다.
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router'
 import { motion } from 'motion/react'
-import type { AgeId, Report as ReportT, ReportForm, SectionKey, Service } from '../api/types'
+import type { AgeId, Note, Report as ReportT, ReportForm, ReportSection, SectionKey, Service } from '../api/types'
 import { AGES, eok, pct } from '../api/meta'
 import { useAutoFetch } from '../hooks'
 import { useStore } from '../store'
 import { AiBadge, LevelBadge } from '../ui/Badges'
+import { Md } from '../ui/Md'
+import { linkNotes } from '../ui/mdText'
 
 const today = new Date().toLocaleDateString('sv-SE')
 const FORMS: { id: ReportForm; name: string }[] = [{ id: 'official', name: '공문' }, { id: 'resident', name: '주민 안내문' }]
@@ -87,24 +89,28 @@ export function Report() {
 }
 
 function Body({ rep, regionName, tier, onEdit, loading }: { rep: ReportT; regionName: string; tier: 'precise' | 'auto'; onEdit: (k: SectionKey, text: string | null) => void; loading: boolean }) {
+  const fn = rep.tableNotes?.future
   return (
     <div aria-busy={loading} style={{ opacity: loading ? 0.6 : 1, transition: 'opacity .2s' }}>
       <p className="muted small" style={{ margin: 0 }}>{today} · {regionName} <LevelBadge tier={tier} /> <AiBadge>서버 초안</AiBadge></p>
       <h1>{rep.title}</h1>
-      {rep.sections.map((s) => (
-        <section key={s.key}>
-          <h2>{s.title}{s.rewritten && <span className="badge">직접 고침</span>}</h2>
-          <Para key={s.text} text={s.text} onSave={(t) => onEdit(s.key, t)} />
-          {s.rewritten && <button className="link small no-print" onClick={() => onEdit(s.key, null)}>원래 글로 되돌리기</button>}
-        </section>
-      ))}
+      {rep.sections.map((s) => s.key == null
+        ? (
+          // key가 null인 '출처와 근거' 문단은 고칠 수 없다. 각주 목록(notes)으로 그린다(없으면 서버 글 그대로)
+          <section key="notes">
+            <h2>{s.title}</h2>
+            {rep.notes.length ? <Notes notes={rep.notes} /> : <Md text={s.text} prefix="rep-notes" />}
+          </section>
+        )
+        : <Section key={s.key} s={{ ...s, key: s.key }} onEdit={onEdit} />)}
       <h2>대안 비교</h2>
       <table className="ltable">
-        <thead><tr><th>안</th><th className="r">달성률</th><th className="r">연 비용</th><th className="r">설치</th><th className="r">10년 뒤</th></tr></thead>
+        <thead><tr><th>안</th><th className="r">공백 마을</th><th className="r">달성률</th><th className="r">연 비용</th><th className="r">설치</th><th className="r">10년 뒤{fn != null && <sup><a href={`#note-${fn}`}>[{fn}]</a></sup>}</th></tr></thead>
         <tbody>
           {rep.table.map((t) => (
             <tr key={t.k} className={t.chosen ? 'rec' : ''}>
               <td><b>{t.name}</b>{t.recommended ? ' ⭐' : ''}<br /><span className="muted small">{t.summary}</span></td>
+              <td className="r">{t.gapVillagesBefore}곳 → {t.gapVillagesAfter}곳<br /><span className="muted small">새로 닿음 {t.reachedVillages}{t.teleOnlyVillages > 0 ? ` · 원격만 ${t.teleOnlyVillages}` : ''}</span></td>
               <td className="r">{pct(t.rate)}</td><td className="r">{eok(t.year)}</td><td className="r">{eok(t.install)}</td><td className="r">{pct(t.future)}</td>
             </tr>
           ))}
@@ -115,12 +121,53 @@ function Body({ rep, regionName, tier, onEdit, loading }: { rep: ReportT; region
   )
 }
 
-// 문단: 누르면 고칠 수 있고, 포커스를 잃을 때 글이 바뀌었으면 서버에 다시 보낸다
-function Para({ text, onSave }: { text: string; onSave: (t: string) => void }) {
+// 문단: 마크다운으로 보여 주고, 눌러서 고치면(원문 그대로) 포커스를 잃을 때가 아니라 '저장'을 누를 때 서버에 다시 보낸다
+function Section({ s, onEdit }: { s: ReportSection & { key: SectionKey }; onEdit: (k: SectionKey, text: string | null) => void }) {
+  const [editing, setEditing] = useState(false)
+  const [draft, setDraft] = useState(s.text)
+  const start = () => { setDraft(s.text); setEditing(true) }
+  const save = () => { const t = draft.trim(); setEditing(false); if (t && t !== s.text) onEdit(s.key, t) }
   return (
-    <p className="para" contentEditable suppressContentEditableWarning spellCheck={false} role="textbox" aria-label="문단 (눌러서 고칠 수 있어요)"
-      onBlur={(e) => { const t = e.currentTarget.innerText.trim(); if (t && t !== text) onSave(t) }}>
-      {text}
-    </p>
+    <section>
+      <h2>{s.title}{s.rewritten && <span className="badge">직접 고침</span>}</h2>
+      {editing ? (
+        <div className="no-print">
+          <textarea className="para-edit" value={draft} onChange={(e) => setDraft(e.target.value)} rows={Math.min(18, draft.split('\n').length + 2)} aria-label={`${s.title} 고치기`} autoFocus />
+          <div className="row"><button className="primary" onClick={save}>저장</button><button className="ghost" onClick={() => setEditing(false)}>취소</button></div>
+        </div>
+      ) : (
+        // 각주 링크를 누를 때는 고치기로 넘어가지 않게 한다
+        <div className="para" role="button" tabIndex={0} title="눌러서 고칠 수 있어요" onClick={(e) => { if (!(e.target as HTMLElement).closest('a')) start() }} onKeyDown={(e) => { if (e.key === 'Enter') start() }}>
+          <Md text={linkNotes(s.text)} prefix={`rep-${s.key}`} />
+        </div>
+      )}
+      {s.rewritten && !editing && <button className="link small no-print" onClick={() => onEdit(s.key, null)}>원래 글로 되돌리기</button>}
+    </section>
+  )
+}
+
+const KIND_NAME: Record<Note['kind'], string> = { source: '자료', rule: '기준', calc: '계산', assumption: '가정' }
+// 각주 목록: n번이 본문의 [n]과 이어진다. 식 줄은 `label value = 항 + 항` 꼴로 읽는다
+function Notes({ notes }: { notes: Note[] }) {
+  return (
+    <ol className="notes">
+      {notes.map((n) => (
+        <li key={n.n} id={`note-${n.n}`} value={n.n}>
+          <b>{KIND_NAME[n.kind]}</b>{' '}
+          {n.kind === 'source'
+            ? <>{n.org && `${n.org}, `}「{n.url ? <a href={n.url} target="_blank" rel="noopener noreferrer">{n.title}</a> : n.title}」{n.date && `, ${n.date}`}</>
+            : <>{n.title}{n.text && ` — ${n.text}`}</>}
+          {!!n.lines?.length && (
+            <ul>
+              {n.lines.map((l, i) => (
+                <li key={i}>
+                  {l.text ?? <>{l.label} {l.value}{!!l.terms?.length && <> = {l.terms.map((t, j) => <span key={j}>{j > 0 && ' + '}{t.name && `${t.name} `}<code>{t.expr}</code></span>)}</>}</>}
+                </li>
+              ))}
+            </ul>
+          )}
+        </li>
+      ))}
+    </ol>
   )
 }

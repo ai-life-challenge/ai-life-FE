@@ -1,30 +1,30 @@
-// 오른쪽 아래 'AI에게 물어보기' 버튼과 질문 창. 질문은 서버 에이전트(POST /api/ask)가 답하고, 도구가 바꾼 state를 함께 돌려주면 지금 화면이 그 state로 다시 그려진다.
+// 오른쪽 아래 'AI에게 물어보기' 버튼과 질문 창. 질문은 서버 에이전트(POST /api/ask)가 SSE로 답한다(api/ask.ts).
+// 도구 호출 · 글(마크다운, 표와 각주 포함) · 되묻기 버튼이 오는 대로 말풍선에 이어 붙이고, 도구가 화면 값을 바꾸면(state 이벤트) 지금 화면이 그 state로 다시 그려진다.
 // 에이전트를 쓸 수 없거나(키 없음 · 하루 비용 상한 · 동시 실행 상한) 횟수를 다 쓰면 서버가 준 안내 문구를 그대로 보여 주고, 계산 화면은 그대로 쓸 수 있다.
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
-import { api, ApiError, cached } from '../api/client'
-import type { Stage } from '../api/types'
-import { errText, historyOf, useStore, type ChatMsg } from '../store'
-
-const stageOf = (path: string): Stage => (/\/report$/.test(path) ? 'memo' : /\/(sim|result|whatif)$/.test(path) ? 'alt' : 'diag')
-const STAGE_NAME: Record<Stage, string> = { diag: '현황 진단', alt: '대안', memo: '검토 메모' }
+import { api, cached } from '../api/client'
+import { askServer, buildAskBody, stageOf, STAGE_NAME } from '../api/ask'
+import { historyOf, useStore, type ChatMsg } from '../store'
+import { Md } from '../ui/Md'
+import { hidePendingRefs } from '../ui/mdText'
 
 export function ChatDock({ code }: { code: string }) {
   const s = useStore()
   const stage = stageOf(useLocation().pathname)
   const [input, setInput] = useState('')
   const [busy, setBusy] = useState(false)
-  const [examples, setExamples] = useState<string[]>([])
   const [agent, setAgent] = useState<boolean | null>(null) // null = 아직 모름
+  const [examples, setExamples] = useState<string[]>([])
   const listRef = useRef<HTMLDivElement>(null)
   const abort = useRef<AbortController | null>(null)
 
-  // 열 때 한 번: 에이전트를 쓸 수 있는지(health)와 이 단계의 예시 질문
+  // 열 때: 에이전트를 쓸 수 있는지(health)와 이 단계의 예시 질문(서버가 주고, 모델을 부르지 않는다)
   useEffect(() => {
     if (!s.chatOpen) return
     let live = true
-    cached('health', () => api.health()).then((h) => live && setAgent(h.agent || (h.examples[code] ?? 0) > 0), () => live && setAgent(null))
+    cached('health', () => api.health()).then((h) => live && setAgent(h.agent), () => live && setAgent(null))
     cached(`examples:${code}`, () => api.examples(code)).then((e) => live && setExamples(e.examples[stage] ?? []), () => live && setExamples([]))
     return () => { live = false }
   }, [s.chatOpen, code, stage])
@@ -41,22 +41,36 @@ export function ChatDock({ code }: { code: string }) {
     }
     setInput('')
     setBusy(true)
-    const history = historyOf(st.chat)
-    st.set({ chat: [...st.chat, { role: 'user', text: q }] })
+    const sent = st.state
+    const body = buildAskBody({ code, state: sent, stage, question: q, history: historyOf(st.chat) })
+    // 말풍선을 먼저 하나 놓고, 이벤트가 오는 대로 마지막 말풍선을 고친다
+    st.set({ chat: [...st.chat, { role: 'user', text: q }, { role: 'ai', text: '', tools: [] }] })
+    const edit = (fn: (m: Extract<ChatMsg, { role: 'ai' }>) => Extract<ChatMsg, { role: 'ai' }>) => {
+      const chat = useStore.getState().chat
+      const last = chat[chat.length - 1]
+      if (last?.role === 'ai') useStore.getState().set({ chat: [...chat.slice(0, -1), fn(last)] })
+    }
     const ac = (abort.current = new AbortController())
-    const timer = setTimeout(() => ac.abort(), 45_000) // 서버는 40초 안에 답한다
-    let reply: ChatMsg
-    try {
-      const a = await api.ask({ region: code, state: st.state, stage, question: q, history }, ac.signal)
-      reply = { role: 'ai', text: a.answer, tools: a.toolLog.map((l, i) => ({ id: String(i), label: l.replace(/^▸\s*/, '') })) }
-      // 도구가 바꾼 state로 화면을 다시 그린다 (예산 · 목표 · 기준 등)
-      useStore.getState().set({ state: a.state, remainingToday: a.remainingToday })
-    } catch (e) {
-      const timeout = (e as Error).name === 'AbortError'
-      reply = { role: 'ai', text: timeout ? '답이 늦어지고 있어요. 다시 물어봐 주세요.' : errText(e), tools: [], error: true }
-      if (e instanceof ApiError && e.code === 'agent_unavailable') setAgent(false)
-    } finally { clearTimeout(timer) }
-    useStore.getState().set({ chat: [...useStore.getState().chat, reply] })
+    let changed = false // state 이벤트로 화면 값을 이미 바꿨는지
+    for await (const ev of askServer(body, ac.signal)) {
+      if (ev.type === 'tool_call') edit((m) => ({ ...m, tools: [...m.tools, { id: ev.id, label: ev.label }] }))
+      else if (ev.type === 'tool_result') edit((m) => ({ ...m, tools: m.tools.map((t) => (t.id === ev.id ? { ...t, result: ev.result } : t)) }))
+      else if (ev.type === 'text') edit((m) => ({ ...m, text: m.text + ev.delta }))
+      else if (ev.type === 'clarify') edit((m) => ({ ...m, options: ev.options }))
+      else if (ev.type === 'state') { changed = true; useStore.getState().set({ state: ev.state }) } // 실패하기 전에 온 state도 서버가 끝낸 정상 값이라 그대로 둔다
+      else if (ev.type === 'done') {
+        // state 이벤트를 못 받았어도 done의 state가 보낸 것과 다르면 반영한다(바꾼 것이 없으면 보낸 state 그대로 온다)
+        if (!changed && JSON.stringify(ev.state) !== JSON.stringify(sent)) useStore.getState().set({ state: ev.state })
+        if (typeof ev.remainingToday === 'number') useStore.getState().set({ remainingToday: ev.remainingToday })
+        edit((m) => ({ ...m, cached: ev.cached }))
+      } else if (ev.type === 'error') {
+        edit((m) => ({ ...m, error: true, text: m.text ? `${m.text}\n\n${ev.message}` : ev.message }))
+        if (ev.error === 'agent_unavailable') setAgent(false)
+      }
+    }
+    // 끝 이벤트 없이 멈췄는데 말풍선이 비어 있으면(창을 닫아 멈춘 경우) 치운다
+    const last = useStore.getState().chat.at(-1)
+    if (last?.role === 'ai' && !last.text && !last.tools.length) useStore.getState().set({ chat: useStore.getState().chat.slice(0, -1) })
     setBusy(false)
   }
 
@@ -83,8 +97,8 @@ export function ChatDock({ code }: { code: string }) {
               {!s.chat.length && !off && <p className="muted small">숫자는 서버가 계산한 결과만 써서 답해요. 답에 따라 예산이나 기준이 바뀌면 화면이 바로 다시 그려져요.</p>}
               {s.chat.map((msg, i) => msg.role === 'user'
                 ? <motion.p key={i} className="me" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>{msg.text}</motion.p>
-                : <AiMsg key={i} msg={msg} />)}
-              {busy && <p className="muted small" role="status"><span className="spin" /> 답을 만들고 있어요…</p>}
+                : <AiMsg key={i} id={`chat${i}`} msg={msg} last={i === s.chat.length - 1} busy={busy} onPick={(t) => void send(t)} />)}
+              {busy && !s.chat.at(-1)?.text && <p className="muted small" role="status"><span className="spin" /> 답을 만들고 있어요…</p>}
             </div>
             {!!examples.length && !off && (
               <div className="suggest">
@@ -105,8 +119,9 @@ export function ChatDock({ code }: { code: string }) {
   )
 }
 
-function AiMsg({ msg }: { msg: Extract<ChatMsg, { role: 'ai' }> }) {
+function AiMsg({ id, msg, last, busy, onPick }: { id: string; msg: Extract<ChatMsg, { role: 'ai' }>; last: boolean; busy: boolean; onPick: (text: string) => void }) {
   const [open, setOpen] = useState(true)
+  const streaming = last && busy
   return (
     <motion.div className={`ai ${msg.error ? 'err' : ''}`} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
       {msg.tools.length > 0 && (
@@ -115,19 +130,20 @@ function AiMsg({ msg }: { msg: Extract<ChatMsg, { role: 'ai' }> }) {
           <AnimatePresence initial={false}>
             {open && (
               <motion.ul initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
-                {msg.tools.map((t) => <li key={t.id}><span className="ok">✓</span><code>{t.label}</code></li>)}
+                {msg.tools.map((t) => <li key={t.id}><span className={t.result ? 'ok' : 'muted'}>{t.result ? '✓' : '…'}</span><code>{t.label}</code>{t.result && <span className="muted small"> → {t.result}</span>}</li>)}
               </motion.ul>
             )}
           </AnimatePresence>
         </div>
       )}
-      {/* answer는 HTML이 아니라 글이다: 그대로 텍스트로 넣는다 */}
-      <p style={{ whiteSpace: 'pre-wrap' }}>{msg.error ? msg.text : highlightNumbers(msg.text)}</p>
+      {/* 답은 HTML이 아니라 마크다운 글이다(줄바꿈 · 목록 · 표 · 각주). 글이 흘러오는 중엔 정의가 아직 안 온 각주 표시를 감춘다 */}
+      {msg.text && (msg.error ? <p style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</p> : <Md text={streaming ? hidePendingRefs(msg.text) : msg.text} prefix={id} />)}
+      {msg.options && last && !busy && (
+        <div className="sugg-list" style={{ marginTop: 8 }}>
+          {msg.options.map((o) => <button key={o} onClick={() => onPick(o)}>{o}</button>)}
+        </div>
+      )}
+      {msg.cached && <p className="muted small" style={{ margin: '4px 0 0' }}>앞서 만든 답이에요 (횟수에 안 세요)</p>}
     </motion.div>
   )
-}
-
-// 답 속 숫자를 눈에 띄게 (모두 서버가 계산한 숫자다)
-function highlightNumbers(text: string) {
-  return text.split(/(\d[\d,.]*\s*(?:%|억|명|분|곳|대|점|배|번)?)/).map((part, i) => (i % 2 ? <mark key={i}>{part}</mark> : part))
 }

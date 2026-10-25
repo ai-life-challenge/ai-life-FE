@@ -1,11 +1,12 @@
 import { create } from 'zustand'
 import { api, ApiError, regionData, regionMap } from './api/client'
+import type { CarTarget } from './api/judge'
 import type { Judge, Plans, RegionData, RegionItem, Report, Sensitivity, State, Turn } from './api/types'
 
 export type ToolCallMsg = { id: string; label: string; result?: string }
 export type ChatMsg =
   | { role: 'user'; text: string }
-  | { role: 'ai'; text: string; tools: ToolCallMsg[]; error?: boolean }
+  | { role: 'ai'; text: string; tools: ToolCallMsg[]; error?: boolean; options?: string[]; cached?: boolean } // options: 되묻기 버튼, cached: 앞서 만든 답을 다시 보낸 것
 
 // 서버 호출 상태. 오류는 화면에 그대로 보여 줘도 되는 message만 둔다
 // key: 이 결과를 받을 때의 조건. 지금 조건과 다르면 오래된 결과다
@@ -31,7 +32,9 @@ interface Store {
   hoverVillage: string | null
   showDots: boolean // 진단 지도에 못 가는 마을(빨간 X)을 그릴지 — 대중교통/자가용 중 지금 보는 판정 기준
   showFacilities: boolean // 진단 지도에 병원·의원·보건소 아이콘을 그릴지
+  carTarget: CarTarget // 자가용 이용에서 어디까지 가는지: 가까운 병의원 · 병원급 · 의원 · 보건기관 · 응급실(지역응급의료센터 이상)
   travel: 'transit' | 'car' // 진단 화면에서 보는 이동 수단: 대중교통(차 없는 주민, 서버 판정) · 자가용(차 있는 주민, 화면 판정)
+  thinking: boolean // 예산안 만들기 화면에서 서버가 계산하는 동안: 지도에서 못 가는 마을을 훑는 파동을 그린다
   sweep: number | null // 시간 스윕 중이면 지금 분: 바탕 격자에서 이 시간 안에 닿는 칸만 칠한다
   reached: { code: string | null; max: number } // 단계 메뉴: 이 지역에서 가 본 가장 먼 단계
   sources: { open: boolean; focus: string | null; at: number }
@@ -73,7 +76,7 @@ export const useStore = create<Store>((set, get) => ({
   regions: [], state: null, defaults: null, listError: null,
   code: null, data: null, map: null, regionError: null,
   judge: idle(), plans: idle(), sens: idle(), report: idle(),
-  mapReady: false, hoverRegion: null, hoverVillage: null, showDots: true, showFacilities: true, travel: 'transit', sweep: null,
+  mapReady: false, hoverRegion: null, hoverVillage: null, showDots: true, showFacilities: true, travel: 'transit', carTarget: 'med', thinking: false, sweep: null,
   reached: { code: null, max: 0 },
   sources: { open: false, focus: null, at: 0 },
   chat: [], chatOpen: false, remainingToday: null,
@@ -102,6 +105,6 @@ export const useStore = create<Store>((set, get) => ({
 }))
 
 export const historyOf = (chat: ChatMsg[]): Turn[] =>
-  chat.filter((m) => !(m.role === 'ai' && m.error)).slice(-6).map((m) => ({ role: m.role === 'user' ? 'user' : 'assistant', text: m.text.slice(0, 600) }))
+  chat.filter((m) => !(m.role === 'ai' && m.error) && m.text).slice(-20).map((m) => ({ role: m.role === 'user' ? 'user' : 'assistant', text: m.text.slice(0, 600) }))
 
 if (import.meta.env.DEV) (window as unknown as { __store: typeof useStore }).__store = useStore

@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { DEFAULT_MIN_PER_KM, cellRate, gridOf, minuteRgb, minutesPerKm, rateColor, timeGrid } from './cells'
+import { cellRate, erGrid, gridOf, minuteRgb, rateColor } from './cells'
 
 const vs = [{ lon: 127.0, lat: 36.0 }, { lon: 127.001, lat: 36.001 }, { lon: 127.1, lat: 36.1 }, { lon: 127.05, lat: 36.05 }]
 
@@ -33,16 +33,16 @@ describe('마을 집계 격자', () => {
   })
 })
 
-describe('병원까지 시간 격자', () => {
+describe('응급실까지 시간 격자', () => {
   const outline = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[[127.0, 36.0], [127.1, 36.0], [127.1, 36.1], [127.0, 36.1], [127.0, 36.0]]] } }] } as GeoJSON.FeatureCollection
-  const vs = [{ lon: 127.005, lat: 36.005, people: 10 }, { lon: 127.095, lat: 36.095, people: 20 }]
-  const g = timeGrid(vs, [{ lon: 127.0, lat: 36.0 }], outline, 10)
+  const vs = [{ lon: 127.005, lat: 36.005, people: 10, minutes: 10 }, { lon: 127.095, lat: 36.095, people: 20, minutes: 50 }]
+  const g = erGrid(vs, outline, 10)
   const at = (lon: number, lat: number) => g.find((c) => c.polygon[0][0] <= lon && lon < c.polygon[2][0] && c.polygon[0][1] <= lat && lat < c.polygon[2][1])!
-  test('경계 안만 칸으로 채우고, 병원에서 멀수록 시간이 길다', () => {
+  test('경계 안만 칸으로 채우고, 칸 시간은 가까운 마을 값을 따른다', () => {
     expect(g.length).toBeGreaterThan(50)
-    expect(at(127.005, 36.005).minutes).toBeLessThan(2)
-    expect(at(127.095, 36.095).minutes).toBeGreaterThan(at(127.05, 36.05).minutes)
-    expect(at(127.095, 36.095).minutes).toBeCloseTo((Math.hypot(0.095 * 88.7, 0.095 * 111.2) * 1.3 / 40) * 60, 0)
+    expect(at(127.005, 36.005).minutes).toBeLessThan(15)
+    expect(at(127.095, 36.095).minutes).toBeGreaterThan(45)
+    for (const c of g) { expect(c.minutes).toBeGreaterThanOrEqual(10); expect(c.minutes).toBeLessThanOrEqual(50) }
   })
   test('칸에는 가장 가까운 마을과 칸 안 인구가 붙는다', () => {
     expect(at(127.095, 36.095).village).toBe(1)
@@ -53,23 +53,15 @@ describe('병원까지 시간 격자', () => {
     expect(at(127.095, 36.095).lived).toBe(true)
     expect(at(127.05, 36.05).lived).toBe(false)
   })
-  test('병원이 없으면 칸을 만들지 않는다', () => expect(timeGrid(vs, [], outline, 10)).toEqual([]))
-  test('색은 5분 이하 진초록, 25분 이상 주황', () => {
-    expect(minuteRgb(0)).toEqual([86, 172, 100])
-    expect(minuteRgb(40)).toEqual([242, 138, 78])
-    expect(minuteRgb(20)[1]).toBeLessThan(minuteRgb(12)[1])
+  test('시간이 없는 마을은 퍼뜨리지 않고, 전부 없으면 칸을 만들지 않는다', () => {
+    const half = erGrid([vs[0], { ...vs[1], minutes: null }], outline, 10)
+    expect(Math.max(...half.map((c) => c.minutes))).toBeCloseTo(10)
+    expect(erGrid([{ ...vs[0], minutes: null }], outline, 10)).toEqual([])
   })
-})
-
-describe('1km당 분 보정', () => {
-  const f = [{ lon: 127.0, lat: 36.0 }]
-  // 병원에서 동쪽으로 1~12km 떨어진 마을들, 서버 도로 시간은 1km당 2.5분
-  const vs = Array.from({ length: 12 }, (_, i) => ({ lon: 127.0 + (i + 1) / 89.9, lat: 36.0, nearest: { med: { minutes: (i + 1) * 2.5 } } }))
-  test('서버 도로 시간 ÷ 직선거리의 중앙값을 쓴다', () => expect(minutesPerKm(vs, f)).toBeCloseTo(2.5, 1))
-  test('쓸 마을이 10곳 미만이면 기본값', () => expect(minutesPerKm(vs.slice(0, 5), f)).toBe(DEFAULT_MIN_PER_KM))
-  test('보정값을 주면 격자 시간도 그만큼 늘어난다', () => {
-    const outline = { type: 'FeatureCollection', features: [{ type: 'Feature', properties: {}, geometry: { type: 'Polygon', coordinates: [[[127.0, 36.0], [127.1, 36.0], [127.1, 36.1], [127.0, 36.1], [127.0, 36.0]]] } }] } as GeoJSON.FeatureCollection
-    const a = timeGrid([], f, outline, 10), b = timeGrid([], f, outline, 10, DEFAULT_MIN_PER_KM * 2)
-    expect(b[5].minutes).toBeCloseTo(a[5].minutes * 2)
+  test('외딴 마을의 아주 큰 값은 180분으로 자른다', () => expect(Math.max(...erGrid([{ ...vs[0], minutes: 1600 }], outline, 10).map((c) => c.minutes))).toBeCloseTo(180))
+  test('색은 10분 이하 진초록, 45분 이상 주황', () => {
+    expect(minuteRgb(0)).toEqual([86, 172, 100])
+    expect(minuteRgb(90)).toEqual([242, 138, 78])
+    expect(minuteRgb(40)[1]).toBeLessThan(minuteRgb(15)[1])
   })
 })

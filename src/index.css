@@ -321,7 +321,28 @@ button.badge:hover { background: var(--gray-2); }
 .paper h1 { font-size: 30px; margin: 8px 0 18px; }
 .paper h2 { font-size: 20px; margin: 34px 0 10px; font-weight: 600; display: flex; gap: 8px; align-items: center; }
 .paper .tools { margin: 0 0 8px; }
-.para { white-space: pre-wrap; margin: 0; padding: 6px 8px; border-radius: 8px; outline: none; transition: background .2s; }
+.para { margin: 0; padding: 6px 8px; border-radius: 8px; outline: none; transition: background .2s; }
+.para-edit { width: 100%; box-sizing: border-box; font: inherit; line-height: 1.7; padding: 10px 12px; margin-bottom: 8px; border: 0; border-radius: 10px; background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); resize: vertical; }
+/* 서버가 주는 마크다운(질문 답 · 레포트 문단) */
+.md > :first-child { margin-top: 0; }
+.md > :last-child { margin-bottom: 0; }
+.md p { margin: 0 0 .7em; }
+.md ul, .md ol { margin: 0 0 .7em; padding-left: 1.3em; }
+.md li { margin: .15em 0; }
+.md code { font-family: ui-monospace, Menlo, monospace; font-size: .9em; background: var(--gray); padding: 1px 5px; border-radius: 5px; }
+.md a { color: var(--accent); }
+.md sup a { text-decoration: none; font-weight: 600; padding: 0 1px; }
+.md-table { overflow-x: auto; margin: 0 0 .8em; }
+.md table { border-collapse: collapse; width: 100%; font-size: .92em; }
+.md th, .md td { padding: 6px 8px; text-align: left; border-bottom: 1px solid var(--gray-2); white-space: nowrap; }
+.md th { background: var(--gray); font-weight: 500; color: var(--muted); }
+.md section[data-footnotes] { margin-top: 12px; padding-top: 8px; border-top: 1px solid var(--gray-2); font-size: .88em; color: var(--muted); }
+.md section[data-footnotes] ol { margin: 0; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.notes { padding-left: 1.4em; font-size: 14px; line-height: 1.6; }
+.notes > li { margin: 6px 0; }
+.notes ul { margin: 2px 0 0; padding-left: 1.2em; color: var(--muted); }
+.notes code { font-family: ui-monospace, Menlo, monospace; font-size: .92em; background: var(--gray); padding: 1px 5px; border-radius: 5px; }
 .para:not(.typing):hover { background: var(--gray); cursor: text; }
 .para:focus { background: var(--accent-soft); box-shadow: inset 0 0 0 2px var(--accent); }
 .para mark { position: relative; background: var(--accent-soft); color: #6c22b0; font-weight: 600; padding: 0 2px; border-radius: 3px; cursor: help; }
@@ -373,6 +394,24 @@ button.badge:hover { background: var(--gray-2); }
 .goal-panel .big { font-size: 30px; }
 .goal-panel .next-row .big-btn, .sim-panel .big-btn { padding: 13px 16px; font-size: 16px; }
 .sim-panel h1 { font-size: 22px; }
+/* 예산안 만들기: AI가 일하는 모습 */
+.ai-orb { position: relative; width: 56px; height: 56px; margin: 6px 0 4px; display: grid; place-items: center; }
+.ai-orb .core { width: 34px; height: 34px; border-radius: 50%; display: grid; place-items: center; color: #fff; font-size: 17px; background: var(--grad); animation: orb-pulse 1.6s ease-in-out infinite; }
+.ai-orb i { position: absolute; inset: 0; border-radius: 50%; animation: orbit 2.4s linear infinite; }
+.ai-orb i::after { content: ''; position: absolute; top: 0; left: 50%; width: 7px; height: 7px; margin-left: -3.5px; border-radius: 50%; background: var(--accent); }
+.ai-orb i:nth-of-type(2) { inset: 7px; animation-duration: 3.4s; animation-direction: reverse; opacity: .6; }
+.ai-orb i:nth-of-type(2)::after { width: 5px; height: 5px; margin-left: -2.5px; }
+@keyframes orbit { to { transform: rotate(360deg); } }
+@keyframes orb-pulse { 0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 var(--accent-soft); } 50% { transform: scale(1.1); box-shadow: 0 0 0 10px transparent; } }
+.shimmer-text { background: linear-gradient(90deg, var(--ink) 0%, var(--ink) 38%, var(--accent) 50%, var(--ink) 62%, var(--ink) 100%); background-size: 250% 100%; -webkit-background-clip: text; background-clip: text; color: transparent; animation: shimmer 2.2s linear infinite; }
+@keyframes shimmer { from { background-position: 100% 0; } to { background-position: -100% 0; } }
+.sim-progress { height: 6px; border-radius: 3px; background: var(--gray); overflow: hidden; margin: 14px 0; }
+.sim-progress i { display: block; position: relative; height: 100%; width: 0; border-radius: 3px; background: var(--grad); transition: width .25s linear; overflow: hidden; }
+.sim-progress.run i::after { content: ''; position: absolute; inset: 0; background: linear-gradient(90deg, transparent, rgba(255, 255, 255, .6), transparent); animation: sheen 1.1s linear infinite; }
+@keyframes sheen { from { transform: translateX(-100%); } to { transform: translateX(100%); } }
+.budget-blocks { display: flex; flex-wrap: wrap; gap: 3px; margin-top: 16px; }
+.budget-blocks i { width: 14px; height: 14px; border-radius: 3px; background: var(--gray-2); transition: background .25s, transform .25s; }
+.budget-blocks i.on { background: var(--accent); transform: translateY(-2px); }
 .sim-panel .sim { grid-template-columns: 1fr; gap: 12px; margin-top: 12px; }
 .sim-panel .lane, .sim-panel .left-bar { grid-template-columns: 76px 1fr 44px; }
 
@@ -655,7 +694,8 @@ button.badge:hover { background: var(--gray-2); }
   .ask textarea { padding-right: 16px; padding-bottom: 60px; }
 }
 @media (prefers-reduced-motion: reduce) {
-  .spin, .caret { animation: none; }
+  .spin, .caret, .ai-orb .core, .ai-orb i, .shimmer-text, .sim-progress i::after { animation: none; }
+  .sim-progress i, .budget-blocks i { transition: none; }
   .stable tr.flash td { animation: none; background: var(--accent-soft); }
 }
 @media print {

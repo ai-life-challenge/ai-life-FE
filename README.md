@@ -24,19 +24,19 @@ API 주소는 `src/api/client.ts`의 기본값(운영 서버)이고, 다른 서�
 
 랜딩 → S0 인트로 → **지도 한 화면에서 S1~S5** → What-if / 레포트
 
-| 화면 | 경로 | 내용 | 서버 호출 |
-|---|---|---|---|
-| 랜딩 | `/` | 풀페이지 스크롤. 창녕군 서버 계산 결과를 마을 집계 격자로 그린 그림 6장(기준 슬라이더, 정책 핀 등) | regions, judge, plans, sensitivity, report |
-| S0 인트로 | `/intro` | 문제 체감 문구 3줄 (창녕군 서버 계산 값) | judge |
-| S1 지역 선택 | `/start` | 전국 지도에서 72곳 중 선택, 호버 카드 | `GET /api/regions` |
-| S2 현황 진단 | `/r/:code` | 마을별 판정 지도, 기준(자가용·걷기·운행 횟수) 바꾸기, 마을 상세 | `GET /api/regions/{code}`, `…/map`, `POST /api/judge`, `/api/village` |
-| S3 목표·예산 | `/r/:code/goal` | 연 예산, 목표 달성률, 쓸 공급수단 | – |
-| S4 안 만들기 | `/r/:code/sim` | 도구 호출 칩, 끝나면 결과로 | `POST /api/plans` |
-| S5 결과 | `/r/:code/result` | 대안 3개 카드, 추천, 지도에 고른 안, 단가 민감도 | `POST /api/plans`, `/api/sensitivity` |
-| S6 What-if | `/r/:code/whatif` | 예산을 바꿔 본 대안, 예산별 최대 달성률 곡선 | `POST /api/plans` (예산별) |
-| S7 가정과 출처 | 어디서든 (사이드 시트) | 지역 자료 출처, 단가·효과 가정 직접 수정 | – |
-| S8 레포트 | `/r/:code/report` | 공문/주민 안내문 초안, 문단 직접 고치기, PDF·링크 | `POST /api/report` |
-| AI 질문 | S2 이후 모든 화면 | 서버 에이전트에게 묻기 | `GET /api/examples`, `POST /api/ask` |
+| 화면             | 경로                   | 내용                                                                                               | 서버 호출                                                             |
+| ---------------- | ---------------------- | -------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| 랜딩             | `/`                    | 풀페이지 스크롤. 창녕군 서버 계산 결과를 마을 집계 격자로 그린 그림 6장(기준 슬라이더, 정책 핀 등) | regions, judge, plans, sensitivity, report                            |
+| S0 인트로        | `/intro`               | 문제 체감 문구 3줄 (창녕군 서버 계산 값)                                                           | judge                                                                 |
+| S1 지역 선택     | `/start`               | 전국 지도에서 72곳 중 선택, 호버 카드                                                              | `GET /api/regions`                                                    |
+| S2 현황 진단     | `/r/:code`             | 마을별 판정 지도, 기준(자가용·걷기·운행 횟수) 바꾸기, 마을 상세                                    | `GET /api/regions/{code}`, `…/map`, `POST /api/judge`, `/api/village` |
+| S3 목표·예산     | `/r/:code/goal`        | 연 예산, 목표 달성률, 쓸 공급수단                                                                  | –                                                                     |
+| S4 예산안 만들기 | `/r/:code/sim`         | 도구 호출 칩, 끝나면 결과로                                                                        | `POST /api/plans`                                                     |
+| S5 결과          | `/r/:code/result`      | 대안 3개 카드, 추천, 지도에 고른 안, 단가 민감도                                                   | `POST /api/plans`, `/api/sensitivity`                                 |
+| S6 What-if       | `/r/:code/whatif`      | 예산을 바꿔 본 대안, 예산별 최대 달성률 곡선                                                       | `POST /api/plans` (예산별)                                            |
+| S7 가정과 출처   | 어디서든 (사이드 시트) | 지역 자료 출처, 단가·효과 가정 직접 수정                                                           | –                                                                     |
+| S8 레포트        | `/r/:code/report`      | 공문/주민 안내문 초안, 문단 직접 고치기, PDF·링크                                                  | `POST /api/report`                                                    |
+| AI 질문          | S2 이후 모든 화면      | 서버 에이전트에게 묻기                                                                             | `GET /api/examples`, `POST /api/ask`                                  |
 
 ## 판정과 서버 대조
 
