@@ -127,7 +127,7 @@ export function Landing() {
           <SCard black title="정책이 놓이는 모습을 지도에" text="추천안의 공급수단이 하나씩 놓이면, 새로 닿는 칸이 빨강에서 초록으로 바뀌어요. 남는 공백도 함께 보여 줘요." visual={<DropDemo demo={demo} g={g} />} tone="gr" />
         </Showcase>
 
-        <Showcase id="report" tone="light" icon="doc" title="레포트" lead="고른 안은 공문 형식이나 주민 안내문으로 바로 만들어요. 문단은 직접 고칠 수 있어요.">
+        <Showcase id="report" tone="light" icon="doc" title="레포트" lead="고른 안은 공문 형식으로 바로 만들어요. 문단은 직접 고칠 수 있어요.">
           <SCard title="계산 결과로 채운 공문 초안" text="현황과 권고를 쓰고 대안 비교표를 붙여요. 고친 문단은 서버에 다시 보내 그대로 실려요. PDF로 저장하거나 링크로 같은 조건을 공유할 수 있어요." visual={<ReportDemo demo={demo} />} tone="pb" ai />
           <SCard black title="단가가 20% 달라져도 추천이 그대로일까" text="가정한 단가를 20% 내리고 올렸을 때 추천이 바뀌는지 확인해요. 단가는 화면에서 직접 고칠 수 있어요." visual={<SensDemo demo={demo} />} tone="gr" />
         </Showcase>

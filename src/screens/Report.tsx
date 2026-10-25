@@ -1,9 +1,9 @@
-// S8 레포트: 서버가 계산 결과로 채운 공문(또는 주민 안내문) 초안. 문단은 마크다운이고 본문 속 [n]은 맨 아래 '출처와 근거'의 n번 각주로 이어진다.
+// S8 레포트: 서버가 계산 결과로 채운 공문 초안. 문단은 마크다운이고 본문 속 [n]은 맨 아래 '출처와 근거'의 n번 각주로 이어진다.
 // 문단은 눌러서 고칠 수 있고(원문 그대로), 고친 글은 서버에 다시 보내 그대로 실린다. 인쇄 CSS로 PDF 저장, 링크 복사로 같은 조건을 공유한다.
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router'
 import { motion } from 'motion/react'
-import type { AgeId, Note, Report as ReportT, ReportForm, ReportSection, SectionKey, Service } from '../api/types'
+import type { AgeId, Note, Report as ReportT, ReportSection, SectionKey, Service } from '../api/types'
 import { AGES, eok, pct } from '../api/meta'
 import { useAutoFetch } from '../hooks'
 import { useStore } from '../store'
@@ -12,7 +12,6 @@ import { Md } from '../ui/Md'
 import { linkNotes } from '../ui/mdText'
 
 const today = new Date().toLocaleDateString('sv-SE')
-const FORMS: { id: ReportForm; name: string }[] = [{ id: 'official', name: '공문' }, { id: 'resident', name: '주민 안내문' }]
 
 export function Report() {
   const { code } = useParams()
@@ -38,6 +37,7 @@ export function Report() {
     }))
   }, [q, patch])
 
+  useEffect(() => { if (st.report.form !== 'official') patch((s) => ({ ...s, report: { ...s.report, form: 'official' } })) }, [st.report.form, patch]) // 주민 안내문은 없앴다: 공문만
   useAutoFetch('fetchPlans')
   useAutoFetch('fetchReport', true, 200)
 
@@ -53,27 +53,14 @@ export function Report() {
   return (
     <motion.div className="report-wrap" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <div className="report-bar no-print">
-        <div className="row">
-          <div className="seg" role="radiogroup" aria-label="문서 형식">
-            {FORMS.map((f) => (
-              <button key={f.id} role="radio" aria-checked={st.report.form === f.id} className={st.report.form === f.id ? 'on' : ''} onClick={() => patch((s) => ({ ...s, report: { ...s.report, form: f.id } }))}>
-                {st.report.form === f.id && <motion.span layoutId="form-bg" className="tab-bg" />}<span style={{ position: 'relative' }}>{f.name}</span>
-              </button>
-            ))}
-          </div>
-          {plans.data && (
-            <div className="seg" role="radiogroup" aria-label="기준 안">
-              {plans.data.plans.map((p) => (
-                <button key={p.k} role="radio" aria-checked={st.planShow === p.k} className={st.planShow === p.k ? 'on' : ''} onClick={() => patch((s) => ({ ...s, planShow: p.k }))}>
-                  {st.planShow === p.k && <motion.span layoutId="plan-bg" className="tab-bg" />}<span style={{ position: 'relative' }}>{p.name}{p.recommended ? ' ⭐' : ''}</span>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-        <div className="row">
-          <button className="ghost" onClick={copyLink}>링크 복사</button>
-          <button className="primary" onClick={() => window.print()}>PDF로 저장</button>
+        <span className="report-plan muted small">{plans.data ? `${plans.data.plans.find((p) => p.k === st.planShow)?.name ?? ''} 기준 · 결과 화면에서 고른 안이에요` : ''}</span>
+        <div className="report-actions">
+          <button className="ghost" onClick={copyLink}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" /><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></svg>링크 복사
+          </button>
+          <button className="primary" onClick={() => window.print()}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M12 3v12M7 10l5 5 5-5M5 21h14" /></svg>PDF로 저장
+          </button>
         </div>
       </div>
 

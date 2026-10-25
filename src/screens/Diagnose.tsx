@@ -17,6 +17,7 @@ import { KIND_RE, targetMinutes } from '../api/judge'
 import { boxOf, fitCounty } from '../map/geo'
 import { Count } from '../ui/Count'
 import { LevelBadge, SrcBadge } from '../ui/Badges'
+import { Seg } from '../ui/Seg'
 
 // 이동 수단 탭: 대중교통은 서버 판정('병원 가는 길'), 자가용은 서버에 없는 판정이라 화면에서 계산한다(api/judge.ts judgeCar)
 const TRAVEL = [
@@ -284,20 +285,6 @@ function ServerCheck() {
   }
   if (judge.status === 'error') return null
   return <p className="small muted" role="status">서버 판정 확인 중…</p>
-}
-
-// 이동 수단 · 나이대처럼 하나만 고르는 선택: 둘러싼 막대 안에서 선택된 알약이 미끄러져 옮겨 간다
-function Seg<T extends string>({ id, label, options, value, onChange }: { id: string; label: string; options: { id: T; name: string }[]; value: T; onChange: (id: T) => void }) {
-  return (
-    <div className="seg" role="radiogroup" aria-label={label}>
-      {options.map((o) => (
-        <button key={o.id} role="radio" aria-checked={value === o.id} className={value === o.id ? 'on' : ''} onClick={() => onChange(o.id)}>
-          {value === o.id && <motion.span className="seg-pill" layoutId={`seg-${id}`} transition={{ type: 'spring', stiffness: 500, damping: 36 }} />}
-          <span className="seg-text">{o.name}</span>
-        </button>
-      ))}
-    </div>
-  )
 }
 
 function Slider({ label, unit, min, max, step, value, onChange, disabled, note }: { label: string; unit: string; min: number; max: number; step: number; value: number; onChange: (v: number) => void; disabled?: boolean; note?: string }) {
