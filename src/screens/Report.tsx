@@ -9,6 +9,7 @@ import { useAutoFetch } from '../hooks'
 import { useStore } from '../store'
 import { AiBadge, LevelBadge } from '../ui/Badges'
 import { Md } from '../ui/Md'
+import { Seg } from '../ui/Seg'
 import { linkNotes } from '../ui/mdText'
 
 const today = new Date().toLocaleDateString('sv-SE')
@@ -53,7 +54,9 @@ export function Report() {
   return (
     <motion.div className="report-wrap" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <div className="report-bar no-print">
-        <span className="report-plan muted small">{plans.data ? `${plans.data.plans.find((p) => p.k === st.planShow)?.name ?? ''} 기준 · 결과 화면에서 고른 안이에요` : ''}</span>
+        {plans.data ? (
+          <Seg id="plan" label="기준 안" options={plans.data.plans.map((p) => ({ id: p.k, name: p.name, badge: p.recommended ? '추천' : undefined }))} value={st.planShow} onChange={(k) => patch((s) => ({ ...s, planShow: k }))} />
+        ) : <span />}
         <div className="report-actions">
           <button className="ghost" onClick={copyLink}>
             <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden><path d="M10 13a5 5 0 0 0 7 0l3-3a5 5 0 0 0-7-7l-1 1" /><path d="M14 11a5 5 0 0 0-7 0l-3 3a5 5 0 0 0 7 7l1-1" /></svg>링크 복사
