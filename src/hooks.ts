@@ -7,7 +7,8 @@ import type { JudgedVillage, JudgeSummary } from './api/types'
 export function useLocalJudge() {
   const data = useStore((s) => s.data)
   const st = useStore((s) => s.state)
-  return useMemo(() => (data && st ? judgeLocal(data, st) : null), [data, st?.service, st?.age, st?.criteria]) // eslint-disable-line react-hooks/exhaustive-deps
+  const carTarget = useStore((s) => s.carTarget)
+  return useMemo(() => (data && st ? judgeLocal(data, st, carTarget) : null), [data, st?.service, st?.age, st?.criteria, carTarget]) // eslint-disable-line react-hooks/exhaustive-deps
 }
 
 // 서버 판정(지금 기준으로 받은 것만)을 기준으로 브라우저 판정과 대조한다
@@ -19,7 +20,8 @@ export function useFreshServerJudge() {
 export function useJudgeCompare() {
   const local = useLocalJudge()
   const server = useFreshServerJudge()
-  return useMemo(() => (local && server ? compare(server, local) : null), [local, server])
+  const carTarget = useStore((s) => s.carTarget)
+  return useMemo(() => (local && server && carTarget === 'med' ? compare(server, local) : null), [local, server, carTarget])
 }
 
 // 화면에 보이는 판정: 브라우저 판정을 바로 쓰고, 서버와 다르면 서버 판정으로 바꾼다 (서버가 기준)

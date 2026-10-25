@@ -53,6 +53,13 @@ describe('브라우저 판정', () => {
     expect(st('clinic')).toEqual([0, 2, 0, 2]) // c는 마을 안에 의원이 있어 갈 수 있음
     expect(st('public')).toEqual([0, 0, 2, 2]) // a는 마을 안에 보건지소가 있어 갈 수 있음(40분이어도)
   })
+  test('대중교통 탭에도 필터가 든다: 병원급이 멀면 버스가 있어도 못 감, 응급은 버스를 안 본다', () => {
+    const d = data('auto', [village('a', {}, 5, 20, { hospital: 40, clinic: 5, public: 5 }), village('b', { noStop: true }, 5, 20, { hospital: 5, clinic: 5, public: 5 })])
+    const st = (t: Parameters<typeof judgeLocal>[2]) => judgeLocal(d, rule, t).villages.map((v) => v.state)
+    expect(st('hospital')).toEqual([2, 1]) // a는 병원급 40분이라 멂, b는 가깝지만 버스 정류장이 없음
+    expect(st('clinic')).toEqual([0, 1])
+    expect(st('er')).toEqual([0, 0]) // 응급: er.center만 보고 버스는 안 봄(20분 ≤ 30)
+  })
   test('버스 서비스는 시설을 보지 않는다', () => {
     const d = data('auto', [village('far', {}, 99), village('nostop', { noStop: true })])
     expect(judgeLocal(d, { ...rule, service: 'bus' }).villages.map((v) => v.state)).toEqual([0, 1])

@@ -17,6 +17,7 @@ import { STATE_NAME, STATE_RGB, SUPPLY } from '../api/meta'
 import type { JudgedVillage, RawFacility } from '../api/types'
 import { useRafTime } from './useRafTime'
 import { erGrid, minuteRgb, type TimeCell } from '../api/cells'
+import { KIND_RE, targetMinutes } from '../api/judge'
 import { KOREA_VIEW, loadSigungu } from './geo'
 import { clusterByPixel, type Cluster } from './cluster'
 import { RegionCard } from '../ui/RegionCard'
@@ -69,7 +70,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   onBlocked: (name: string) => void
   mapRef: React.RefObject<MapRef | null>
 }) {
-  const { regions, hoverRegion, hoverVillage, showDots, showFacilities, sweep, thinking, map: myeon, data, state, plans, judge, set, patch } = useStore()
+  const { regions, hoverRegion, hoverVillage, showDots, showFacilities, sweep, thinking, carTarget, map: myeon, data, state, plans, judge, set, patch } = useStore()
   const reduce = useReducedMotion()
   const [sigungu, setSigungu] = useState<any>(null)
   const [, setTick] = useState(0)
@@ -108,12 +109,20 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
 
   // 진단 화면 바탕: 레퍼런스 지도처럼 600m 안팎의 칸마다 응급실까지 걸리는 시간(서버 마을 값을 이어 칠함)을 초록~주황으로 칠한다 칸과 이웃은 지역이 바뀔 때만 다시 계산한다
   const age = state?.age ?? 'a80'
-  const timeCells = useMemo(() => (data && myeon ? erGrid(data.villages.map((v) => ({ lon: v.lon, lat: v.lat, people: v.pop[age], minutes: v.nearest.er?.center?.minutes ?? null })), myeon, 60) : []), [data, myeon, age])
+  // 고른 시설(전체 · 병원급 · 의원 · 보건기관 · 응급실)에 맞춰 바탕색 시간도 바뀐다
+  const timeCells = useMemo(() => {
+    if (!data || !myeon) return []
+    const mins = targetMinutes(data, carTarget)
+    return erGrid(data.villages.map((v, i) => ({ lon: v.lon, lat: v.lat, people: v.pop[age], minutes: mins[i] })), myeon, 60)
+  }, [data, myeon, age, carTarget])
 
   const countyGeo = useMemo(() => sigungu && data && { ...sigungu, features: sigungu.features.filter((f: any) => f.properties.sgg === data.code) }, [sigungu, data])
 
+  // 고른 시설 종류만 지도에 보인다(병원급 · 의원 · 보건기관). 응급실은 시설 목록에 없어 아이콘을 숨긴다
+  const facs = useMemo(() => (!data ? [] : carTarget === 'med' ? data.facilities : carTarget === 'er' ? [] : data.facilities.filter((f) => KIND_RE[carTarget].test(f.kind))), [data, carTarget])
+
   const pins: Pin[] = local && data && screen === 'diag' ? [
-    ...(showFacilities ? data.facilities.map((f) => ({ kind: 'facility' as const, f })) : []),
+    ...(showFacilities ? facs.map((f) => ({ kind: 'facility' as const, f })) : []),
   ] : []
   const clusters = zoom >= CLUSTER_MAX_ZOOM ? pins.map((p) => ({ lon: pinAt(p)[0], lat: pinAt(p)[1], items: [p] })) : clusterByPixel(pins, pinAt, zoom)
   const singles = clusters.filter((c) => c.items.length === 1).map((c) => c.items[0])
@@ -219,7 +228,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
         getLineColor: (_v: JudgedVillage, { index }: { index: number }) => [214, 69, 93, Math.round(220 * (1 - ((ring / 1400 + index * 0.37) % 1)))],
         updateTriggers: { getRadius: ring, getLineColor: ring },
       })] : []),
-      ...(data ? facilityLayers(data.facilities) : []),
+      ...(data ? facilityLayers(facs) : []),
     )
   }
 

@@ -6,20 +6,21 @@ import { useNavigate, useParams } from 'react-router'
 import { AnimatePresence, animate, motion, useReducedMotion } from 'motion/react'
 import type { MapRef } from 'react-map-gl/maplibre'
 import { api } from '../api/client'
-import type { NearestEr, VillageDetail } from '../api/types'
+import type { NearestEr, NearestMed, VillageDetail, VillageState } from '../api/types'
 import { AGES, STATE_CSS, STATE_NAME, fmt, pct } from '../api/meta'
 import { useAutoFetch, useJudgeCompare, useShownJudge } from '../hooks'
 import { calcKey, errText, useStore } from '../store'
 import type { CarTarget } from '../api/judge'
 import { MINUTE_STOPS, minuteRgb } from '../api/cells'
 import { STD, W, overLimit, villageTimes, vulnOf, type Vuln } from '../api/vuln'
+import { KIND_RE, targetMinutes } from '../api/judge'
 import { boxOf, fitCounty } from '../map/geo'
 import { Count } from '../ui/Count'
 import { LevelBadge, SrcBadge } from '../ui/Badges'
 
 // 이동 수단 탭: 대중교통은 서버 판정('병원 가는 길'), 자가용은 서버에 없는 판정이라 화면에서 계산한다(api/judge.ts judgeCar)
 const TRAVEL = [
-  { id: 'transit', name: '🚌 대중교통 이용', desc: '차가 없는 주민 기준이에요. 마을 안에 병의원이 있거나, 정류장까지 걸어가 버스로 병원에 갈 수 있는지 봐요.' },
+  { id: 'transit', name: '🚌 대중교통 이용', desc: '' },
   { id: 'car', name: '🚗 자가용 이용', desc: '차가 있는 주민 기준이에요. 아래에서 고른 곳까지 자가용 시간(서버 값, 도로 기준)이 기준 안인지 봐요.' },
 ] as const
 const CAR_TARGETS: { id: CarTarget; name: string; short: string }[] = [
@@ -45,7 +46,8 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
   const times = useMemo(() => villageTimes(data!, st.age), [data, st.age])
   const T = st.criteria.carMinutes
   const over = useMemo(() => overLimit(times, T), [times, T])
-  const minutesOf = useMemo(() => new Map(times.map((v) => [v.id, v.minutes])), [times])
+  const e30 = useMemo(() => overLimit(times, 30), [times]) // 응급실 카드는 슬라이더가 아니라 E30 정의(30분)로 센다
+  const minutesOf = useMemo(() => { const m = targetMinutes(data!, carTarget); return new Map(data!.villages.map((v, i) => [v.id, m[i]])) }, [data, carTarget]) // 공백 큰 마을 목록의 분: 고른 시설까지
   const targetName = CAR_TARGETS.find((x) => x.id === carTarget)!.short
   const gapList = useMemo(() => (shown ? shown.villages.filter((v) => v.state !== 0).sort((a, b) => b.people - a.people).slice(0, 6) : []), [shown])
   const precise = data!.tier === 'precise'
@@ -81,7 +83,7 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
       <p className="muted small" style={{ marginTop: -6 }}>0점이 가장 좋고 100점이 가장 취약해요 · 50점 = 정부 기준선 · ⚖️ 균형 가중치 기준</p>
 
       <section className="map-card">
-        <h3>🗺 병원까지 가는 길 <span className="muted small">응급실 시간은 서버 도로 기준</span></h3>
+        <h3>🗺 병원까지 가는 길 <span className="muted small">시간은 서버 도로 기준</span></h3>
         <div className="chips" role="radiogroup" aria-label="이동 수단" style={{ marginTop: 8 }}>
           {TRAVEL.map((x) => (
             <button key={x.id} role="radio" aria-checked={travel === x.id} className={`chip ${travel === x.id ? 'on' : ''}`}
@@ -93,15 +95,15 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
             <button key={a.id} role="radio" aria-checked={st.age === a.id} className={`chip ${st.age === a.id ? 'on' : ''}`} onClick={() => patch((s) => ({ ...s, age: a.id }))}>{a.name}</button>
           ))}
         </div>
-        <p className="muted small" style={{ margin: '6px 0 0' }}>{TRAVEL.find((x) => x.id === travel)!.desc}</p>
+        <div className="chips" role="radiogroup" aria-label="어느 시설 기준" style={{ marginTop: 8 }}>
+          {CAR_TARGETS.map((x) => (
+            <button key={x.id} role="radio" aria-checked={carTarget === x.id} className={`chip ${carTarget === x.id ? 'on' : ''}`} onClick={() => set({ carTarget: x.id })}>{x.name}</button>
+          ))}
+        </div>
+        <p className="muted small" style={{ margin: '6px 0 0' }}>{travel === 'transit' ? (carTarget === 'er' ? '응급실은 버스를 보지 않고, 지역응급의료센터 이상까지 자가용 시간만 봐요.' : `차가 없는 주민 기준이에요. 마을 안에 ${targetName}이 있거나, 정류장까지 걸어가 버스로 ${targetName}에 갈 수 있는지 봐요.`) : TRAVEL.find((x) => x.id === travel)!.desc}</p>
         {travel === 'car' ? (
           <>
-            <div className="chips" role="radiogroup" aria-label="자가용으로 갈 곳" style={{ marginTop: 8 }}>
-              {CAR_TARGETS.map((x) => (
-                <button key={x.id} role="radio" aria-checked={carTarget === x.id} className={`chip ${carTarget === x.id ? 'on' : ''}`} onClick={() => set({ carTarget: x.id })}>{x.name}</button>
-              ))}
-            </div>
-            <p className="muted small" style={{ margin: '6px 0 0' }}>{carTarget === 'er' ? '지역응급의료센터 이상(권역센터 포함)까지예요. 서버 E30와 같은 기준이에요.' : `마을 안에 ${targetName}이 있으면 갈 수 있는 마을로 봐요.${carTarget === 'med' ? '' : ' (서버 시험 자료: 종류별 가장 가까운 곳)'}`}</p>
+            <p className="muted small" style={{ margin: '6px 0 0' }}>{carTarget === 'er' ? (T === 30 ? '지역응급의료센터 이상(권역센터 포함)까지예요. 30분일 때 서버 E30와 같은 기준이에요.' : `지역응급의료센터 이상(권역센터 포함)까지예요. 30분이 서버 E30 기준이라 ${T}분은 서버 값과 달라요.`) : `마을 안에 ${targetName}이 있으면 갈 수 있는 마을로 봐요.${carTarget === 'med' ? '' : ' (서버 시험 자료: 종류별 가장 가까운 곳)'}`}</p>
             <Slider label={`${targetName}까지 자가용`} unit="분 이내" min={10} max={60} step={5} value={T} onChange={(v) => patch((s) => ({ ...s, criteria: { ...s.criteria, carMinutes: v } }))} />
           </>
         ) : (
@@ -115,7 +117,7 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
 
         {sum && (
           <div className="hero">
-            <p className="muted small" style={{ margin: 0 }}>{ageName} {fmt(sum.total)}명 중 {travel === 'car' ? `자가용으로 ${T}분 안에 ${targetName}이 없는` : st.service === 'med' ? '차 없이 병원에 갈 수 없는' : '버스를 탈 수 없는'} 사람</p>
+            <p className="muted small" style={{ margin: 0 }}>{ageName} {fmt(sum.total)}명 중 {travel === 'car' ? `자가용으로 ${T}분 안에 ${targetName}이 없는` : st.service === 'med' ? (carTarget === 'med' ? '차 없이 병원에 갈 수 없는' : carTarget === 'er' ? `응급실(${T}분 이내)에 갈 수 없는` : `차 없이 ${targetName}에 갈 수 없는`) : '버스를 탈 수 없는'} 사람</p>
             <p className="big bad"><Count value={sum.gap} /><small>명 ({pct(sum.rate)})</small></p>
             {travel === 'car' ? (
               <p className="small muted" style={{ margin: 0 }}>{targetName}이 너무 먼 마을 {sum.villagesNoFacility}곳{carTarget === 'er' && over.avg > 0 ? ` · 군 평균 응급실까지 ${Math.round(over.avg)}분` : ''} · 서버에 자가용 판정이 없어 서버의 도로 기준 시간으로 화면에서 계산했어요</p>
@@ -123,7 +125,7 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
               <>
                 <p className="small" style={{ margin: 0 }}>
                   버스가 없어 못 가는 <b className="num">{fmt(sum.noBus)}명</b>({sum.villagesNoBus}곳)
-                  {st.service === 'med' && <> · 병원이 너무 먼 <b className="num">{fmt(sum.noFacility)}명</b>({sum.villagesNoFacility}곳)</>}
+                  {st.service === 'med' && <> · {carTarget === 'er' ? '응급실이 너무 먼' : `${targetName}이 너무 먼`} <b className="num">{fmt(sum.noFacility)}명</b>({sum.villagesNoFacility}곳)</>}
                 </p>
                 <ServerCheck />
               </>
@@ -132,14 +134,14 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
         )}
         {travel === 'car' && carTarget !== 'er' && times.length > 0 && (
           <div className="hero">
-            <p className="muted small" style={{ margin: 0 }}>응급실(지역응급의료센터 이상)까지 자가용으로 {T}분 넘게 걸리는 {ageName} <SrcBadge kind="public" id="indicators" note="서버 도로 시간" /></p>
-            <p className="big bad"><Count value={over.gap} /><small>명</small></p>
-            <p className="muted small" style={{ margin: 0 }}>전체의 {pct(over.rate)} · 군 평균은 <b style={{ color: `rgb(${minuteRgb(over.avg).join(',')})` }}>{Math.round(over.avg)}분</b>{over.avg <= T && over.gap > 0 ? ' — 평균만 보면 괜찮아 보여요' : ''}</p>
+            <p className="muted small" style={{ margin: 0 }}>참고 · 응급실(지역응급의료센터 이상)까지 자가용으로 30분 넘게 걸리는 {ageName} <SrcBadge kind="public" id="indicators" note="서버 도로 시간" /></p>
+            <p className="big bad"><Count value={e30.gap} /><small>명</small></p>
+            <p className="muted small" style={{ margin: 0 }}>전체의 {pct(e30.rate)} · 군 평균은 <b style={{ color: `rgb(${minuteRgb(e30.avg).join(',')})` }}>{Math.round(e30.avg)}분</b>{e30.avg <= 30 && e30.gap > 0 ? ' — 평균만 보면 괜찮아 보여요' : ''}</p>
           </div>
         )}
         <div className="row">
           <motion.button className="primary" onClick={playSweep} whileTap={{ scale: 0.97 }} disabled={sweep != null || reduce === true}>{sweep != null ? `${Math.round(sweep)}분…` : '▶ 시간 스윕'}</motion.button>
-          <span className="muted small">응급실까지 몇 분 만에 어디까지 닿는지 지도에 펼쳐 봐요</span>
+          <span className="muted small">{targetName}까지 몇 분 만에 어디까지 닿는지 지도에 펼쳐 봐요</span>
         </div>
 
         <h3 style={{ marginTop: 16 }}>공백이 큰 마을</h3>
@@ -147,8 +149,8 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
         <ul className="villages">
           {gapList.map((v) => (
             <li key={v.id} onClick={() => patch((s) => ({ ...s, selectedVillage: v.id }))} onMouseEnter={() => set({ hoverVillage: v.id })} onMouseLeave={() => set({ hoverVillage: null })}>
-              <span><i className="sw-x" aria-hidden>✕</i>{v.name}<span className="muted small"> · {STATE_NAME[v.state]}</span></span>
-              <span className="muted"><b className="num" style={{ color: 'var(--ink)' }}>{fmt(v.people)}명</b>{minutesOf.get(v.id) != null && ` · 응급실 ${Math.round(minutesOf.get(v.id)!)}분`}</span>
+              <span><i className="sw-x" aria-hidden>✕</i>{v.name}<span className="muted small"> · {v.state === 2 && carTarget !== 'med' ? `${targetName}이 너무 멀어 못 감` : STATE_NAME[v.state]}</span></span>
+              <span className="muted"><b className="num" style={{ color: 'var(--ink)' }}>{fmt(v.people)}명</b>{minutesOf.get(v.id) != null && ` · ${targetName} ${minutesOf.get(v.id)! === 0 ? '마을 안' : Math.round(minutesOf.get(v.id)!) + '분'}`}</span>
             </li>
           ))}
         </ul>
@@ -269,8 +271,10 @@ function IndGroup({ title, rows, open, toggle }: { title: string; rows: Row[]; o
 // 서버 판정(기준)과 브라우저 판정을 대조한 결과
 function ServerCheck() {
   const judge = useStore((s) => s.judge)
+  const carTarget = useStore((s) => s.carTarget)
   const cmp = useJudgeCompare()
   const [open, setOpen] = useState(false)
+  if (carTarget !== 'med') return <p className="small muted" role="status">서버는 이 필터를 몰라서 서버 판정과 대조하지 않아요 (서버 시험안)</p>
   if (cmp?.same) return <p className="small ok" role="status">✓ 서버 판정과 같아요</p>
   if (cmp && !cmp.same) {
     return (
@@ -296,8 +300,10 @@ function Slider({ label, unit, min, max, step, value, onChange, disabled, note }
 }
 
 function Legend() {
-  const { showDots, showFacilities, travel, set } = useStore()
+  const { showDots, showFacilities, travel, carTarget, data, set } = useStore()
   const villages = useShownJudge()?.villages ?? []
+  const kindName = CAR_TARGETS.find((x) => x.id === carTarget)!.short
+  const facCount = !data ? null : carTarget === 'med' ? null : carTarget === 'er' ? 0 : data.facilities.filter((f) => KIND_RE[carTarget].test(f.kind)).length
   const cannot = villages.filter((v) => v.state !== 0).length
   const rgb = (m: number) => `rgb(${minuteRgb(m).join(',')})`
   const toggle = (on: boolean, label: React.ReactNode, n: number | null, onClick: () => void) => (
@@ -308,22 +314,26 @@ function Legend() {
   return (
     <div className="legend">
       <p className="legend-title">지도에 보이기</p>
-      {toggle(showDots, <><i className="sw-x" aria-hidden>✕</i>{travel === 'car' ? '자가용으로 못 가는 마을' : '대중교통으로 못 가는 마을'}</>, cannot, () => set({ showDots: !showDots }))}
-      {toggle(showFacilities, <><img className="legend-icon" src="/icons/hospital.png" alt="" />병원·의원·보건소</>, null, () => set({ showFacilities: !showFacilities }))}
+      {toggle(showDots, <><i className="sw-x" aria-hidden>✕</i>{carTarget === 'er' ? '응급실이 먼 마을 (자가용)' : (carTarget === 'med' ? '' : kindName + ' ') + (travel === 'car' ? '자가용으로 못 가는 마을' : '대중교통으로 못 가는 마을')}</>, cannot, () => set({ showDots: !showDots }))}
+      {carTarget === 'er'
+        ? <p className="muted small" style={{ margin: '4px 0' }}>응급실은 시설 목록에 없어 지도에 아이콘이 없어요</p>
+        : facCount === 0 ? <p className="muted small" style={{ margin: '4px 0' }}>이 군 안에는 {kindName} 시설이 없어요. 군 밖 시설까지 시간으로 판정해요</p>
+        : toggle(showFacilities, <><img className="legend-icon" src="/icons/hospital.png" alt="" />{carTarget === 'med' ? '병원·의원·보건소' : kindName}</>, facCount, () => set({ showFacilities: !showFacilities }))}
       <p><i className="sw-num" aria-hidden>3</i>가까운 시설 묶음 · 누르면 펼쳐져요</p>
       <p className="muted">표시가 클수록 사는 사람이 많아요</p>
-      <p className="legend-title" style={{ marginTop: 10 }}>바탕색: 응급실까지 걸리는 시간</p>
+      <p className="legend-title" style={{ marginTop: 10 }}>바탕색: {carTarget === 'er' ? '응급실' : CAR_TARGETS.find((x) => x.id === carTarget)!.short}까지 걸리는 시간</p>
       <i className="time-bar" style={{ background: `linear-gradient(90deg, ${MINUTE_STOPS.map(([m]) => `${rgb(m)} ${(m / 45) * 100}%`).join(', ')})` }} />
       <p className="muted time-scale"><span>10분 이하</span><span>30분(기준)</span><span>45분 이상</span></p>
-      <p className="muted">지역응급의료센터 이상까지 서버 도로 시간을 마을 사이로 이어 칠했어요. 옅은 칸은 근처에 마을이 없는 곳이에요.</p>
+      <p className="muted">{carTarget === 'er' ? '지역응급의료센터 이상' : '가장 가까운 ' + CAR_TARGETS.find((x) => x.id === carTarget)!.short}까지 서버 도로 시간을 마을 사이로 이어 칠했어요. 마을 안에 있으면 0분이에요. 옅은 칸은 근처에 마을이 없는 곳이에요.</p>
     </div>
   )
 }
 
 // 마을을 누르면 서버가 판정 이유와 가까운 시설을 알려 준다
 function VillageCard() {
-  const { code, state, data, set, patch } = useStore()
+  const { code, state, data, travel, carTarget, set, patch } = useStore()
   const id = state?.selectedVillage ?? null
+  const shown = useShownJudge()
   const [d, setD] = useState<{ id: string; detail: VillageDetail } | { id: string; error: string } | null>(null)
   const key = calcKey(code, state)
   useEffect(() => {
@@ -344,29 +354,36 @@ function VillageCard() {
           <button className="close" onClick={() => { patch((s) => ({ ...s, selectedVillage: null })); set({ hoverVillage: null }) }} aria-label="닫기">×</button>
           {!cur && <p className="muted" role="status">불러오는 중…</p>}
           {cur && 'error' in cur && <p className="bad">{cur.error}</p>}
-          {cur && 'detail' in cur && <Detail v={cur.detail} service={state!.service} er={data?.villages.find((x) => x.id === id)?.nearest.er ?? null} />}
+          {cur && 'detail' in cur && <Detail v={cur.detail} service={state!.service} byKind={carTarget !== 'med' && carTarget !== 'er' ? { name: targetOf(carTarget), hit: data?.villages.find((x) => x.id === id)?.nearest.byKind?.[carTarget] ?? null } : null} shown={shown?.villages.find((x) => x.id === id)?.state ?? null} filter={travel === 'car' ? '자가용 · ' + targetOf(carTarget) : carTarget !== 'med' ? targetOf(carTarget) : null} er={data?.villages.find((x) => x.id === id)?.nearest.er ?? null} />}
         </motion.div>
       )}
     </AnimatePresence>
   )
 }
 
-function Detail({ v, service, er }: { v: VillageDetail; service: 'med' | 'bus'; er: NearestEr | null }) {
-  const state = service === 'bus' ? (v.bus.ok ? 0 : 1) : v.med.state
-  const reasons = service === 'bus' ? v.bus.reasons : v.med.reason ? [v.med.reason] : []
+const targetOf = (t: CarTarget) => CAR_TARGETS.find((x) => x.id === t)!.short
+// shown: 지도에 칠한 판정(필터 · 이동 수단 반영). 서버 카드(v.med.state)는 '전체 병의원 · 대중교통' 기준이라 필터나 자가용 탭이면 지도와 달라서 지도 판정을 따른다
+function Detail({ v, service, er, shown, filter, byKind }: { v: VillageDetail; byKind: { name: string; hit: NearestMed | null } | null; service: 'med' | 'bus'; er: NearestEr | null; shown: VillageState | null; filter: string | null }) {
+  const own = filter != null && shown != null // 서버가 모르는 판정을 보고 있다
+  const state = own ? shown : service === 'bus' ? (v.bus.ok ? 0 : 1) : v.med.state
+  const reasons = own ? [] : service === 'bus' ? v.bus.reasons : v.med.reason ? [v.med.reason] : []
   const ers = er ? ([['기관', er.facility], ['지역센터', er.center], ['권역센터', er.regional]] as const).flatMap(([k, h]) => (h ? [{ k, ...h }] : [])) : []
   return (
     <>
       <p className="eyebrow">{v.myeon}</p>
       <h3 style={{ fontSize: 20 }}>{v.name}</h3>
-      <p><span className="badge" style={{ background: STATE_CSS[state], color: '#fff' }}>{service === 'bus' ? (v.bus.ok ? '버스 이용 가능' : '버스 이용 어려움') : v.med.stateText}</span></p>
+      <p><span className="badge" style={{ background: STATE_CSS[state], color: '#fff' }}>{own ? STATE_NAME[state] : service === 'bus' ? (v.bus.ok ? '버스 이용 가능' : '버스 이용 어려움') : v.med.stateText}</span>{own && <span className="muted small"> {filter} 기준</span>}</p>
       {reasons.length > 0 && <p className="small">{reasons.join(' · ')}</p>}
       <p className="small muted" style={{ margin: '6px 0 0' }}>사는 사람 {fmt(v.pop.all)}명 (65세 이상 {fmt(v.pop.a65)}명 · 80세 이상 {fmt(v.pop.a80)}명)</p>
       <p className="small" style={{ margin: '6px 0 0' }}>
         {v.bus.noStop ? '2km 안에 정류장이 없어요' : <>정류장까지 걸어서 <b className="num">{v.bus.stopWalkMin}분</b></>}
         {v.tier === 'precise' && <> · 하루 <b className="num">{v.bus.dailyRuns}번</b>{v.bus.firstToTown ? ` · 읍내행 첫차 ${v.bus.firstToTown}` : ' · 읍내행 버스 없음'}</>}
       </p>
-      {v.med.nearest && (
+      {byKind ? (
+        <p className="small" style={{ margin: '6px 0 0' }}>
+          가까운 {byKind.name} {byKind.hit ? <><b>{byKind.hit.name}</b>({byKind.hit.kind}) 자가용 {byKind.hit.minutes}분{byKind.hit.outside ? ' · 군 밖' : ''}</> : '없어요 (길이 없어요)'}
+        </p>
+      ) : v.med.nearest && (
         <p className="small" style={{ margin: '6px 0 0' }}>
           가까운 병의원 <b>{v.med.nearest.name}</b>({v.med.nearest.kind}) 자가용 {v.med.nearest.minutes}분{v.med.nearest.inVillage ? ' · 마을 안' : v.med.nearest.outside ? ' · 군 밖' : ''}
         </p>

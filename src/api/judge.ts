@@ -9,18 +9,20 @@ export const FIRST_BUS_LIMIT = 720
 type Rule = Pick<State, 'service' | 'age' | 'criteria'>
 export interface LocalJudge { villages: JudgedVillage[]; summary: JudgeSummary }
 
-export function judgeLocal(data: RegionData, rule: Rule): LocalJudge {
+export function judgeLocal(data: RegionData, rule: Rule, target: CarTarget = 'med'): LocalJudge {
   const { carMinutes, stopWalkMinutes, dailyRuns } = rule.criteria
-  const withFacility = new Set(data.facilities.map((f) => f.village).filter(Boolean))
+  const filtered = rule.service === 'med' && target !== 'med' // 필터(병원급 · 의원 · 보건기관 · 응급)는 병원 가는 판정에만 드는 서버 시험안
+  const withFacility = new Set(data.facilities.filter((f) => !filtered || target === 'er' || KIND_RE[target].test(f.kind)).map((f) => f.village).filter(Boolean))
   const villages = data.villages.map((v): JudgedVillage => {
+    if (filtered && target === 'er') return { id: v.id, name: v.name, myeon: v.myeon, lon: v.lon, lat: v.lat, people: v.pop[rule.age], state: (v.nearest.er?.center?.minutes ?? Infinity) <= carMinutes ? 0 : 2 } // 응급: 버스는 안 보고 마을 안 병의원도 안 본다
     const b = v.bus
     let busOk = !b.noStop && b.stopWalkMin <= stopWalkMinutes
     // 정밀 지역은 하루 운행 횟수와 읍내행 첫차도 본다. 나머지(자동 추정)는 정류장까지 걷는 거리만 본다
     if (data.tier === 'precise') busOk &&= b.dailyRuns >= dailyRuns && b.firstToTownMin != null && b.firstToTownMin <= FIRST_BUS_LIMIT
     let state: VillageState
     if (rule.service === 'bus') state = busOk ? 0 : 1
-    else if (withFacility.has(v.id)) state = 0 // 마을 안에 병의원이 있으면 갈 수 있음으로 본다
-    else if (!v.nearest.med || v.nearest.med.minutes > carMinutes) state = 2
+    else if (withFacility.has(v.id)) state = 0 // 마을 안에 병의원(필터면 그 종류 시설)이 있으면 갈 수 있음으로 본다
+    else if (((filtered ? v.nearest.byKind?.[target as KindFilter] : v.nearest.med)?.minutes ?? Infinity) > carMinutes) state = 2
     else state = busOk ? 0 : 1
     return { id: v.id, name: v.name, myeon: v.myeon, lon: v.lon, lat: v.lat, people: v.pop[rule.age], state }
   })
@@ -35,6 +37,11 @@ export function judgeLocal(data: RegionData, rule: Rule): LocalJudge {
 export type CarTarget = 'med' | 'er' | KindFilter
 // 시설 종별(facilities[].kind)이 어느 필터에 드는지: 병원급(병원 · 종합병원 · 상급종합) · 의원 · 보건기관(보건소 · 보건의료원 · 보건지소 · 보건진료소)
 export const KIND_RE: Record<KindFilter, RegExp> = { hospital: /병원|종합/, clinic: /^의원$/, public: /보건/ }
+// 필터(target)에 맞는 마을별 가장 가까운 시설까지 자가용 분(지도 바탕색용). 마을 안에 그 종류 시설이 있으면 0분, 길이 없으면 null. 응급은 마을 안 병의원을 안 본다
+export function targetMinutes(data: RegionData, target: CarTarget): (number | null)[] {
+  const inVillage = new Set(target === 'er' ? [] : data.facilities.filter((f) => target === 'med' || KIND_RE[target].test(f.kind)).map((f) => f.village).filter(Boolean))
+  return data.villages.map((v) => inVillage.has(v.id) ? 0 : (target === 'med' ? v.nearest.med?.minutes : target === 'er' ? v.nearest.er?.center?.minutes : v.nearest.byKind?.[target]?.minutes) ?? null)
+}
 export function judgeCar(data: RegionData, age: Rule['age'], carMinutes: number, target: CarTarget = 'med'): LocalJudge {
   const inVillage = new Set(
     target === 'er' ? [] : data.facilities.filter((f) => target === 'med' || KIND_RE[target].test(f.kind)).map((f) => f.village).filter(Boolean),
