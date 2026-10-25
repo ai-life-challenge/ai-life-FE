@@ -316,7 +316,7 @@ function Legend() {
   return (
     <div className="legend">
       <p className="legend-title">지도에 보이기</p>
-      {toggle(showDots, <><i className="sw-x" aria-hidden>✕</i>{carTarget === 'er' ? '응급의료센터가 먼 마을 (자가용)' : (carTarget === 'med' ? '' : kindName + ' ') + (travel === 'car' ? '자가용으로 못 가는 마을' : '대중교통으로 못 가는 마을')}</>, cannot, () => set({ showDots: !showDots }))}
+      {toggle(showDots, <><i className="sw-x" aria-hidden>✕</i>{carTarget === 'er' ? '응급의료센터 먼 마을' : carTarget === 'med' ? (travel === 'car' ? '자가용으로 못 가는 마을' : '대중교통으로 못 가는 마을') : kindName + ' 못 가는 마을'}</>, cannot, () => set({ showDots: !showDots }))}
       {carTarget === 'er'
         ? <p className="muted small" style={{ margin: '4px 0' }}>응급의료센터는 시설 목록에 없어 지도에 아이콘이 없어요</p>
         : facCount === 0 ? <p className="muted small" style={{ margin: '4px 0' }}>이 군 안에는 {kindName} 시설이 없어요. 군 밖 시설까지 시간으로 판정해요</p>
