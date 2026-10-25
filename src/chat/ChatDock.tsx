@@ -7,7 +7,7 @@ import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { api, cached } from '../api/client'
 import { askServer, buildAskBody, stageOf, STAGE_NAME } from '../api/ask'
 import { historyOf, useStore, type ChatMsg, type ToolCallMsg } from '../store'
-import { Chevron } from '../ui/Chevron'
+import { Tools, type ToolCall } from '../ui/Tools'
 import { Md } from '../ui/Md'
 import { hidePendingRefs } from '../ui/mdText'
 
@@ -101,7 +101,6 @@ export function ChatDock({ code }: { code: string }) {
               {s.chat.map((msg, i) => msg.role === 'user'
                 ? <motion.p key={i} className="me" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>{msg.text}</motion.p>
                 : <AiMsg key={i} id={`chat${i}`} msg={msg} last={i === s.chat.length - 1} busy={busy} onPick={(t) => void send(t)} />)}
-              {busy && !s.chat.at(-1)?.text && <p className="muted small" role="status"><span className="spin" /> 답을 만들고 있어요…</p>}
             </div>
             {!!examples.length && !off && (
               <div className="suggest">
@@ -123,7 +122,6 @@ export function ChatDock({ code }: { code: string }) {
 }
 
 function AiMsg({ id, msg, last, busy, onPick }: { id: string; msg: Extract<ChatMsg, { role: 'ai' }>; last: boolean; busy: boolean; onPick: (text: string) => void }) {
-  const [open, setOpen] = useState(true)
   const streaming = last && busy
   // 서버 답이 빨라도 도구마다 TOOL_MIN만큼은 ✓ 자리에 돌아가는 표시가 보인 뒤에 ✓와 결과가 나온다.
   const reduce = useReducedMotion() === true
@@ -151,29 +149,12 @@ function AiMsg({ id, msg, last, busy, onPick }: { id: string; msg: Extract<ChatM
     const id = setInterval(() => setTyped((n) => Math.min(msg.text.length, n + 3)), 18)
     return () => clearInterval(id)
   }, [typing, working, msg.text.length])
+  // 예산안 만들기와 같은 도구 칩(돌아가는 표시 → ✓). 도구가 오기 전에는 '질문을 읽는 중' 한 줄이 돈다
+  const calls: ToolCall[] = msg.tools.map((t) => ({ id: t.id, label: t.label, state: done.has(t.id) ? 'done' : running(t) ? 'run' : 'wait', result: t.result }))
+  if (streaming && !msg.tools.length && !msg.text) calls.push({ id: 'pending', label: '질문을 읽는 중', state: 'run' })
   return (
     <motion.div className={`ai ${msg.error ? 'err' : ''}`} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
-      {msg.tools.length > 0 && (
-        <div className="dock-tools">
-          <button className="tools-head" onClick={() => setOpen(!open)}>계산 도구 {msg.tools.length}번 호출 <Chevron open={open} /></button>
-          <AnimatePresence initial={false}>
-            {open && (
-              <motion.ul initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
-                {msg.tools.map((t) => {
-                  const fin = done.has(t.id)
-                  const run = running(t)
-                  return (
-                    <li key={t.id}>
-                      <span className={fin ? 'ok' : 'muted'}>{fin ? '✓' : run ? <span className="spin" /> : '—'}</span><code>{t.label}</code>
-                      {fin && t.result && <motion.span className="muted small" initial={{ opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }}> → {t.result}</motion.span>}
-                                          </li>
-                  )
-                })}
-              </motion.ul>
-            )}
-          </AnimatePresence>
-        </div>
-      )}
+      {calls.length > 0 && <div className="dock-tools"><Tools calls={calls} /></div>}
       {/* 답은 HTML이 아니라 마크다운 글이다(줄바꿈 · 목록 · 표 · 각주). 글이 흘러오는 중엔 정의가 아직 안 온 각주 표시를 감춘다 */}
       {msg.text && !working && (msg.error ? <p style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</p> : <Md text={streaming || typing ? hidePendingRefs(msg.text.slice(0, typed)) : msg.text} prefix={id} />)}
       {msg.options && last && !busy && (
