@@ -691,6 +691,14 @@ button.badge:hover { background: var(--gray-2); }
 @media (max-width: 1100px) {
   .legend, .plan-legend { left: auto; right: 14px; bottom: 90px; } /* 패널 옆 자리가 좁으면 오른쪽 아래(AI 버튼 위)로 */
 }
+/* 좁은 화면(모바일)에서는 화면 전체를 덮어 PC로만 보게 한다 */
+.pc-only { display: none; }
+@media (max-width: 600px) { /* 휴대폰 폭. 좁게 줄인 PC 창은 막지 않는다 */
+  .pc-only { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; position: fixed; inset: 0; z-index: 1000; padding: 32px; background: var(--bg); color: var(--ink); text-align: center; }
+  .pc-only-title { margin: 8px 0 0; font-size: 22px; font-weight: 700; }
+  .pc-only-sub { margin: 0; color: var(--muted); line-height: 1.6; font-size: 15px; }
+  body { overflow: hidden; }
+}
 @media (max-width: 720px) {
   .map-layer { top: 64px; }
   .legend { display: none; }

@@ -16,6 +16,7 @@ import { Report } from './screens/Report'
 import { Sources } from './screens/Sources'
 import { MapView, type MapScreen } from './map/MapView'
 import { ChatDock } from './chat/ChatDock'
+import { PcNotice } from './ui/PcNotice'
 
 // 진행 바 칸: 지역 0 · 진단 1 · 목표 2 · 시뮬레이션 3 · 결과(+What-if) 4 · 레포트 5
 const stepOf = (path: string) =>
@@ -91,6 +92,7 @@ function Shell() {
       </AnimatePresence>
       {code && <ChatDock code={code} />}
       <Sources />
+      <PcNotice />
     </div>
   )
 }
