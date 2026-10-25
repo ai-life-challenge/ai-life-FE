@@ -1,7 +1,7 @@
 // 첫 화면(랜딩). 스크롤은 막지 않고, 스크롤한 만큼 장면이 움직인다(GSAP ScrollTrigger + Lenis, landing/useLandingScroll.ts). 3D 막대 장면은 react-three-fiber: 히어로 → 선언문 → 쇼케이스(회색/검정 번갈아) → 데이터 출처 마키 → FAQ → 검정 푸터.
 // 그림은 서버가 실제로 계산한 창녕군 결과로 그린다. 서버에는 칸 단위 자료가 없어서, 마을을 칸으로 묶어 집계한 '마을 집계 격자'다(src/api/cells.ts).
 // 서버에 닿지 못하면 그림 자리는 비워 둔다. 글 · 카드 · 3D 장면은 스크롤 위치에 따라 움직이고, 지도 그림의 펼침 같은 장면은 화면에 들어올 때 한 번 재생한다.
-import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
+import { Component, lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import { api, cached, regionData, regionMap } from '../api/client'
@@ -34,6 +34,14 @@ const Icon = ({ name, size = 22 }: { name: IconName; size?: number }) => (
 )
 
 const Village3D = lazy(() => import('./landing/Village3D')) // three.js는 무거워서 따로 불러온다
+// three.js는 WebGL2가 있어야 한다. 그래픽 가속이 꺼진 PC · 원격 데스크톱 · 오래된 그래픽 드라이버에서는 없을 수 있다
+const hasWebGL2 = () => { try { return !!document.createElement('canvas').getContext('webgl2') } catch { return false } }
+// 3D 장면이 실패해도(그래픽 오류 · 파일 못 받음) 랜딩 전체가 하얗게 깨지지 않게 그 자리만 비운다
+class Quiet extends Component<{ children: ReactNode }, { failed: boolean }> {
+  state = { failed: false }
+  static getDerivedStateFromError() { return { failed: true } }
+  render() { return this.state.failed ? null : this.props.children }
+}
 
 const SHOWCASES = [
   { id: 'diag', name: '현황 진단' },
@@ -188,6 +196,7 @@ export function Landing() {
 
 // 3D 막대 장면: 화면에 고정된 채 스크롤하는 만큼 막대가 솟고 색이 바뀐다(움직임은 useLandingScroll이 진행도를 넘긴다)
 function Village3DSection({ g }: { g: ReturnType<typeof useGrid> }) {
+  const webgl = useMemo(hasWebGL2, [])
   const scene = useMemo(() => {
     if (!g) return null
     const { people, gap } = gapOf(g.local)
@@ -197,7 +206,7 @@ function Village3DSection({ g }: { g: ReturnType<typeof useGrid> }) {
   }, [g])
   return (
     <section className="v3d">
-      <div className="v3d-canvas" aria-hidden>{scene && <Suspense fallback={null}><Village3D {...scene} /></Suspense>}</div>
+      <div className="v3d-canvas" aria-hidden>{scene && webgl && <Quiet><Suspense fallback={null}><Village3D {...scene} /></Suspense></Quiet>}</div>
       <div className="v3d-caps wrap" role="note">
         <p className="v3d-cap on"><span className="eyebrow">창녕군 · 실제 계산 결과</span>마을을 칸으로 묶고</p>
         <p className="v3d-cap">칸마다 병원에 닿지 못하는 사람만큼 막대를 세우면</p>
