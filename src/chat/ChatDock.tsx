@@ -3,12 +3,14 @@
 // 에이전트를 쓸 수 없거나(키 없음 · 하루 비용 상한 · 동시 실행 상한) 횟수를 다 쓰면 서버가 준 안내 문구를 그대로 보여 주고, 계산 화면은 그대로 쓸 수 있다.
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router'
-import { AnimatePresence, motion } from 'motion/react'
+import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { api, cached } from '../api/client'
 import { askServer, buildAskBody, stageOf, STAGE_NAME } from '../api/ask'
-import { historyOf, useStore, type ChatMsg } from '../store'
+import { historyOf, useStore, type ChatMsg, type ToolCallMsg } from '../store'
 import { Md } from '../ui/Md'
 import { hidePendingRefs } from '../ui/mdText'
+
+const TOOL_MIN = 900 // 도구 한 개를 '계산 중'으로 보여 주는 최소 시간(ms)
 
 export function ChatDock({ code }: { code: string }) {
   const s = useStore()
@@ -122,6 +124,32 @@ export function ChatDock({ code }: { code: string }) {
 function AiMsg({ id, msg, last, busy, onPick }: { id: string; msg: Extract<ChatMsg, { role: 'ai' }>; last: boolean; busy: boolean; onPick: (text: string) => void }) {
   const [open, setOpen] = useState(true)
   const streaming = last && busy
+  // 서버 답이 빨라도 도구마다 TOOL_MIN만큼은 ✓ 자리에 돌아가는 표시가 보인 뒤에 ✓와 결과가 나온다.
+  const reduce = useReducedMotion() === true
+  const seen = useRef(new Map<string, number>())
+  const [done, setDone] = useState<Set<string>>(() => (streaming ? new Set() : new Set(msg.tools.filter((t) => t.result).map((t) => t.id))))
+  useEffect(() => {
+    const timers: ReturnType<typeof setTimeout>[] = []
+    for (const t of msg.tools) {
+      if (!seen.current.has(t.id)) seen.current.set(t.id, Date.now())
+      if (t.result && !done.has(t.id)) {
+        const wait = reduce ? 0 : Math.max(0, TOOL_MIN - (Date.now() - seen.current.get(t.id)!))
+        timers.push(setTimeout(() => setDone((d) => new Set(d).add(t.id)), wait))
+      }
+    }
+    return () => timers.forEach(clearTimeout)
+  }, [msg.tools, done, reduce])
+  const running = (t: ToolCallMsg) => !done.has(t.id) && (streaming || !!t.result) // 결과가 이미 왔어도 최소 시간 동안은 계산 중으로 보인다
+  const working = msg.tools.some(running)
+  // 도구가 다 끝나면 답 글이 타이핑하듯 쭉 나온다(방금 만든 말풍선만. 지난 대화는 바로 다 보인다)
+  const live = useRef(streaming).current
+  const [typed, setTyped] = useState(live && !reduce ? 0 : Infinity)
+  const typing = live && typed < msg.text.length
+  useEffect(() => {
+    if (!typing || working) return
+    const id = setInterval(() => setTyped((n) => Math.min(msg.text.length, n + 3)), 18)
+    return () => clearInterval(id)
+  }, [typing, working, msg.text.length])
   return (
     <motion.div className={`ai ${msg.error ? 'err' : ''}`} initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>
       {msg.tools.length > 0 && (
@@ -130,14 +158,23 @@ function AiMsg({ id, msg, last, busy, onPick }: { id: string; msg: Extract<ChatM
           <AnimatePresence initial={false}>
             {open && (
               <motion.ul initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
-                {msg.tools.map((t) => <li key={t.id}><span className={t.result ? 'ok' : 'muted'}>{t.result ? '✓' : '…'}</span><code>{t.label}</code>{t.result && <span className="muted small"> → {t.result}</span>}</li>)}
+                {msg.tools.map((t) => {
+                  const fin = done.has(t.id)
+                  const run = running(t)
+                  return (
+                    <li key={t.id}>
+                      <span className={fin ? 'ok' : 'muted'}>{fin ? '✓' : run ? <span className="spin" /> : '—'}</span><code>{t.label}</code>
+                      {fin && t.result && <motion.span className="muted small" initial={{ opacity: 0, x: -4 }} animate={{ opacity: 1, x: 0 }}> → {t.result}</motion.span>}
+                                          </li>
+                  )
+                })}
               </motion.ul>
             )}
           </AnimatePresence>
         </div>
       )}
       {/* 답은 HTML이 아니라 마크다운 글이다(줄바꿈 · 목록 · 표 · 각주). 글이 흘러오는 중엔 정의가 아직 안 온 각주 표시를 감춘다 */}
-      {msg.text && (msg.error ? <p style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</p> : <Md text={streaming ? hidePendingRefs(msg.text) : msg.text} prefix={id} />)}
+      {msg.text && !working && (msg.error ? <p style={{ whiteSpace: 'pre-wrap' }}>{msg.text}</p> : <Md text={streaming || typing ? hidePendingRefs(msg.text.slice(0, typed)) : msg.text} prefix={id} />)}
       {msg.options && last && !busy && (
         <div className="sugg-list" style={{ marginTop: 8 }}>
           {msg.options.map((o) => <button key={o} onClick={() => onPick(o)}>{o}</button>)}
