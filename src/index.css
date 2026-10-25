@@ -127,12 +127,13 @@ button.badge:hover { background: var(--gray-2); }
 .stats dd { margin: 0; font-weight: 600; font-size: 20px; font-variant-numeric: tabular-nums; }
 
 /* ---------- S0 인트로 ---------- */
-.intro { min-height: calc(100vh - 64px); display: grid; place-items: center; padding: 40px 16px; text-align: center; }
+.intro { position: relative; isolation: isolate; overflow: hidden; min-height: calc(100vh - 64px); display: grid; place-items: center; padding: 40px 16px; text-align: center; }
 .intro h1 { font-size: clamp(34px, 6vw, 68px); line-height: 1.12; letter-spacing: -0.04em; margin: 0 0 40px; }
 .facts { display: grid; gap: 14px; margin: 0 auto 48px; }
 .fact { font-size: clamp(20px, 2.6vw, 28px); letter-spacing: -0.02em; display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
 .fact b { font-weight: 600; font-variant-numeric: tabular-nums; }
-.fact .dash { width: 28px; height: 2px; background: var(--gray-2); }
+.fact .dash { width: 28px; height: 2px; background: var(--gray-2); transform-origin: center; }
+.fact b, .intro h1 .grad { display: inline-block; }
 .intro .foot { margin-top: 22px; color: var(--muted); font-size: 14px; }
 
 /* ---------- S1 지역 선택 ---------- */
@@ -553,7 +554,7 @@ button.badge:hover { background: var(--gray-2); }
 .dock form .primary { padding: 10px 14px; }
 
 /* ---------- 랜딩 ---------- */
-.landing { position: fixed; inset: 0; z-index: 50; overflow-y: auto; background: var(--bg); scroll-behavior: smooth; }
+.landing { position: fixed; inset: 0; z-index: 50; overflow-y: auto; background: var(--bg); }
 .land-nav { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; justify-content: space-between; height: 64px; padding: 0 max(clamp(16px, 4vw, 48px), calc((100% - 1200px) / 2 + clamp(16px, 4vw, 48px))); background: rgba(255, 255, 255, 0.82); backdrop-filter: blur(12px); }
 .land-nav .logo { font-weight: 600; letter-spacing: -0.02em; display: inline-flex; align-items: center; gap: 8px; }
 .logo-mark { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--ink); display: inline-grid; place-items: center; font-size: 12px; font-weight: 700; }
@@ -623,6 +624,8 @@ button.badge:hover { background: var(--gray-2); }
 .sweep-demo i { aspect-ratio: 1; border-radius: 3px; background: rgba(255,255,255,.5); transition: background .4s; }
 .memo-demo { width: 100%; background: #fff; color: var(--ink); border-radius: 10px; padding: 18px; font-size: 15px; line-height: 1.7; }
 .memo-demo b { font-size: 15px; font-weight: 600; }
+.scard .memo-demo p { color: var(--ink); font-size: 15px; } /* 카드 설명 글 색(회색)이 흰 메모 안 글까지 옅게 만들지 않게 */
+.scard .memo-demo p.muted { color: var(--muted); }
 
 .chat-demo { width: 100%; background: var(--bg); color: var(--ink); border-radius: 12px; padding: 16px; min-height: 260px; display: grid; gap: 10px; align-content: start; }
 .chat-demo .me { justify-self: end; background: var(--ink); color: #fff; padding: 9px 13px; border-radius: 14px 14px 4px 14px; margin: 0; max-width: 88%; font-size: 15px; }
@@ -636,12 +639,9 @@ button.badge:hover { background: var(--gray-2); }
 .sources-sec { padding: clamp(64px, 12vh, 120px) 0; overflow: hidden; }
 .sources-sec h2 { font-size: clamp(30px, 4.4vw, 56px); letter-spacing: -0.035em; line-height: 1.12; max-width: 14em; }
 .marquee { display: grid; gap: 12px; margin: 48px 0; }
-.marquee-row { display: flex; gap: 12px; width: max-content; animation: marquee 60s linear infinite; }
-.marquee-row.rev { animation-direction: reverse; animation-duration: 70s; }
-.marquee:hover .marquee-row { animation-play-state: paused; }
+.marquee-row { display: flex; gap: 12px; width: max-content; } /* 시간으로 흐르지 않고 스크롤로 움직인다(useLandingScroll) */
 .mtile { flex: none; width: 230px; height: 88px; border-radius: 12px; display: grid; place-items: center; text-align: center; padding: 10px; font-weight: 600; font-size: 15px; line-height: 1.3; }
 .mtile small { display: block; font-weight: 400; font-size: 13px; opacity: 0.75; }
-@keyframes marquee { to { transform: translateX(-50%); } }
 .essentials { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px 32px; font-size: 18px; letter-spacing: -0.01em; }
 .essentials li { display: flex; align-items: center; gap: 12px; }
 .essentials i { font-style: normal; width: 22px; display: inline-flex; justify-content: center; flex: none; }
@@ -664,14 +664,32 @@ button.badge:hover { background: var(--gray-2); }
 .foot-grid p { margin: 0 0 6px; color: #d9d9d9; line-height: 1.6; }
 
 
-/* 풀페이지 스크롤: 화면(.snap) 하나씩 딱 맞춰 넘어간다. 위쪽 64px는 고정 메뉴 자리 */
+/* 랜딩 스크롤: 막지 않는다(GSAP ScrollTrigger + Lenis). 위쪽 64px는 고정 메뉴 자리 */
 .landing { scroll-padding-top: 64px; } /* 상단 메뉴 링크(#diag 등)로 갈 때 */
-.snap { scroll-snap-align: start; min-height: calc(100vh - 64px); }
-.statement.snap, .show-page, .sources-sec.snap, .faq-sec.snap, .land-foot.snap { display: flex; flex-direction: column; justify-content: center; }
-.showcase { padding: 0; }
-.show-page { padding-top: 32px; padding-bottom: 32px; }
-.show-page .show-head { margin-bottom: 0; }
-.show-page .scard { position: static; width: 100%; }
+.land-progress { position: sticky; top: 0; z-index: 4; height: 3px; margin-bottom: -3px; background: var(--grad); transform-origin: 0 50%; transform: scaleX(0); }
+.land-hero, .stat-grid { perspective: 1200px; }
+.hero-tilt { transform-style: preserve-3d; }
+.hero-blobs { position: absolute; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; }
+.hero-blobs i { position: absolute; width: 42vw; height: 42vw; max-width: 620px; max-height: 620px; border-radius: 50%; filter: blur(70px); opacity: .55; }
+.hero-blobs i:nth-child(1) { left: -8%; top: -12%; background: #dccbfa; }
+.hero-blobs i:nth-child(2) { right: -6%; top: 10%; background: #f6d8cf; }
+.hero-blobs i:nth-child(3) { left: 30%; bottom: -25%; background: #cfe2fb; }
+.scrub .ucell { transition: none; } /* 스크롤로 바뀌는 칸은 CSS 전환 없이 바로 따라간다 */
+/* 쇼케이스 무대: 스크롤 연출이 켜지면(.stage) 섹션이 한 화면이 되고, 제목과 카드가 같은 자리에 겹쳐 차례로 바뀐다 */
+.showcase.stage { position: relative; height: calc(100vh - 64px); padding: 0; overflow: hidden; }
+.showcase.stage > .wrap:first-of-type { position: absolute; inset: 0; display: grid; place-content: center; }
+.showcase.stage .show-head { margin: 0; }
+.showcase.stage .show-stack { position: absolute; inset: 0; padding: 0; display: block; }
+.showcase.stage .scard { position: absolute; left: 50%; top: 50%; width: min(1100px, calc(100% - 48px)); }
+.show-stack { gap: 24px; padding-bottom: 12vh; perspective: 1400px; }
+/* 3D 막대 장면: 화면에 고정된 동안 막대가 솟는다. 설명은 단계마다 하나만 보인다 */
+.v3d { position: relative; height: calc(100vh - 64px); overflow: hidden; background: radial-gradient(ellipse at 50% 70%, #f6f1fd, #fff 70%); }
+.v3d-canvas { position: absolute; top: 0; bottom: 0; left: 30%; right: 0; -webkit-mask-image: linear-gradient(90deg, transparent, #000 18%); mask-image: linear-gradient(90deg, transparent, #000 18%); } /* 왼쪽은 설명 글 자리 */
+.v3d-caps { position: relative; height: 100%; pointer-events: none; }
+.v3d-cap { position: absolute; left: clamp(16px, 4vw, 48px); top: 14%; max-width: 15em; margin: 0; font-size: clamp(26px, 3.4vw, 44px); line-height: 1.2; letter-spacing: -0.03em; font-weight: 500; opacity: 0; transform: translateY(24px); transition: opacity .5s, transform .5s; }
+.v3d-cap.on { opacity: 1; transform: none; }
+.v3d-cap .eyebrow { display: block; font-size: 14px; margin-bottom: 10px; letter-spacing: 0; }
+.lenis.lenis-smooth { scroll-behavior: auto !important; }
 
 /* 랜딩 반응형 (VillageCoverage와 동일) */
 @media (max-width: 900px) {
@@ -685,7 +703,7 @@ button.badge:hover { background: var(--gray-2); }
 @media (prefers-reduced-motion: reduce) {
   .landing { scroll-behavior: auto; }
   .ucell, .sweep-demo i { transition: none; }
-  .marquee-row { animation: none; flex-wrap: wrap; width: auto; }
+  .marquee-row { flex-wrap: wrap; width: auto; }
   .marquee-row .dup { display: none; }
 }
 

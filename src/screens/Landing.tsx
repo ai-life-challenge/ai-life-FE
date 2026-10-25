@@ -1,22 +1,21 @@
-// 첫 화면(랜딩). 휠을 한 번 굴릴 때마다 한 화면씩 넘어간다(ui/sectionScroll.ts). 화면보다 긴 곳은 안쪽을 그냥 스크롤한다: 히어로 → 선언문 → 쇼케이스(회색/검정 번갈아) → 데이터 출처 마키 → FAQ → 검정 푸터.
+// 첫 화면(랜딩). 스크롤은 막지 않고, 스크롤한 만큼 장면이 움직인다(GSAP ScrollTrigger + Lenis, landing/useLandingScroll.ts). 3D 막대 장면은 react-three-fiber: 히어로 → 선언문 → 쇼케이스(회색/검정 번갈아) → 데이터 출처 마키 → FAQ → 검정 푸터.
 // 그림은 서버가 실제로 계산한 창녕군 결과로 그린다. 서버에는 칸 단위 자료가 없어서, 마을을 칸으로 묶어 집계한 '마을 집계 격자'다(src/api/cells.ts).
-// 서버에 닿지 못하면 그림 자리는 비워 둔다. 애니메이션은 화면에 들어올 때 한 번만 재생한다 (마키만 천천히 흐르고, 마우스를 올리면 멈춘다).
-import { useEffect, useMemo, useRef, useState } from 'react'
+// 서버에 닿지 못하면 그림 자리는 비워 둔다. 글 · 카드 · 3D 장면은 스크롤 위치에 따라 움직이고, 지도 그림의 펼침 같은 장면은 화면에 들어올 때 한 번 재생한다.
+import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router'
-import { AnimatePresence, motion, useInView, useReducedMotion } from 'motion/react'
+import { AnimatePresence, motion } from 'motion/react'
 import { api, cached, regionData, regionMap } from '../api/client'
 import { cellRate, gridOf, rateColor, type CellGrid } from '../api/cells'
 import { judgeLocal, type LocalJudge } from '../api/judge'
 import type { Judge, Plans, RegionData, Report, Sensitivity, State } from '../api/types'
 import { STATE_CSS, SUPPLY, eok, fmt, pct } from '../api/meta'
-import { useCountUp } from '../motion/useCountUp'
 import { AiBadge } from '../ui/Badges'
 import { Phrases } from '../ui/Phrases'
 import { Chevron } from '../ui/Chevron'
-import { useSectionScroll } from '../ui/sectionScroll'
+import { useLandingScroll } from './landing/useLandingScroll'
+import type { Bar } from './landing/Village3D'
+import { criteria } from './landing/progress'
 
-const fade = { hidden: { opacity: 0, y: 24 }, show: { opacity: 1, y: 0, transition: { duration: 0.6, ease: [0.16, 1, 0.3, 1] } } } as const
-const stagger = { show: { transition: { staggerChildren: 0.1 } } }
 
 // 선 아이콘 (글자 기호 대신). 모두 24칸 좌표에 currentColor 선으로 그린다
 const ICONS = {
@@ -33,6 +32,8 @@ type IconName = keyof typeof ICONS
 const Icon = ({ name, size = 22 }: { name: IconName; size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>{ICONS[name]}</svg>
 )
+
+const Village3D = lazy(() => import('./landing/Village3D')) // three.js는 무거워서 따로 불러온다
 
 const SHOWCASES = [
   { id: 'diag', name: '현황 진단' },
@@ -71,12 +72,14 @@ export function Landing() {
   const nav = useNavigate()
   const start = () => nav('/intro')
   const rootRef = useRef<HTMLDivElement>(null)
-  useSectionScroll(rootRef)
   const demo = useDemo()
   const g = useGrid(demo)
+  useLandingScroll(rootRef, g)
 
   return (
     <motion.div ref={rootRef} className="landing" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0, transition: { duration: 0.4 } }}>
+      <div className="landing-inner">
+      <div className="land-progress" aria-hidden />
       <header className="land-nav">
         <span className="logo"><span className="logo-mark">V</span>VillageCoverage</span>
         <nav>
@@ -89,32 +92,34 @@ export function Landing() {
       </header>
 
       <div className="hero-bleed">
-      <section className="wrap land-hero snap">
+      <div className="hero-blobs" aria-hidden><i /><i /><i /></div>
+      <section className="wrap land-hero">
         <p className="hero-tagline">클릭 몇 번으로, 근거 있는 예산안.</p>
-        <motion.div initial="hidden" animate="show" variants={stagger}>
-          <motion.p className="eyebrow" variants={fade}>2026 AI 라이프 솔루션 챌린지</motion.p>
-          <motion.h1 variants={fade}><span className="phrase">우리 군에 한 해 6억이 있다면,</span> <span className="phrase">어디에 써야 할까요?</span></motion.h1>
-          <motion.p className="lead" variants={fade}><Phrases text="마을마다 병원과 버스에 닿을 수 있는지 진단하고, 목표와 예산에 맞는 대안 세 가지를 만들어 비교·추천합니다. 계산은 모두 서버가 하고, 근거가 담긴 레포트까지 한 번에 만들어요." /></motion.p>
-          <motion.div className="row" variants={fade}>
-            <motion.button className="primary big-btn" onClick={start} whileTap={{ scale: 0.97 }}>서비스 시작하기</motion.button>
+        {/* 히어로 연출은 스크롤에만 반응한다(useLandingScroll) */}
+        <div className="hero-copy">
+          <p className="eyebrow">2026 AI 라이프 솔루션 챌린지</p>
+          <h1><span className="phrase">우리 군에 한 해 6억이 있다면,</span> <span className="phrase">어디에 써야 할까요?</span></h1>
+          <p className="lead"><Phrases text="마을마다 병원과 버스에 닿을 수 있는지 진단하고, 목표와 예산에 맞는 대안 세 가지를 만들어 비교·추천합니다. 계산은 모두 서버가 하고, 근거가 담긴 레포트까지 한 번에 만들어요." /></p>
+          <div className="row">
+            <button className="primary big-btn" onClick={start}>서비스 시작하기</button>
             <a className="ghost big-btn" href="#diag">기능 둘러보기</a>
-          </motion.div>
-          <motion.p className="muted small" variants={fade}>시제품 · 전국 72개 시군구 · 5곳은 정밀 판정, 나머지는 간이 판정 · 지도의 칸은 마을을 묶어 집계한 거예요</motion.p>
-        </motion.div>
-        <UnfoldMap demo={demo} g={g} />
+          </div>
+          <p className="muted small hero-note">시제품 · 전국 72개 시군구 · 5곳은 정밀 판정, 나머지는 간이 판정 · 지도의 칸은 마을을 묶어 집계한 거예요</p>
+        </div>
+        <div className="hero-tilt"><UnfoldMap demo={demo} g={g} /></div>
       </section>
       </div>
 
-      <section className="wrap statement snap">
-        <motion.p className="say center" initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.5 }} transition={{ duration: 0.7 }}>
-          <span className="phrase">평균으로는 안 보이는 마을까지,</span> <span className="grad phrase">기준을 정해 숫자로 설명합니다.</span>
-        </motion.p>
-        <motion.div className="stat-grid" initial="hidden" whileInView="show" viewport={{ once: true, amount: 0.4 }} variants={stagger}>
+      <section className="wrap statement">
+        <p className="say center"><span className="phrase">평균으로는 안 보이는 마을까지,</span> <span className="grad phrase">기준을 정해 숫자로 설명합니다.</span></p>
+        <div className="stat-grid">
           <Stat value={demo?.judge.summary.gap} unit="명" label="병원에 갈 수 없는 80세 이상" note={demo ? `${demo.data.name} · 자가용 30분, 정류장 걸어서 15분, 버스 하루 3번 기준` : '창녕군 · 기본 기준'} />
           <Stat value={demo ? demo.judge.summary.rate * 100 : undefined} unit="%" digits={1} label="80세 이상 가운데 비율" note={demo ? `${fmt(demo.judge.summary.total)}명 중` : '창녕군 · 기본 기준'} />
           <Stat value={demo?.judge.summary.gapVillages} unit="곳" label="닿지 못하는 마을" note={demo ? `마을 ${demo.data.villages.length}곳 중` : '창녕군 · 기본 기준'} />
-        </motion.div>
+        </div>
       </section>
+
+      <Village3DSection g={g} />
 
       {/* 바로 가기 탭은 세 쇼케이스 안에서만 붙어 다닌다 */}
       <div className="showcases">
@@ -136,9 +141,9 @@ export function Landing() {
         </Showcase>
       </div>
 
-      <section className="sources-sec snap">
+      <section className="sources-sec">
         <div className="wrap">
-          <motion.h2 initial={{ opacity: 0, y: 20 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true }}><span className="phrase">흩어진 인구·버스·의료 데이터를,</span> <span className="grad phrase">군 예산 하나로.</span></motion.h2>
+          <h2><span className="phrase">흩어진 인구·버스·의료 데이터를,</span> <span className="grad phrase">군 예산 하나로.</span></h2>
         </div>
         <Marquee demo={demo} />
         <div className="wrap">
@@ -150,14 +155,14 @@ export function Landing() {
         </div>
       </section>
 
-      <section className="faq-sec snap" id="faq">
+      <section className="faq-sec" id="faq">
         <div className="wrap">
           <h2>자주 묻는 질문</h2>
           <Faq />
         </div>
       </section>
 
-      <footer className="land-foot snap">
+      <footer className="land-foot">
         <div className="wrap">
           <h2>우리 군의 예산부터 짜 보세요</h2>
           <motion.button className="primary big-btn" onClick={start} whileTap={{ scale: 0.97 }}>서비스 시작하기</motion.button>
@@ -176,7 +181,29 @@ export function Landing() {
           </details>
         </div>
       </footer>
+      </div>
     </motion.div>
+  )
+}
+
+// 3D 막대 장면: 화면에 고정된 채 스크롤하는 만큼 막대가 솟고 색이 바뀐다(움직임은 useLandingScroll이 진행도를 넘긴다)
+function Village3DSection({ g }: { g: ReturnType<typeof useGrid> }) {
+  const scene = useMemo(() => {
+    if (!g) return null
+    const { people, gap } = gapOf(g.local)
+    const r = rates(g.grid, people, gap)
+    const bars: Bar[] = g.grid.cells.map((c, i) => ({ x: c.ix + 0.5 - g.grid.W / 2, z: c.iy + 0.5 - g.grid.H / 2, rate: r[i] ?? 0, color: rateColor(r[i]) }))
+    return { bars, size: Math.max(g.grid.W, g.grid.H), avg: rateColor(g.local.summary.rate) }
+  }, [g])
+  return (
+    <section className="v3d">
+      <div className="v3d-canvas" aria-hidden>{scene && <Suspense fallback={null}><Village3D {...scene} /></Suspense>}</div>
+      <div className="v3d-caps wrap" role="note">
+        <p className="v3d-cap on"><span className="eyebrow">창녕군 · 실제 계산 결과</span>마을을 칸으로 묶고</p>
+        <p className="v3d-cap">칸마다 병원에 닿지 못하는 사람만큼 막대를 세우면</p>
+        <p className="v3d-cap">평균으로 안 보이던 <span className="grad">의료취약지역</span>이 한눈에 보여요</p>
+      </div>
+    </section>
   )
 }
 
@@ -200,91 +227,76 @@ function SecNav({ root }: { root: React.RefObject<HTMLDivElement | null> }) {
 function Showcase({ id, tone, icon, title, lead, children }: { id: string; tone: 'light' | 'dark'; icon: IconName; title: string; lead: string; children: React.ReactNode }) {
   return (
     <section id={id} className={`showcase ${tone}`}>
-      {/* 제목이 한 화면, 카드가 한 장씩 한 화면 */}
-      <div className="wrap snap show-page">
-        <motion.div className="show-head" initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.5 }} transition={{ duration: 0.7 }}>
+      <div className="wrap">
+        <div className="show-head">
           <span className="show-icon" aria-hidden><Icon name={icon} size={26} /></span>
           <h2>{title}</h2>
           {/* 쉼표 단위로 묶어 문장 중간에서 줄이 끊기지 않게 */}
           <p><Phrases text={lead} /></p>
-        </motion.div>
+        </div>
       </div>
-      {children}
+      {/* 카드는 위에 붙어 쌓인다(sticky). 아래 카드가 올라오며 앞 카드를 덮는다 */}
+      <div className="wrap show-stack">{children}</div>
     </section>
   )
 }
 
-// 기능 카드 (흰/검정 번갈아). 카드 한 장이 한 화면이다
+// 기능 카드 (흰/검정 번갈아). 스크롤 연출은 useLandingScroll이 건다
 function SCard({ title, text, visual, black, tone, ai }: { title: string; text: string; visual: React.ReactNode; black?: boolean; tone: 'pa' | 'pb' | 'gr'; ai?: boolean }) {
   return (
-    <div className="wrap snap show-page">
-      <motion.article className={`scard ${black ? 'black' : ''}`} initial={{ opacity: 0, y: 40 }} whileInView={{ opacity: 1, y: 0 }} viewport={{ once: true, amount: 0.3 }} transition={{ duration: 0.7, ease: [0.16, 1, 0.3, 1] }}>
-        <div>
-          {ai && <AiBadge>서버 초안</AiBadge>}
-          <h3 style={{ marginTop: ai ? 12 : 0 }}>{title}</h3>
-          <p><Phrases text={text} /></p>
-        </div>
-        <div className={`scard-visual ${tone}`}>{visual}</div>
-      </motion.article>
-    </div>
+    <article className={`scard ${black ? 'black' : ''}`}>
+      <div>
+        {ai && <AiBadge>서버 초안</AiBadge>}
+        <h3 style={{ marginTop: ai ? 12 : 0 }}>{title}</h3>
+        <p><Phrases text={text} /></p>
+      </div>
+      <div className={`scard-visual ${tone}`}>{visual}</div>
+    </article>
   )
 }
 
-// 칸 그림: 칸마다 색 하나. 색이 바뀔 때는 .ucell의 transition으로 번진다
-function CellSvg({ grid, fills, delays, label, big, children }: { grid: CellGrid; fills: string[]; delays?: number[]; label: string; big?: boolean; children?: React.ReactNode }) {
+// 칸 그림: 칸마다 색 하나. to가 있으면 스크롤하는 만큼 fills → to 색으로 바뀐다(data-to · data-d 순서, useLandingScroll이 건다).
+// to가 없으면 색이 바뀔 때 .ucell의 transition으로 번진다(기준 슬라이더 그림)
+function CellSvg({ grid, fills, to, delays, label, big, children }: { grid: CellGrid; fills: string[]; to?: string[]; delays?: number[]; label: string; big?: boolean; children?: React.ReactNode }) {
   return (
-    <svg viewBox={`-0.5 -0.5 ${grid.W + 1} ${grid.H + 1}`} style={big ? undefined : { width: '100%', maxHeight: 260 }} role="img" aria-label={label}>
-      {grid.cells.map((c, i) => <rect key={`${c.ix},${c.iy}`} x={c.ix + 0.05} y={c.iy + 0.05} width={0.9} height={0.9} rx={0.14} className="ucell" style={{ fill: fills[i], transitionDelay: `${delays?.[i] ?? 0}s` }} />)}
+    <svg viewBox={`-0.5 -0.5 ${grid.W + 1} ${grid.H + 1}`} className={to ? 'scrub' : undefined} style={big ? undefined : { width: '100%', maxHeight: 260 }} role="img" aria-label={label}>
+      {grid.cells.map((c, i) => <rect key={`${c.ix},${c.iy}`} x={c.ix + 0.05} y={c.iy + 0.05} width={0.9} height={0.9} rx={0.14} className="ucell" style={{ fill: fills[i] }} data-to={to?.[i]} data-d={delays?.[i]} />)}
       {children}
     </svg>
   )
 }
 
-// 군 평균 한 색 → 칸마다 제 색으로 펼쳐지는 장면. 가운데에서 바깥으로 물결처럼 번진다
+// 군 평균 한 색 → 칸마다 제 색으로 펼쳐지는 장면. 스크롤을 내리는 만큼 가운데에서 바깥으로 물결처럼 번진다(useLandingScroll)
 function UnfoldMap({ demo, g }: { demo: Demo | null; g: ReturnType<typeof useGrid> }) {
-  const [unfolded, setUnfolded] = useState(false)
-  const ref = useRef<HTMLDivElement>(null)
-  const inView = useInView(ref, { once: true, amount: 0.5 })
-  const reduce = useReducedMotion()
-  useEffect(() => {
-    if (!g || !inView) return
-    const t = setTimeout(() => setUnfolded(true), reduce ? 0 : 1300)
-    return () => clearTimeout(t)
-  }, [g, inView, reduce])
   const view = useMemo(() => {
     if (!g) return null
     const { people, gap } = gapOf(g.local)
-    const all = g.local.summary
     const r = rates(g.grid, people, gap)
     return {
-      avg: rateColor(all.rate), fills: r.map(rateColor),
-      delays: g.grid.cells.map((c) => Math.hypot(c.ix + 0.5 - g.grid.W / 2, c.iy + 0.5 - g.grid.H / 2) * 0.07),
+      avg: rateColor(g.local.summary.rate), fills: r.map(rateColor),
+      delays: g.grid.cells.map((c) => Math.hypot(c.ix + 0.5 - g.grid.W / 2, c.iy + 0.5 - g.grid.H / 2)),
     }
   }, [g])
-  const gap = useCountUp(g && unfolded ? g.local.summary.gap : 0, 1200)
-  const rate = useCountUp(g && inView ? g.local.summary.rate * 100 : 0, 1000)
   return (
-    <motion.div ref={ref} className="hero-visual" initial={{ opacity: 0, scale: 0.96 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: 0.3, duration: 0.7 }}>
+    <div className="hero-visual">
       {g && view ? (
-        <CellSvg grid={g.grid} fills={unfolded ? view.fills : view.fills.map(() => view.avg)} delays={unfolded ? view.delays : undefined} label="창녕군 마을을 칸으로 묶어, 군 평균 한 색에서 칸마다 닿지 못하는 사람의 비율로 색이 나뉘는 지도" big />
+        <CellSvg grid={g.grid} fills={view.fills.map(() => view.avg)} to={view.fills} delays={view.delays} label="창녕군 마을을 칸으로 묶어, 군 평균 한 색에서 칸마다 닿지 못하는 비율의 색으로 펼친 지도" big />
       ) : <div className="hero-ph" />}
       {demo && g && (
         <div className="hero-tags">
-          <motion.span className="tag" animate={{ opacity: unfolded ? 0.45 : 1 }}>{demo.data.name} 80세 이상 중 닿지 못하는 사람 평균 <b>{Math.round(rate)}%</b></motion.span>
-          <motion.span className="tag bad" initial={{ opacity: 0, y: 8 }} animate={{ opacity: unfolded ? 1 : 0, y: unfolded ? 0 : 8 }} transition={{ delay: 0.8 }}>
-            병원에 갈 수 없는 80세 이상 <b>{fmt(gap)}명</b>
-          </motion.span>
+          <span className="tag hero-avg">{demo.data.name} 80세 이상 중 닿지 못하는 사람 평균 <b>{Math.round(g.local.summary.rate * 100)}%</b></span>
+          <span className="tag bad hero-gap">병원에 갈 수 없는 80세 이상 <b><span data-count={g.local.summary.gap}>{fmt(g.local.summary.gap)}</span>명</b></span>
         </div>
       )}
-      <button className="link replay" onClick={() => { setUnfolded(false); setTimeout(() => setUnfolded(true), 900) }}>↻ 다시 보기</button>
-    </motion.div>
+    </div>
   )
 }
 
-// 기준을 직접 움직여 보는 그림: 정류장까지 걷는 시간 · 버스 하루 운행 횟수를 바꾸면 칸 색이 바로 바뀐다 (브라우저 판정 그대로)
 function CriteriaDemo({ demo, g }: { demo: Demo | null; g: ReturnType<typeof useGrid> }) {
   const [walk, setWalk] = useState(15)
   const [runs, setRuns] = useState(3)
+  // 현황 진단 장면을 스크롤하는 동안 기준이 저절로 바뀐다(useLandingScroll). 손으로 슬라이더를 움직여도 된다
+  useEffect(() => { criteria.set = (w, r) => { setWalk(w); setRuns(r) }; return () => { criteria.set = null } }, [])
   const view = useMemo(() => {
     if (!demo || !g) return null
     const local = judgeLocal(demo.data, { ...demo.state, criteria: { ...demo.state.criteria, stopWalkMinutes: walk, dailyRuns: runs } })
@@ -309,13 +321,8 @@ const Legend = () => (
   </div>
 )
 
-// 마을 점이 칸으로 모이는 그림: 점이 자기 칸 가운데로 날아가고 칸 색이 켜진다. 버튼으로 오가며 볼 수 있다
+// 마을 점이 칸으로 모이는 그림: 스크롤하는 만큼 점이 자기 칸 가운데로 날아가고 칸 색이 켜진다(useLandingScroll)
 function AggregateDemo({ demo, g }: { demo: Demo | null; g: ReturnType<typeof useGrid> }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const inView = useInView(ref, { once: true, amount: 0.6 })
-  const reduce = useReducedMotion()
-  const [merged, setMerged] = useState(false)
-  useEffect(() => { if (!inView) return; const t = setTimeout(() => setMerged(true), reduce ? 0 : 1000); return () => clearTimeout(t) }, [inView, reduce])
   const view = useMemo(() => {
     if (!g) return null
     const { people, gap } = gapOf(g.local)
@@ -323,34 +330,31 @@ function AggregateDemo({ demo, g }: { demo: Demo | null; g: ReturnType<typeof us
     g.grid.cells.forEach((c) => c.members.forEach((m) => center.set(m, [c.ix + 0.5, c.iy + 0.5])))
     return { fills: rates(g.grid, people, gap).map(rateColor), center }
   }, [g])
-  if (!demo || !g || !view) return <div ref={ref} className="hero-ph" />
+  if (!demo || !g || !view) return <div className="hero-ph" />
   const { grid, local } = g
   return (
-    <div ref={ref} style={{ width: '100%', display: 'grid', gap: 10, color: '#fff' }}>
+    <div className="agg" style={{ width: '100%', display: 'grid', gap: 10, color: '#fff' }}>
       <svg viewBox={`-0.5 -0.5 ${grid.W + 1} ${grid.H + 1}`} style={{ width: '100%', maxHeight: 260 }} role="img" aria-label="마을 점이 칸으로 묶이는 그림">
-        {grid.cells.map((c, i) => <rect key={`${c.ix},${c.iy}`} x={c.ix + 0.05} y={c.iy + 0.05} width={0.9} height={0.9} rx={0.14} style={{ fill: view.fills[i], opacity: merged ? 1 : 0, transition: 'opacity .8s', transitionDelay: merged ? '.5s' : '0s' }} />)}
+        {grid.cells.map((c, i) => <rect key={`${c.ix},${c.iy}`} className="agg-cell" x={c.ix + 0.05} y={c.iy + 0.05} width={0.9} height={0.9} rx={0.14} style={{ fill: view.fills[i] }} />)}
         {grid.pts.map((p, i) => {
           const [cx, cy] = view.center.get(i)!
-          return <circle key={local.villages[i].id} cx={p.x} cy={p.y} r={Math.min(0.3, 0.1 + Math.sqrt(local.villages[i].people) * 0.012)} style={{ fill: STATE_CSS[local.villages[i].state], stroke: '#fff', strokeWidth: 0.04, opacity: merged ? 0 : 1, transform: merged ? `translate(${cx - p.x}px, ${cy - p.y}px)` : 'none', transition: 'transform .9s cubic-bezier(.16,1,.3,1), opacity .5s', transitionDelay: merged ? '0s, .6s' : '0s' }} />
+          return <circle key={local.villages[i].id} className="agg-pt" cx={p.x} cy={p.y} r={Math.min(0.3, 0.1 + Math.sqrt(local.villages[i].people) * 0.012)} data-dx={cx - p.x} data-dy={cy - p.y} style={{ fill: STATE_CSS[local.villages[i].state], stroke: '#fff', strokeWidth: 0.04 }} />
         })}
       </svg>
       <p style={{ margin: 0, textAlign: 'center' }}>마을 <b className="num">{grid.pts.length}곳</b> → 마을이 있는 칸 <b className="num">{grid.cells.filter((c) => c.members.length).length}개</b></p>
-      <button className="ghost small-btn" style={{ justifySelf: 'center' }} onClick={() => setMerged(!merged)}>{merged ? '마을 점으로 보기' : '칸으로 묶기'}</button>
     </div>
   )
 }
 
 // 대안 세 가지: 서버가 만든 실제 결과
 function MiniPlans({ demo }: { demo: Demo | null }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const inView = useInView(ref, { once: true, amount: 0.5 })
-  if (!demo) return <div ref={ref} className="hero-ph" />
+  if (!demo) return <div className="hero-ph" />
   return (
-    <div ref={ref} className="mini-plans">
-      {demo.plans.plans.map((p, k) => (
+    <div className="mini-plans">
+      {demo.plans.plans.map((p) => (
         <div key={p.k} className={`mini-plan ${p.recommended ? 'rec' : ''}`}>
           <div className="row"><b>{p.name}</b>{p.recommended && <span className="badge rec">⭐ 추천</span>}</div>
-          <div className="progress-line" style={{ height: 8 }}><motion.span animate={{ width: inView ? `${p.rate * 100}%` : 0 }} transition={{ duration: 0.9, delay: 0.2 + k * 0.15, ease: [0.16, 1, 0.3, 1] }} /></div>
+          <div className="progress-line" style={{ height: 8 }}><span className="plan-bar" data-w={p.rate * 100} style={{ width: `${p.rate * 100}%` }} /></div>
           <span className="muted">{p.summary}</span>
           <span>달성률 <b className="num">{pct(p.baseRate)} → {pct(p.rate)}</b> · 연 <b className="num">{eok(p.year)}</b></span>
         </div>
@@ -359,14 +363,9 @@ function MiniPlans({ demo }: { demo: Demo | null }) {
   )
 }
 
-// 정책이 놓이는 그림: 추천안의 공급수단 핀이 하나씩 떨어지고, 새로 닿는 칸이 핀에서 가까운 곳부터 초록으로 바뀐다 (한 번)
+// 정책이 놓이는 그림: 스크롤하는 만큼 추천안의 공급수단 핀이 하나씩 떨어지고, 새로 닿는 칸이 핀에서 가까운 곳부터 초록으로 바뀐다(useLandingScroll)
 function DropDemo({ demo, g }: { demo: Demo | null; g: ReturnType<typeof useGrid> }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const inView = useInView(ref, { once: true, amount: 0.6 })
-  const reduce = useReducedMotion()
-  const [placed, setPlaced] = useState(false)
   const plan = demo?.plans.plans.find((p) => p.recommended) ?? demo?.plans.plans[0]
-  useEffect(() => { if (!inView) return; const t = setTimeout(() => setPlaced(true), reduce ? 0 : 400); return () => clearTimeout(t) }, [inView, reduce])
   const view = useMemo(() => {
     if (!demo || !g || !plan) return null
     const { grid, local } = g
@@ -376,19 +375,16 @@ function DropDemo({ demo, g }: { demo: Demo | null; g: ReturnType<typeof useGrid
     const before = local.villages.map((v) => (v.state === 0 ? 0 : v.people))
     const after = local.villages.map((v) => (v.state === 0 ? 0 : v.people * (1 - (cov.get(v.id) ?? 0))))
     const pins = plan.picks.flatMap((p) => p.villages.flatMap((id) => (idx.has(id) ? [{ ...grid.pts[idx.get(id)!], type: p.type }] : [])))
-    const delays = grid.cells.map((c) => (pins.length ? Math.min(...pins.map((p) => Math.hypot(c.ix + 0.5 - p.x, c.iy + 0.5 - p.y))) * 0.12 : 0) + 0.5)
+    const delays = grid.cells.map((c) => (pins.length ? Math.min(...pins.map((p) => Math.hypot(c.ix + 0.5 - p.x, c.iy + 0.5 - p.y))) : 0))
     return { b: rates(grid, people, before).map(rateColor), a: rates(grid, people, after).map(rateColor), delays, pins }
   }, [demo, g, plan])
-  const gap = useCountUp(plan && placed ? plan.gapAfter : (plan?.gapBefore ?? 0), 1600, placed ? 500 : 0)
-  if (!demo || !g || !view || !plan) return <div ref={ref} className="hero-ph" />
+  if (!demo || !g || !view || !plan) return <div className="hero-ph" />
   return (
-    <div ref={ref} style={{ width: '100%', display: 'grid', gap: 10, color: '#fff' }}>
-      <CellSvg grid={g.grid} fills={placed ? view.a : view.b} delays={placed ? view.delays : undefined} label="추천안의 공급수단이 놓이고 새로 닿는 칸이 초록으로 바뀌는 지도">
-        {view.pins.map((p, k) => (
-          <motion.circle key={k} cx={p.x} cy={p.y} fill={SUPPLY[p.type].color} stroke="#fff" strokeWidth="0.12" initial={{ r: 0 }} animate={{ r: placed ? 0.38 : 0 }} transition={{ type: 'spring', stiffness: 300, damping: 12, delay: 0.2 + k * 0.18 }} />
-        ))}
+    <div className="drop" style={{ width: '100%', display: 'grid', gap: 10, color: '#fff' }}>
+      <CellSvg grid={g.grid} fills={view.b} to={view.a} delays={view.delays} label="추천안의 공급수단이 놓이고 새로 닿는 칸이 초록으로 바뀌는 지도">
+        {view.pins.map((p, k) => <circle key={k} className="drop-pin" cx={p.x} cy={p.y} r={0.38} fill={SUPPLY[p.type].color} stroke="#fff" strokeWidth="0.12" />)}
       </CellSvg>
-      <p style={{ margin: 0, textAlign: 'center' }}>{plan.name} · 남는 공백 <b className="num">{fmt(plan.gapBefore)}명 → {fmt(gap)}명</b></p>
+      <p style={{ margin: 0, textAlign: 'center' }}>{plan.name} · 남는 공백 <b className="num">{fmt(plan.gapBefore)}명 → <span data-count={plan.gapAfter} data-from={plan.gapBefore}>{fmt(plan.gapAfter)}</span>명</b></p>
       <div className="chips" style={{ justifyContent: 'center' }}>{[...new Set(view.pins.map((p) => p.type))].map((t) => <span key={t} className="mini" style={{ color: 'var(--ink)' }}><i style={{ background: SUPPLY[t].color }} />{SUPPLY[t].name}</span>)}</div>
     </div>
   )
@@ -497,14 +493,12 @@ function Faq() {
 }
 
 function Stat({ value, unit, label, note, digits = 0 }: { value: number | undefined; unit: string; label: string; note: string; digits?: number }) {
-  const ref = useRef<HTMLDivElement>(null)
-  const inView = useInView(ref, { once: true, amount: 0.6 })
-  const v = useCountUp(inView && value != null ? value : 0, 1400)
+  // 숫자는 스크롤하는 만큼 0에서 올라간다(data-count, useLandingScroll)
   return (
-    <motion.div ref={ref} className="stat" variants={fade}>
-      <p className="stat-num">{value == null ? '—' : v.toFixed(digits)}<small>{unit}</small></p>
+    <div className="stat">
+      <p className="stat-num">{value == null ? '—' : <span data-count={value} data-digits={digits}>{value.toFixed(digits)}</span>}<small>{unit}</small></p>
       <p><b>{label}</b></p>
       <p className="muted small">{note}</p>
-    </motion.div>
+    </div>
   )
 }
