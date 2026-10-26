@@ -379,7 +379,7 @@ function Detail({ v, service, er, shown, filter, byKind, firstEstimated, inTown 
       <p className="small muted" style={{ margin: '6px 0 0' }}>사는 사람 {fmt(v.pop.all)}명 (65세 이상 {fmt(v.pop.a65)}명 · 80세 이상 {fmt(v.pop.a80)}명)</p>
       <p className="small" style={{ margin: '6px 0 0' }}>
         {v.bus.noStop ? '2km 안에 정류장이 없어요' : <>정류장까지 걸어서 <b className="num">{v.bus.stopWalkMin}분</b></>}
-        {v.tier === 'precise' && <> · 하루 <b className="num">{v.bus.dailyRuns}번</b>{inTown ? ' · 읍내 마을' : v.bus.dailyRuns === 0 ? '' : v.bus.firstToTown ? ` · 읍내행 첫차 ${v.bus.firstToTown}${firstEstimated ? ' (추정)' : ''}` : ' · 읍내행 버스 없음'}</>}
+        {v.tier === 'precise' && <> · 하루 <b className="num">{v.bus.dailyRuns}번</b>{inTown ? ' · 읍내 마을' : v.bus.dailyRuns === 0 ? '' : v.bus.firstToTown ? <> · 읍내행 첫차 {v.bus.firstToTown}{firstEstimated && <span className="muted" title="정류장 시간표가 없어 운행 자료로 어림한 시각이에요"> (추정)</span>}</> : ' · 읍내행 버스 없음'}</>}
       </p>
       {byKind ? (
         <p className="small" style={{ margin: '6px 0 0' }}>

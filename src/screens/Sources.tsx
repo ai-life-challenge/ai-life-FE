@@ -105,7 +105,7 @@ export function Sources() {
             <table className="stable" data-src="std">
               <tbody>
                 <tr><td>버스 정류장 탐색 범위</td><td className="r">2km</td><td className="small">2km 안에 정류장이 없으면 걸음 60분으로 보고 ‘정류장 없음’</td></tr>
-                <tr><td>읍내행 첫차 (정밀 지역)</td><td className="r">{FIRST_BUS_LIMIT / 60}시 전</td><td className="small">서버 판정 결과에서 알아낸 값. 서버 판정과 다르면 서버 결과로 보여 줘요</td></tr>
+                <tr><td>읍내행 첫차 (정밀 지역)</td><td className="r">{FIRST_BUS_LIMIT / 60}시 전</td><td className="small">서버 판정 결과에서 알아낸 값. 서버 판정과 다르면 서버 결과로 보여 줘요. 마을 카드에서 ‘(추정)’이 붙은 첫차는 시간표가 없어 어림한 시각이에요</td></tr>
                 <tr><td>마을 안에 병의원이 있는 마을</td><td className="r">갈 수 있음</td><td className="small">가까운 병의원 시간과 상관없이 갈 수 있음으로 봐요</td></tr>
               </tbody>
             </table>
