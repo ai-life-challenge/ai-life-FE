@@ -149,9 +149,10 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
     const mins = targetMinutes(data, gridBy)
     return erGrid(data.villages.map((v, i) => ({ lon: v.lon, lat: v.lat, people: v.pop[age], minutes: mins[i] })), myeon, 60)
   }, [data, myeon, age, gridBy])
+  const livedCells = useMemo(() => timeCells.filter((c) => c.lived), [timeCells]) // 사람이 안 사는 칸(근처 1.2km에 마을 없음)은 칠하지 않는다
   const timeLayer = (alpha = 1) => new PolygonLayer<TimeCell>({
-    id: 'time', data: timeCells, pickable: screen === 'diag', getPolygon: (c: TimeCell) => c.polygon,
-    getFillColor: (c: TimeCell) => [...minuteRgb(c.minutes), sweep != null && c.minutes > sweep ? 0 : Math.round((c.lived ? 150 : 45) * alpha)], updateTriggers: { getFillColor: [sweep, alpha] }, // 스윕 중에는 아직 못 닿은 칸을 비운다
+    id: 'time', data: livedCells, pickable: screen === 'diag', getPolygon: (c: TimeCell) => c.polygon,
+    getFillColor: (c: TimeCell) => [...minuteRgb(c.minutes), sweep != null && c.minutes > sweep ? 0 : Math.round(150 * alpha)], updateTriggers: { getFillColor: [sweep, alpha] }, // 스윕 중에는 아직 못 닿은 칸을 비운다
     stroked: true, getLineColor: [255, 255, 255, 120], lineWidthUnits: 'pixels', getLineWidth: 1, beforeId: roadsBefore,
   } as any)
 
