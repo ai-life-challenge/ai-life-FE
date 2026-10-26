@@ -149,10 +149,11 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
     const mins = targetMinutes(data, gridBy)
     return erGrid(data.villages.map((v, i) => ({ lon: v.lon, lat: v.lat, people: v.pop[age], minutes: mins[i] })), myeon, 60)
   }, [data, myeon, age, gridBy])
-  const livedCells = useMemo(() => timeCells.filter((c) => c.lived), [timeCells]) // 사람이 안 사는 칸(근처 1.2km에 마을 없음)은 칠하지 않는다
+  // 옅게 칠하는 칸: 근처 1.2km에 마을이 없거나(lived=false), 가장 가까운 마을에 고른 나이대 주민이 0명인 칸. 사람이 있는 칸만 진하게
+  const faint = (c: TimeCell) => !c.lived || Math.round(c.people) === 0
   const timeLayer = (alpha = 1) => new PolygonLayer<TimeCell>({
-    id: 'time', data: livedCells, pickable: screen === 'diag', getPolygon: (c: TimeCell) => c.polygon,
-    getFillColor: (c: TimeCell) => [...minuteRgb(c.minutes), sweep != null && c.minutes > sweep ? 0 : Math.round(150 * alpha)], updateTriggers: { getFillColor: [sweep, alpha] }, // 스윕 중에는 아직 못 닿은 칸을 비운다
+    id: 'time', data: timeCells, pickable: screen === 'diag', getPolygon: (c: TimeCell) => c.polygon,
+    getFillColor: (c: TimeCell) => [...minuteRgb(c.minutes), sweep != null && c.minutes > sweep ? 0 : Math.round((faint(c) ? 45 : 150) * alpha)], updateTriggers: { getFillColor: [sweep, alpha] }, // 스윕 중에는 아직 못 닿은 칸을 비운다
     stroked: true, getLineColor: [255, 255, 255, 120], lineWidthUnits: 'pixels', getLineWidth: 1, beforeId: roadsBefore,
   } as any)
 
@@ -331,7 +332,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   const getTooltip = ({ object, layer }: any) => {
     if (!object) return null
     if (layer?.id.startsWith('facilities')) return { text: `${object.name}\n${object.kind}${object.doctors ? ` · 의사 ${object.doctors}명` : ''}` }
-    if (layer?.id === 'time') return { text: `${data?.villages[object.village]?.name ?? ''}\n${CAR_TARGETS.find((x) => x.id === carTarget)!.short}까지 약 ${Math.round(object.minutes)}분 · ${object.lived ? `${Math.round(object.people)}명` : '사람이 안 사는 곳'} (마을 값을 이어 칠함)` }
+    if (layer?.id === 'time') return { text: `${data?.villages[object.village]?.name ?? ''}\n${CAR_TARGETS.find((x) => x.id === carTarget)!.short}까지 약 ${Math.round(object.minutes)}분 · ${!object.lived ? '사람이 안 사는 곳' : Math.round(object.people) === 0 ? '이 나이대 주민 0명' : `${Math.round(object.people)}명`} (마을 값을 이어 칠함)` }
     if (layer?.id === 'clusters') return { text: `${object.items.length}곳 · 누르면 펼쳐져요\n${clusterText(object)}` }
     if (layer?.id === 'plan-marks') return { text: object.label }
     if (layer?.id.startsWith('villages')) {
