@@ -17,6 +17,7 @@ import { Sources } from './screens/Sources'
 import { MapView, type MapScreen } from './map/MapView'
 import { ChatDock } from './chat/ChatDock'
 import { PcNotice } from './ui/PcNotice'
+import { Logo } from './ui/Logo'
 import { useTierCounts } from './hooks'
 
 // 진행 바 칸: 지역 0 · 진단 1 · 목표 2 · 시뮬레이션 3 · 결과(+What-if) 4 · 레포트 5
@@ -70,7 +71,7 @@ function Shell() {
     <div className={`app ${mapScreen !== 'off' ? 'with-map' : ''}`}>
       {!intro && (
         <header className="topbar no-print">
-          <button className="logo" onClick={() => nav('/')}><span className="logo-mark">V</span><span className="logo-text">VillageCoverage</span></button>
+          <button className="logo" onClick={() => nav('/')}><Logo /></button>
           <span className="spacer" />
           <span className="disclaimer">시제품 · {tiers ? `정밀 ${tiers.precise}곳, 나머지는 간이 판정` : '정밀 · 간이 판정'}</span>
           <Progress code={code} at={stepOf(loc.pathname)} />

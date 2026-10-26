@@ -75,7 +75,11 @@ p, li { text-wrap: pretty; } /* 마지막 줄에 한두 글자만 남지 않게 
   border-bottom: 1px solid var(--gray);
 }
 .logo { font-weight: 600; letter-spacing: -0.02em; display: inline-flex; align-items: center; gap: 8px; border: 0; background: none; padding: 0; white-space: nowrap; }
-.logo-mark { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--ink); display: inline-grid; place-items: center; font-size: 12px; font-weight: 700; }
+/* LocalLens 로고(ui/Logo.tsx): 글자 + o 자리의 핀. 핀 크기 · 위치 · 간격을 모두 em으로 둬서 font-size만 바꾸면 비율이 그대로다.
+   핀의 둥근 머리가 o처럼 x높이 안에 앉고, 뾰족한 끝은 기준선 아래로 살짝 내려간다. SVG 좌우 여백(24칸 중 핀 폭 15칸)은 음수 margin으로 줄인다 */
+.brand { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; color: #2b2f42; white-space: nowrap; }
+.brand-pin { width: 0.85em; height: 0.85em; vertical-align: -0.26em; margin: 0 -0.125em; }
+@media (max-width: 360px) { .brand { font-size: 18px; } } /* 아주 좁은 화면에서 상단 바가 넘치지 않게 크기만 줄인다(비율은 em이라 그대로) */
 .page { max-width: 1080px; margin: 0 auto; padding: 28px clamp(16px, 3vw, 32px) 120px; }
 .page.narrow { max-width: 760px; }
 .disclaimer { font-size: 13px; color: var(--muted); background: var(--gray); border-radius: 8px; padding: 6px 10px; white-space: nowrap; }
@@ -557,7 +561,6 @@ button.badge:hover { background: var(--gray-2); }
 .landing { position: fixed; inset: 0; z-index: 50; overflow-y: auto; background: var(--bg); }
 .land-nav { position: sticky; top: 0; z-index: 3; display: flex; align-items: center; justify-content: space-between; height: 64px; padding: 0 max(clamp(16px, 4vw, 48px), calc((100% - 1200px) / 2 + clamp(16px, 4vw, 48px))); background: rgba(255, 255, 255, 0.82); backdrop-filter: blur(12px); }
 .land-nav .logo { font-weight: 600; letter-spacing: -0.02em; display: inline-flex; align-items: center; gap: 8px; }
-.logo-mark { width: 26px; height: 26px; border-radius: 50%; border: 2px solid var(--ink); display: inline-grid; place-items: center; font-size: 12px; font-weight: 700; }
 .land-nav nav { display: flex; align-items: center; gap: 22px; }
 .land-nav a { color: var(--ink); text-decoration: none; font-size: 15px; opacity: 0.75; }
 .land-nav a:hover { opacity: 1; }
@@ -727,7 +730,6 @@ button.badge:hover { background: var(--gray-2); }
   .ai-fab { bottom: auto; top: 76px; right: 10px; padding: 10px 14px; }
   .grid3, .grid2, .gauges { grid-template-columns: 1fr; }
   .topbar { gap: 8px; }
-  .logo-text { display: none; }
   .topbar .ghost { padding: 8px 10px !important; font-size: 13px !important; }
   .ind-head { grid-template-columns: 1fr auto; }
   .ind-head .track { grid-column: 1 / -1; grid-row: 2; }

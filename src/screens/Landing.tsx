@@ -14,6 +14,7 @@ import { Phrases } from '../ui/Phrases'
 import { Chevron } from '../ui/Chevron'
 import { useLandingScroll } from './landing/useLandingScroll'
 import { useTierCounts } from '../hooks'
+import { Logo } from '../ui/Logo'
 import type { Bar } from './landing/Village3D'
 import { criteria } from './landing/progress'
 
@@ -91,7 +92,7 @@ export function Landing() {
       <div className="landing-inner">
       <div className="land-progress" aria-hidden />
       <header className="land-nav">
-        <span className="logo"><span className="logo-mark">V</span>VillageCoverage</span>
+        <span className="logo"><Logo /></span>
         <nav>
           <a href="#diag">현황 진단</a>
           <a href="#plan">예산안 비교</a>
