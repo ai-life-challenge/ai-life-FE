@@ -13,7 +13,7 @@ import { setWorkerUrl } from 'maplibre-gl'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import { useStore } from '../store'
 import { useShownJudge } from '../hooks'
-import { STATE_NAME, STATE_RGB, SUPPLY } from '../api/meta'
+import { CAR_TARGETS, STATE_NAME, STATE_RGB, SUPPLY } from '../api/meta'
 import type { JudgedVillage, RawFacility } from '../api/types'
 import { useRafTime } from './useRafTime'
 import { erGrid, minuteRgb, type TimeCell } from '../api/cells'
@@ -107,7 +107,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   const planMarks = useMemo(() => (shown?.picks ?? []).flatMap((p) => p.villages.flatMap((id) => { const v = byId.get(id); return v ? [{ at: [v.lon, v.lat] as [number, number], type: p.type, label: `${p.label} · ${v.name}` }] : [] })), [shown, byId])
   const drtGeo = useMemo(() => myeon && shown && { ...myeon, features: myeon.features.filter((f) => shown.picks.some((p) => p.myeon && p.myeon === f.properties?.name)) }, [myeon, shown])
 
-  // 진단 화면 바탕: 레퍼런스 지도처럼 600m 안팎의 칸마다 응급실까지 걸리는 시간(서버 마을 값을 이어 칠함)을 초록~주황으로 칠한다 칸과 이웃은 지역이 바뀔 때만 다시 계산한다
+  // 진단 화면 바탕: 레퍼런스 지도처럼 600m 안팎의 칸마다 고른 시설까지 걸리는 시간(서버 마을 값을 이어 칠함)을 초록~주황으로 칠한다 칸과 이웃은 지역이 바뀔 때만 다시 계산한다
   const age = state?.age ?? 'a80'
   // 고른 시설(전체 · 병원급 · 의원 · 보건기관 · 응급실)에 맞춰 바탕색 시간도 바뀐다
   const timeCells = useMemo(() => {
@@ -235,7 +235,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   const getTooltip = ({ object, layer }: any) => {
     if (!object) return null
     if (layer?.id.startsWith('facilities')) return { text: `${object.name}\n${object.kind}${object.doctors ? ` · 의사 ${object.doctors}명` : ''}` }
-    if (layer?.id === 'time') return { text: `${data?.villages[object.village]?.name ?? ''}\n응급실까지 약 ${Math.round(object.minutes)}분 · ${object.lived ? `${Math.round(object.people)}명` : '사람이 안 사는 곳'} (마을 값을 이어 칠함)` }
+    if (layer?.id === 'time') return { text: `${data?.villages[object.village]?.name ?? ''}\n${CAR_TARGETS.find((x) => x.id === carTarget)!.short}까지 약 ${Math.round(object.minutes)}분 · ${object.lived ? `${Math.round(object.people)}명` : '사람이 안 사는 곳'} (마을 값을 이어 칠함)` }
     if (layer?.id === 'clusters') return { text: `${object.items.length}곳 · 누르면 펼쳐져요\n${clusterText(object)}` }
     if (layer?.id === 'plan-marks') return { text: object.label }
     if (layer?.id.startsWith('villages')) {

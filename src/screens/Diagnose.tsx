@@ -7,7 +7,7 @@ import { AnimatePresence, animate, motion, useReducedMotion } from 'motion/react
 import type { MapRef } from 'react-map-gl/maplibre'
 import { api } from '../api/client'
 import type { NearestEr, NearestMed, VillageDetail, VillageState } from '../api/types'
-import { AGES, STATE_CSS, STATE_NAME, fmt, pct } from '../api/meta'
+import { AGES, CAR_TARGETS, STATE_CSS, STATE_NAME, fmt, pct } from '../api/meta'
 import { useAutoFetch, useJudgeCompare, useShownJudge } from '../hooks'
 import { calcKey, errText, useStore } from '../store'
 import type { CarTarget } from '../api/judge'
@@ -25,10 +25,6 @@ const TRAVEL = [
   { id: 'transit', name: '🚌 대중교통 이용', desc: '' },
   { id: 'car', name: '🚗 자가용 이용', desc: '차가 있는 주민 기준이에요. 아래에서 고른 곳까지 자가용 시간(서버 값, 도로 기준)이 기준 안인지 봐요.' },
 ] as const
-const CAR_TARGETS: { id: CarTarget; name: string; short: string }[] = [
-  { id: 'med', name: '모든 병의원', short: '병의원' }, { id: 'hospital', name: '병원·종합병원', short: '병원·종합병원' }, { id: 'clinic', name: '동네 의원', short: '동네 의원' },
-  { id: 'public', name: '보건소·진료소', short: '보건소·진료소' }, { id: 'er', name: '응급의료센터', short: '응급의료센터' },
-]
 // 받침에 맞는 조사(이/가 · 을/를): 필터 이름이 바뀌어도 문장이 어색하지 않게
 const josa = (w: string, a: string, b: string) => ((w.charCodeAt(w.length - 1) - 0xac00) % 28 === 0 ? b : a)
 
