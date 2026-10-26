@@ -14,6 +14,7 @@ import { Results } from './screens/Results'
 import { WhatIf } from './screens/WhatIf'
 import { Report } from './screens/Report'
 import { Sources } from './screens/Sources'
+import { About } from './screens/About'
 import { MapView, type MapScreen } from './map/MapView'
 import { ChatDock } from './chat/ChatDock'
 import { PcNotice } from './ui/PcNotice'
@@ -53,7 +54,7 @@ function Shell() {
   const code = loc.pathname.match(/^\/r\/(\d+)/)?.[1] ?? null
   const openSources = useStore((s) => s.openSources)
   useEffect(() => { window.scrollTo(0, 0) }, [loc.pathname])
-  const intro = loc.pathname === '/' || loc.pathname === '/intro' // 랜딩·S0 인트로는 헤더·공용 지도 없이 전체 화면
+  const intro = loc.pathname === '/' || loc.pathname === '/intro' || loc.pathname === '/about' // 랜딩·S0 인트로·프로젝트 정보는 헤더·공용 지도 없이 전체 화면
   // 지도가 깔리는 화면: S1 지역 선택 · S2 진단 · S5 결과 (나머지 화면에서는 숨겨 두고 카메라는 그대로 둔다)
   // 진단 → 목표 → 시뮬레이션 → 결과는 지도 한 화면에서 이어진다 (왼쪽 패널만 바뀜)
   const mapScreen: MapScreen = loc.pathname === '/start' ? 'select' : /^\/r\/\d+(\/goal)?$/.test(loc.pathname) ? 'diag' : /\/(sim|result)$/.test(loc.pathname) ? 'result' : 'off'
@@ -83,6 +84,7 @@ function Shell() {
         <Routes location={loc} key={loc.pathname}>
           <Route path="/" element={<Landing />} />
           <Route path="/intro" element={<Intro />} />
+          <Route path="/about" element={<About />} />
           <Route path="/start" element={<Select mapRef={mapRef} blocked={blocked} pick={pick} picked={picked} />} />
           <Route path="/r/:code" element={<RegionRoute><Diagnose mapRef={mapRef} /></RegionRoute>} />
           <Route path="/r/:code/goal" element={<RegionRoute><Goal /></RegionRoute>} />

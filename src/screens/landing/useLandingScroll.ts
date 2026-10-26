@@ -2,7 +2,7 @@
 // 히어로 · 3D · 쇼케이스 셋은 화면에 고정해 둔 채(pin) 장면이 다 바뀐 뒤에야 아래로 내려간다.
 // 그림 대부분이 서버 결과로 그려져서, 결과가 온 뒤(ready) 위에서 아래 순서로 한 번에 건다. 고정 장면의 위치를 위에서부터 차례로 재야 아래 연출이 밀리지 않는다.
 // 스크롤 영역은 랜딩 레이어(.landing)이고 내용은 .landing-inner다. 움직임 줄이기(prefers-reduced-motion) 설정과 상관없이 연출을 보여 준다.
-import { useEffect, type RefObject } from 'react'
+import { useEffect, useRef, type RefObject } from 'react'
 import { gsap } from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
 import { SplitText } from 'gsap/SplitText'
@@ -33,7 +33,20 @@ function count(node: HTMLElement, tl: TL, at: number, dur: number) {
   tl.to(o, { v: to, duration: dur, onUpdate: show }, at)
 }
 
+// 메뉴 링크(#diag 등): 붙잡힌 장면은 움직이는 섹션 대신 그 자리(pin-spacer) 맨 위로 가야 장면 처음부터 보인다
+function goTo(lenis: Lenis, target: HTMLElement, immediate = false) {
+  const spacer = target.parentElement?.classList.contains('pin-spacer') ? target.parentElement : target
+  lenis.scrollTo(spacer, { offset: -64, immediate, force: true })
+}
+// 주소의 #자리(다른 화면 푸터에서 /#faq 등으로 들어온 경우). 랜딩 안의 요소만
+const hashTarget = (el: HTMLElement) => {
+  const t = window.location.hash.length > 1 ? document.getElementById(decodeURIComponent(window.location.hash.slice(1))) : null
+  return t && el.contains(t) ? t : null
+}
+
 export function useLandingScroll(root: RefObject<HTMLDivElement | null>, ready: unknown) {
+  const lenisRef = useRef<Lenis | null>(null)
+  const hashJump = useRef(false) // 들어오자마자 #자리로 갔고 사용자가 아직 스크롤하지 않았다 → 고정 장면이 걸린 뒤 한 번 더 맞춘다
   // 관성 스크롤: 휠을 막지 않고 부드럽게 이어 준다. 스크롤 위치가 바뀔 때마다 ScrollTrigger에 알린다
   useEffect(() => {
     const el = root.current
@@ -43,17 +56,25 @@ export function useLandingScroll(root: RefObject<HTMLDivElement | null>, ready: 
     const tick = (t: number) => lenis.raf(t * 1000)
     gsap.ticker.add(tick)
     gsap.ticker.lagSmoothing(0)
-    // 메뉴 링크(#diag 등): 붙잡힌 장면은 움직이는 섹션 대신 그 자리(pin-spacer) 맨 위로 가야 장면 처음부터 보인다
+    lenisRef.current = lenis
     const onClick = (e: MouseEvent) => {
       const a = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[href^="#"]')
       const target = a && el.querySelector<HTMLElement>(a.getAttribute('href')!)
       if (!target) return
       e.preventDefault()
-      const spacer = target.parentElement?.classList.contains('pin-spacer') ? target.parentElement : target
-      lenis.scrollTo(spacer, { offset: -64 })
+      goTo(lenis, target)
     }
     el.addEventListener('click', onClick)
-    return () => { el.removeEventListener('click', onClick); gsap.ticker.remove(tick); lenis.destroy() }
+    const first = hashTarget(el)
+    if (first) { goTo(lenis, first, true); hashJump.current = true }
+    const stop = () => { hashJump.current = false }
+    el.addEventListener('wheel', stop, { passive: true })
+    el.addEventListener('touchstart', stop, { passive: true })
+    window.addEventListener('keydown', stop)
+    return () => {
+      el.removeEventListener('click', onClick); el.removeEventListener('wheel', stop); el.removeEventListener('touchstart', stop); window.removeEventListener('keydown', stop)
+      gsap.ticker.remove(tick); lenis.destroy(); lenisRef.current = null
+    }
   }, [root])
 
   useGSAP(() => {
@@ -201,6 +222,9 @@ export function useLandingScroll(root: RefObject<HTMLDivElement | null>, ready: 
       // 자주 묻는 질문 · 마지막(푸터)은 움직이지 않는다
 
       ScrollTrigger.refresh()
+      const lenis = lenisRef.current, target = hashJump.current && hashTarget(el)
+      if (lenis && target) { lenis.resize(); goTo(lenis, target, true) } // 고정 장면이 늘린 높이를 Lenis가 먼저 알아야 끝까지 간다
+      hashJump.current = false
       return () => el.querySelectorAll('.showcase.stage').forEach((s) => s.classList.remove('stage'))
     })
   }, { scope: root, dependencies: [ready] })

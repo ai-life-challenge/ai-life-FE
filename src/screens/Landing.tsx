@@ -1,4 +1,4 @@
-// 첫 화면(랜딩). 스크롤은 막지 않고, 스크롤한 만큼 장면이 움직인다(GSAP ScrollTrigger + Lenis, landing/useLandingScroll.ts). 3D 막대 장면은 react-three-fiber: 히어로 → 선언문 → 쇼케이스(회색/검정 번갈아) → 데이터 출처 마키 → FAQ → 검정 푸터.
+// 첫 화면(랜딩). 스크롤은 막지 않고, 스크롤한 만큼 장면이 움직인다(GSAP ScrollTrigger + Lenis, landing/useLandingScroll.ts). 3D 막대 장면은 react-three-fiber: 히어로 → 선언문 → 쇼케이스(회색/검정 번갈아) → 데이터 출처 마키 → FAQ → 검정 CTA · 푸터(ui/SiteFooter.tsx).
 // 그림은 서버가 실제로 계산한 창녕군 결과로 그린다. 서버에는 칸 단위 자료가 없어서, 마을을 칸으로 묶어 집계한 '마을 집계 격자'다(src/api/cells.ts).
 // 서버에 닿지 못하면 그림 자리는 비워 둔다. 글 · 카드 · 3D 장면은 스크롤 위치에 따라 움직이고, 지도 그림의 펼침 같은 장면은 화면에 들어올 때 한 번 재생한다.
 import { Component, lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
@@ -15,6 +15,7 @@ import { Chevron } from '../ui/Chevron'
 import { useLandingScroll } from './landing/useLandingScroll'
 import { useTierCounts } from '../hooks'
 import { Logo } from '../ui/Logo'
+import { SiteFooter } from '../ui/SiteFooter'
 import type { Bar } from './landing/Village3D'
 import { criteria } from './landing/progress'
 
@@ -173,25 +174,14 @@ export function Landing() {
         </div>
       </section>
 
-      <footer className="land-foot">
+      {/* 마지막 CTA와 푸터는 한 덩어리의 검정 면이다. 시제품 안내 · 데이터 출처 · 이미지 출처는 프로젝트 정보(/about)로 옮겼다 */}
+      <section className="land-cta" aria-labelledby="land-cta-title">
         <div className="wrap">
-          <h2>우리 군의 예산부터 짜 보세요</h2>
+          <h2 id="land-cta-title">우리 군의 예산부터 짜 보세요</h2>
           <motion.button className="primary big-btn" onClick={start} whileTap={{ scale: 0.97 }}>서비스 시작하기</motion.button>
-          <div className="foot-grid">
-            <div><h4>서비스</h4><p>현황 진단</p><p>예산안 비교 · What-if</p><p>레포트 · AI 질문</p></div>
-            <div><h4>데이터</h4><p>지역별 출처는 서비스 안의 ‘가정과 출처’에서 볼 수 있어요</p><p>경계: 통계청 SGIS 기반 admdongkor 2026.7 (CC BY 4.0)</p><p>지도: OpenFreeMap, © OpenStreetMap 기여자</p></div>
-            <div><h4>시제품 안내</h4><p><Phrases text={`${tiers ? `정밀 판정은 ${tiers.precise}곳이고, 나머지 ${tiers.total - tiers.precise}곳은` : '정밀 판정이 아닌 지역은'} 정류장까지 걷는 거리만 보는 간이 판정이에요. 랜딩의 칸은 마을을 묶어 집계한 그림이에요.`} /></p><p>2026 AI 라이프 솔루션 챌린지 출품작</p></div>
-          </div>
-          <details className="credits">
-            <summary>이미지 출처</summary>
-            <ul>
-              {CREDITS.map(([where, title, author, license, url]) => (
-                <li key={where}>{where}: <a href={url} target="_blank" rel="noopener noreferrer">{title}</a> · {author} · {license}</li>
-              ))}
-            </ul>
-          </details>
         </div>
-      </footer>
+      </section>
+      <SiteFooter />
       </div>
     </motion.div>
   )
@@ -424,21 +414,6 @@ function ReportDemo({ demo }: { demo: Demo | null }) {
     </div>
   )
 }
-
-// 랜딩에 쓴 이미지 출처 (Wikimedia Commons). CC BY·BY-SA 이미지는 출처 표시가 필요해서 푸터에 모두 적는다
-const CREDITS: [string, string, string, string, string][] = [
-  ["첫 화면 배경 · 창녕 우포늪", "우포늪 ( 10 )", "최옥석", "CC BY-SA 3.0", "https://commons.wikimedia.org/wiki/File:%EC%9A%B0%ED%8F%AC%EB%8A%AA_(_10_).jpg"],
-  ["초중등학교", "Okcheon County Samyang Elementary School 20240730 (01)", "LandAndTree", "CC0", "https://commons.wikimedia.org/wiki/File:Okcheon_County_Samyang_Elementary_School_20240730_(01).jpg"],
-  ["약국", "2020-03-26 15.32.24 pharmacy in Hoengseong", "Choi Kwang-mo", "CC0", "https://commons.wikimedia.org/wiki/File:2020-03-26_15.32.24_pharmacy_in_Hoengseong.jpg"],
-  ["병원", "National Police Hospital of Korea", "IRTC1015", "Public domain", "https://commons.wikimedia.org/wiki/File:National_Police_Hospital_of_Korea.JPG"],
-  ["행정경계 (창녕군 행정구역도)", "Changnyeong-map", "장길산", "Public domain", "https://commons.wikimedia.org/wiki/File:Changnyeong-map.png"],
-  ["마을회관·경로당", "Wati village hall in Gonyang-myeon", "Choi2451", "CC BY-SA 3.0", "https://commons.wikimedia.org/wiki/File:Wati_village_hall_in_Gonyang-myeon.jpg"],
-  ["버스정류장", "Palyongdong Residents Center bus stop on April 22nd, 2016", "Choi2451", "CC BY-SA 3.0", "https://commons.wikimedia.org/wiki/File:Palyongdong_Residents_Center_bus_stop_on_April_22nd,_2016.jpg"],
-  ["농어촌버스", "A bus stop on the coastal road of Yokjido Island", "Pranay chakraborty 2004", "CC BY 4.0", "https://commons.wikimedia.org/wiki/File:A_bus_stop_on_the_coastal_road_of_Yokjido_Island.jpg"],
-  ["도서관", "National Library of Korea, front", "Christian Bolz", "CC BY-SA 4.0", "https://commons.wikimedia.org/wiki/File:National_Library_of_Korea,_front.jpg"],
-  ["인구·생명표 (인구 피라미드)", "South Korea population pyramid (2018)", "CIA Factbook", "Public domain", "https://commons.wikimedia.org/wiki/File:South_Korea_population_pyramid_(2018).jpg"],
-  ['지도 배경 (OpenStreetMap 도로망)', '우리 앱의 창녕군 지도 화면', 'OpenFreeMap · OpenMapTiles', '© OpenStreetMap contributors (ODbL)', 'https://www.openstreetmap.org/copyright'],
-]
 
 // 박스 이름에 이 낱말이 들어 있으면 그 이미지를 뒤에 깐다 (지역마다 출처 이름이 달라서 낱말로 찾는다). 위에서부터 먼저 맞는 것
 const TILE_IMG: [RegExp, string][] = [
