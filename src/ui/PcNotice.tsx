@@ -6,7 +6,7 @@ export function PcNotice() {
         <rect x="3" y="4" width="18" height="12" rx="2" /><path d="M8 20h8M12 16v4" />
       </svg>
       <p className="pc-only-title">PC 화면으로 확인해 주세요</p>
-      <p className="pc-only-sub">VillageCoverage는 넓은 화면에서 지도와 함께 볼 수 있게 만들었어요.<br />컴퓨터(노트북)에서 다시 열어 주세요.</p>
+      <p className="pc-only-sub">LocalLens는 넓은 화면에서 지도와 함께 볼 수 있게 만들었어요.<br />컴퓨터(노트북)에서 다시 열어 주세요.</p>
     </div>
   )
 }
