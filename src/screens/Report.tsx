@@ -101,7 +101,7 @@ function Body({ rep, regionName, tier, onEdit, loading }: { rep: ReportT; region
             <tr key={t.k} className={t.chosen ? 'rec' : ''}>
               <td><b>{t.name}</b>{t.recommended ? ' ⭐' : ''}<br /><span className="muted small">{t.summary}</span></td>
               <td className="r">{t.gapVillagesBefore}곳 → {t.gapVillagesAfter}곳<br /><span className="muted small">새로 닿음 {t.reachedVillages}{t.teleOnlyVillages > 0 ? ` · 원격만 ${t.teleOnlyVillages}` : ''}</span></td>
-              <td className="r">{pct(t.rate)}</td><td className="r">{eok(t.year)}</td><td className="r">{eok(t.install)}</td><td className="r">{pct(t.future)}</td>
+              <td className="r">{pct(t.rate)}</td><td className="r">{eok(t.year)}</td><td className="r">{eok(t.install)}</td><td className="r">{t.future != null ? pct(t.future) : <span className="muted" title="10년 뒤 값은 80세 이상 기준에서만 계산해요">—</span>}</td>
             </tr>
           ))}
         </tbody>

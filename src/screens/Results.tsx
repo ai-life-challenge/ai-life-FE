@@ -115,7 +115,7 @@ function PlanCard({ p, k, on, open, budget, target, onClick }: { p: Plan; k: num
         <div className="row">
           <span className="badge">연 {eok(p.year)}</span>
           <span className="badge">설치 {eok(p.install)}</span>
-          <span className="badge">10년 뒤 {pct(p.future)}</span>
+          {p.future != null && <span className="badge">10년 뒤 {pct(p.future)}</span>}
         </div>
         <div className="row">
           <span className={`badge ${p.meetsTarget ? 'green' : 'warnb'}`}>{p.meetsTarget ? `목표 ${pct(target)} 달성` : `목표 ${pct(target)} 미달`}</span>
