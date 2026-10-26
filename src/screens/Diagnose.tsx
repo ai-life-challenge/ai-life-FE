@@ -354,7 +354,7 @@ function VillageCard() {
           <button className="close" onClick={() => { patch((s) => ({ ...s, selectedVillage: null })); set({ hoverVillage: null }) }} aria-label="닫기">×</button>
           {!cur && <p className="muted" role="status">불러오는 중…</p>}
           {cur && 'error' in cur && <p className="bad">{cur.error}</p>}
-          {cur && 'detail' in cur && <Detail firstEstimated={!!data?.villages.find((x) => x.id === id)?.bus.firstEstimated} v={cur.detail} service={state!.service} byKind={carTarget !== 'med' && carTarget !== 'er' ? { name: targetOf(carTarget), hit: data?.villages.find((x) => x.id === id)?.nearest.byKind?.[carTarget] ?? null } : null} shown={shown?.villages.find((x) => x.id === id)?.state ?? null} filter={travel === 'car' ? '자가용 · ' + targetOf(carTarget) : carTarget !== 'med' ? targetOf(carTarget) : null} er={data?.villages.find((x) => x.id === id)?.nearest.er ?? null} />}
+          {cur && 'detail' in cur && <Detail firstEstimated={!!data?.villages.find((x) => x.id === id)?.bus.firstEstimated} inTown={data?.villages.find((x) => x.id === id)?.bus.firstToTownMin === 0} v={cur.detail} service={state!.service} byKind={carTarget !== 'med' && carTarget !== 'er' ? { name: targetOf(carTarget), hit: data?.villages.find((x) => x.id === id)?.nearest.byKind?.[carTarget] ?? null } : null} shown={shown?.villages.find((x) => x.id === id)?.state ?? null} filter={travel === 'car' ? '자가용 · ' + targetOf(carTarget) : carTarget !== 'med' ? targetOf(carTarget) : null} er={data?.villages.find((x) => x.id === id)?.nearest.er ?? null} />}
         </motion.div>
       )}
     </AnimatePresence>
@@ -363,7 +363,8 @@ function VillageCard() {
 
 const targetOf = (t: CarTarget) => CAR_TARGETS.find((x) => x.id === t)!.short
 // shown: 지도에 칠한 판정(필터 · 이동 수단 반영). 서버 카드(v.med.state)는 '전체 병의원 · 대중교통' 기준이라 필터나 자가용 탭이면 지도와 달라서 지도 판정을 따른다
-function Detail({ v, service, er, shown, filter, byKind, firstEstimated }: { v: VillageDetail; firstEstimated: boolean; // 첫차가 TS-BIS로 어림한 값이면 (추정)
+// inTown: 첫차 0분은 시각이 아니라 '읍내 마을'(읍내 기준 리에서 자가용 6분 안)이라는 서버 표시다
+function Detail({ v, service, er, shown, filter, byKind, firstEstimated, inTown }: { v: VillageDetail; firstEstimated: boolean; inTown: boolean; // 첫차가 TS-BIS로 어림한 값이면 (추정)
   byKind: { name: string; hit: NearestMed | null } | null; service: 'med' | 'bus'; er: NearestEr | null; shown: VillageState | null; filter: string | null }) {
   const own = filter != null && shown != null // 서버가 모르는 판정을 보고 있다
   const state = own ? shown : service === 'bus' ? (v.bus.ok ? 0 : 1) : v.med.state
@@ -378,7 +379,7 @@ function Detail({ v, service, er, shown, filter, byKind, firstEstimated }: { v: 
       <p className="small muted" style={{ margin: '6px 0 0' }}>사는 사람 {fmt(v.pop.all)}명 (65세 이상 {fmt(v.pop.a65)}명 · 80세 이상 {fmt(v.pop.a80)}명)</p>
       <p className="small" style={{ margin: '6px 0 0' }}>
         {v.bus.noStop ? '2km 안에 정류장이 없어요' : <>정류장까지 걸어서 <b className="num">{v.bus.stopWalkMin}분</b></>}
-        {v.tier === 'precise' && <> · 하루 <b className="num">{v.bus.dailyRuns}번</b>{v.bus.firstToTown ? ` · 읍내행 첫차 ${v.bus.firstToTown}${firstEstimated ? ' (추정)' : ''}` : ' · 읍내행 버스 없음'}</>}
+        {v.tier === 'precise' && <> · 하루 <b className="num">{v.bus.dailyRuns}번</b>{inTown ? ' · 읍내 마을' : v.bus.dailyRuns === 0 ? '' : v.bus.firstToTown ? ` · 읍내행 첫차 ${v.bus.firstToTown}${firstEstimated ? ' (추정)' : ''}` : ' · 읍내행 버스 없음'}</>}
       </p>
       {byKind ? (
         <p className="small" style={{ margin: '6px 0 0' }}>
