@@ -376,6 +376,15 @@ button.badge:hover { background: var(--gray-2); }
 .map-layer { position: fixed; top: 64px; left: 0; right: 0; bottom: 0; z-index: 0; }
 .map-layer.off, .map-layer.off * { visibility: hidden !important; pointer-events: none; } /* 지도 컨트롤은 자체 visibility를 가져서 자식까지 숨긴다 */
 .maplibregl-ctrl-attrib { font-size: 11px; }
+/* 확대 · 축소 버튼: 지도 오른쪽 위에 가로로(오른쪽 아래는 범례 · AI 버튼 자리). 결과 화면은 오른쪽 위 범례 왼쪽으로 비킨다 */
+.zoom-ctrl { position: absolute; right: 14px; top: 14px; z-index: 4; display: flex; gap: 6px; }
+.zoom-ctrl.beside-legend { right: 358px; }
+.zoom-ctrl button { min-width: 40px; height: 40px; border: 0; border-radius: 10px; background: var(--bg); box-shadow: var(--float); font-size: 20px; line-height: 1; color: var(--ink); cursor: pointer; transition: background .15s, transform .1s; }
+.zoom-ctrl button:hover:not(:disabled) { background: var(--gray); }
+.zoom-ctrl button:active:not(:disabled) { transform: scale(.94); }
+.zoom-ctrl button:disabled { color: var(--gray-2); cursor: default; }
+.zoom-ctrl .zoom-home { padding: 0 12px; font-size: 13px; font-weight: 600; }
+.zoom-hint { position: absolute; left: calc(50% + 216px); top: 70px; transform: translateX(-50%); z-index: 4; border: 0; border-radius: 999px; padding: 9px 16px; background: var(--ink); color: #fff; font-size: 13px; font-weight: 600; box-shadow: var(--float); cursor: pointer; }
 .panel {
   position: fixed; top: 76px; left: 12px; bottom: 12px; width: 420px; z-index: 10;
   background: var(--bg); border-radius: var(--r-card); box-shadow: var(--float);

@@ -20,19 +20,20 @@ import type { JudgedVillage, RawFacility } from '../api/types'
 import { useRafTime } from './useRafTime'
 import { erGrid, minuteRgb, type TimeCell } from '../api/cells'
 import { KIND_RE, targetMinutes } from '../api/judge'
-import { KOREA_VIEW, loadSigungu } from './geo'
+import { KOREA_VIEW, boxOf, fitCounty, loadSigungu } from './geo'
 import { clusterByPixel, type Cluster } from './cluster'
 import { RegionCard } from '../ui/RegionCard'
 
 // 아래 가운데를 좌표에 맞춰 건물이 그 자리에 서 있게 한다
 const icon = (id: string) => ({ id, url: `/icons/${id}.png`, width: 256, height: 256, anchorY: 256 })
-// size는 미터라 확대하면 커지고, 화면에서는 min~max 픽셀 사이로만 움직인다. 그림마다 건물이 차지하는 비율이 달라 최소 크기를 따로 둔다
+// 아이콘은 화면 픽셀 크기로 고정한다(예전엔 미터라 확대하면 80px까지 커져 묶음 거리 44px를 넘고 서로 · 묶음과 겹쳤다). 묶음 거리(CLUSTER_PX)보다 작게 둔다
 // 그리는 순서(의원 → 보건소 → 병원)대로 적어 둔다: 겹치면 병원이 위에 온다
 const FACILITY = {
-  clinic: { icon: icon('hospital'), size: 900, min: 28, max: 80 }, // 시험: 모든 시설을 병원 아이콘으로 통일
-  'health-center': { icon: icon('hospital'), size: 900, min: 28, max: 80 },
-  hospital: { icon: icon('hospital'), size: 900, min: 28, max: 80 },
+  clinic: { icon: icon('hospital'), size: 32 }, // 모든 시설을 병원 아이콘으로 통일
+  'health-center': { icon: icon('hospital'), size: 32 },
+  hospital: { icon: icon('hospital'), size: 36 },
 }
+const CLUSTER_PX = 48 // 화면에서 이만큼 가까운 시설은 한 묶음으로
 // 못 가는 마을은 원 대신 X로 그린다 (흰 테두리를 둘러 바탕색 위에서도 보이게). 색은 이유별: 빨강 버스가 없어 못 감 · 보라 병원이 너무 멀어 못 감
 const xSvg = (color: string) => `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M14 14L50 50M50 14L14 50" stroke="#fff" stroke-width="20" stroke-linecap="round"/><path d="M14 14L50 50M50 14L14 50" stroke="${color}" stroke-width="11" stroke-linecap="round"/></svg>`
 const xIcon = (state: 1 | 2) => ({ id: `x${state}`, url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(xSvg(STATE_CSS[state]))}`, width: 64, height: 64 })
@@ -51,7 +52,10 @@ const LABEL_FONT = 'Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sa
 const NEW_RGB: [number, number, number] = [47, 91, 211] // 이 안으로 새로 닿는 마을
 const radius = (people: number) => Math.min(24, 4 + Math.sqrt(people) * 0.9)
 // 진단 지도 묶음: 시설만 묶는다. 못 가는 마을(빨간 X)은 묶지 않고 항상 보인다('갈 수 있음' 마을은 그리지 않는다). 이 줌부터는 묶지 않는다
-const CLUSTER_MAX_ZOOM = 15
+const CLUSTER_MAX_ZOOM = 14 // 마을 하나가 화면을 채우는 배율: 여기부터는 다 풀어서 보인다
+const NAME_ZOOM = 12.5 // 이 배율부터 낱개 시설 아래에 이름을 단다
+// 지도는 대한민국(독도 · 제주 포함)까지만: 이 밖으로 옮기거나 더 줄일 수 없다
+const KOREA_BOUNDS: [number, number, number, number] = [121.6, 31.0, 134.2, 40.4] // [서, 남, 동, 북] 한반도 둘레에 바다를 조금 더 둬서 한 단계쯤 더 줄일 수 있다
 type Pin = { kind: 'village'; v: JudgedVillage } | { kind: 'facility'; f: RawFacility }
 const pinAt = (p: Pin): [number, number] => (p.kind === 'village' ? [p.v.lon, p.v.lat] : [p.f.lon, p.f.lat])
 const clusterText = (c: Cluster<Pin>) => {
@@ -177,7 +181,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   const pins: Pin[] = local && data && screen === 'diag' ? [
     ...(showFacilities ? facs.map((f) => ({ kind: 'facility' as const, f })) : []),
   ] : []
-  const clusters = zoom >= CLUSTER_MAX_ZOOM ? pins.map((p) => ({ lon: pinAt(p)[0], lat: pinAt(p)[1], items: [p] })) : clusterByPixel(pins, pinAt, zoom)
+  const clusters = zoom >= CLUSTER_MAX_ZOOM ? pins.map((p) => ({ lon: pinAt(p)[0], lat: pinAt(p)[1], items: [p] })) : clusterByPixel(pins, pinAt, zoom, CLUSTER_PX)
   const singles = clusters.filter((c) => c.items.length === 1).map((c) => c.items[0])
   const groups = clusters.filter((c) => c.items.length > 1)
 
@@ -212,7 +216,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   // 시설 3종을 3D 아이콘으로. 종류마다 레이어를 나눠야 최소 크기를 따로 줄 수 있다
   const facilityLayers = (list: RawFacility[]) => (Object.keys(FACILITY) as (keyof typeof FACILITY)[]).map((k) => new IconLayer({
     id: `facilities-${k}`, data: list.filter((f) => facilityKind(f.kind) === k), getPosition: (f: any) => [f.lon, f.lat],
-    getIcon: () => FACILITY[k].icon, getSize: FACILITY[k].size, sizeUnits: 'meters', sizeMinPixels: FACILITY[k].min, sizeMaxPixels: FACILITY[k].max,
+    getIcon: () => FACILITY[k].icon, getSize: FACILITY[k].size, sizeUnits: 'pixels',
     visible: showFacilities, pickable: true, parameters: ON_TOP,
   }))
 
@@ -223,9 +227,14 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
       myeonLines,
       new GeoJsonLayer({ id: 'county-line', data: countyGeo ?? [], filled: false, getLineColor: [110, 110, 120, 200], lineWidthMinPixels: 1.2, parameters: ON_TOP }),
       ...facilityLayers(singles.flatMap((p) => (p.kind === 'facility' ? [p.f] : []))),
+      // 낱개 시설 이름(가까이 봤을 때만): 아이콘 아래에 작게
+      ...(zoom >= NAME_ZOOM ? [new TextLayer<RawFacility>({ id: 'facility-names', data: singles.flatMap((p) => (p.kind === 'facility' ? [p.f] : [])), getPosition: (f) => [f.lon, f.lat], getText: (f) => f.name,
+        characterSet: 'auto', fontFamily: LABEL_FONT, getSize: 11, fontWeight: 600, getColor: [40, 40, 40, 255], getPixelOffset: [0, 8], getAlignmentBaseline: 'top',
+        fontSettings: { sdf: true }, outlineWidth: 3, outlineColor: [255, 255, 255, 230], parameters: ON_TOP })] : []),
+      // 묶음: 흰 원 + 진한 테두리 + 개수. 많을수록 조금 커진다. 누르면 그 묶음이 다 보이게 다가간다
       new ScatterplotLayer<Cluster<Pin>>({
-        id: 'clusters', data: groups, pickable: true, getPosition: (c) => [c.lon, c.lat], radiusUnits: 'pixels', getRadius: (c) => 13 + Math.min(10, Math.sqrt(c.items.length) * 2.5),
-        getFillColor: [255, 255, 255, 245], stroked: true, getLineColor: [60, 60, 70, 160], lineWidthUnits: 'pixels', getLineWidth: 1.5, parameters: ON_TOP,
+        id: 'clusters', data: groups, pickable: true, autoHighlight: true, highlightColor: [47, 91, 211, 60], getPosition: (c) => [c.lon, c.lat], radiusUnits: 'pixels', getRadius: (c) => 14 + Math.min(8, Math.sqrt(c.items.length) * 2),
+        getFillColor: [255, 255, 255, 250], stroked: true, getLineColor: [40, 40, 40, 220], lineWidthUnits: 'pixels', getLineWidth: 2, parameters: ON_TOP,
         onClick: ({ object }: any) => {
           if (!object) return
           const ll = (object as Cluster<Pin>).items.map(pinAt), lons = ll.map((p) => p[0]), lats = ll.map((p) => p[1])
@@ -330,6 +339,14 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
     }
     return null
   }
+  // 확대 · 축소 버튼은 화면 가운데가 아니라 왼쪽 패널에 가리지 않은 지도 부분의 가운데를 기준으로 한다(가운데가 패널 뒤 바다면 엉뚱한 곳이 커진다)
+  const zoomBy = (d: number) => {
+    const m = mapRef.current?.getMap()
+    if (!m) return
+    const { clientWidth: W, clientHeight: H } = m.getContainer()
+    const left = W >= 720 && screen !== 'off' ? 446 : 0
+    m.easeTo({ zoom: m.getZoom() + d, around: m.unproject([(left + W) / 2, H / 2]), duration: 300 })
+  }
   // 렌더마다 지금 화면의 레이어로 바꿔 끼운다
   useEffect(() => {
     const map = mapRef.current?.getMap() as MapWithDeck | undefined
@@ -344,9 +361,23 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   const hover = screen === 'select' && hoverRegion ? regions.find((r) => r.code === hoverRegion) : null
   return (
     <div className={`map-layer ${screen === 'off' ? 'off' : ''}`} aria-hidden={screen === 'off'}>
+      {/* 확대 · 축소: 지도 오른쪽 위(결과 화면은 범례 왼쪽). 군 화면에서는 '군 전체' 버튼으로 언제든 돌아온다. 너무 줄이면 마을이 안 보인다고 알려 준다 */}
+      {screen !== 'off' && (
+        <div className={`zoom-ctrl ${screen === 'result' ? 'beside-legend' : ''}`} role="group" aria-label="지도 확대 축소">
+          <button type="button" aria-label="확대" onClick={() => zoomBy(1)} disabled={zoom >= 18}>+</button>
+          <button type="button" aria-label="축소" onClick={() => zoomBy(-1)} disabled={zoom <= 5}>−</button>
+          {data && screen !== 'select' && <button type="button" className="zoom-home" onClick={() => fitCounty(mapRef.current, boxOf(data.villages), { duration: 800 })}>{data.name} 전체</button>}
+          {screen === 'select' && <button type="button" className="zoom-home" onClick={() => mapRef.current?.flyTo({ center: [KOREA_VIEW.longitude, KOREA_VIEW.latitude], zoom: KOREA_VIEW.zoom, duration: 800 })}>전국</button>}
+        </div>
+      )}
+      {data && (screen === 'diag' || screen === 'result') && zoom < 8.5 && (
+        <button type="button" className="zoom-hint" onClick={() => fitCounty(mapRef.current, boxOf(data.villages), { duration: 800 })}>지도를 확대하면 마을이 보여요 · {data.name}으로 가기</button>
+      )}
       <Map
         ref={mapRef}
         initialViewState={KOREA_VIEW}
+        maxBounds={KOREA_BOUNDS}
+        minZoom={5}
         mapStyle={STYLE}
         style={{ position: 'absolute', inset: 0 }}
         maxPitch={0}
