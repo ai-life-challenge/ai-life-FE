@@ -59,6 +59,7 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
   const gapList = useMemo(() => (shown ? shown.villages.filter((v) => v.state !== 0).sort((a, b) => b.people - a.people).slice(0, 6) : []), [shown])
   const precise = data!.tier === 'precise'
   const ageName = AGES.find((a) => a.id === st.age)!.name
+  const e30All = data!.indicators.e30 == null ? '' : `(${pct(data!.indicators.e30)})` // 서버 지표 E30: 나이대와 상관없이 전체 주민 기준
   const sum = shown?.summary
 
   // 시간 스윕: 0분부터 기준 시간의 1.6배까지 3초 동안 늘리며, 그 시간 안에 닿는 칸만 지도에 칠한다
@@ -105,7 +106,7 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
         <p className="muted small" style={{ margin: '6px 0 0' }}>{travel === 'transit' ? (carTarget === 'er' ? '응급의료센터는 버스를 보지 않고, 지역응급의료센터 이상까지 자가용 시간만 봐요.' : `차가 없는 주민 기준이에요. 마을 안에 ${targetName}${josa(targetName, '이', '가')} 있거나, 정류장까지 걸어가 버스로 ${targetName}에 갈 수 있는지 봐요.`) : TRAVEL.find((x) => x.id === travel)!.desc}</p>
         {travel === 'car' ? (
           <>
-            <p className="muted small" style={{ margin: '6px 0 0' }}>{carTarget === 'er' ? (T === 30 ? '지역응급의료센터 이상(권역센터 포함)까지예요. 30분일 때 서버 E30과 같은 기준이에요.' : `지역응급의료센터 이상(권역센터 포함)까지예요. 30분이 서버 E30 기준이라 ${T}분은 서버 값과 달라요.`) : `마을 안에 ${targetName}${josa(targetName, '이', '가')} 있으면 갈 수 있는 마을로 봐요.`}</p>
+            <p className="muted small" style={{ margin: '6px 0 0' }}>{carTarget === 'er' ? (T === 30 && st.age === 'all' ? '지역응급의료센터 이상(권역센터 포함)까지예요. 30분 · 전체 주민일 때 지표 E30과 같은 기준이에요.' : `지역응급의료센터 이상(권역센터 포함)까지예요. 여기 숫자는 ${T}분 · ${ageName} 기준이고, 지표 E30${e30All}은 30분 · 전체 주민 기준이라 서로 달라요.`) : `마을 안에 ${targetName}${josa(targetName, '이', '가')} 있으면 갈 수 있는 마을로 봐요.`}</p>
             <Slider label={`${targetName}까지 자가용`} unit="분 이내" min={10} max={60} step={5} value={T} onChange={(v) => set({ carView: v })}
               note={`이 화면에서만 보는 값이에요. 결과와 레포트는 서버 기준(자가용 ${st.criteria.carMinutes}분)으로 계산해요`} />
           </>
@@ -121,7 +122,7 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
         {sum && (
           <div className="hero">
             <p className="muted small" style={{ margin: 0 }}>{ageName} {fmt(sum.total)}명 중 {travel === 'car' ? `자가용으로 ${T}분 안에 ${targetName}${josa(targetName, '이', '가')} 없는` : st.service === 'med' ? (carTarget === 'med' ? '차 없이 병원에 갈 수 없는' : carTarget === 'er' ? `${targetName}(${T}분 이내)에 갈 수 없는` : `차 없이 ${targetName}에 갈 수 없는`) : '버스를 탈 수 없는'} 사람</p>
-            <p className="big bad"><Count value={sum.gap} /><small>명 ({pct(sum.rate)})</small></p>
+            <p className="big bad"><Count value={sum.gap} /><small>명 ({ageName} 중 {pct(sum.rate)})</small></p>
             {travel === 'car' ? (
               <p className="small muted" style={{ margin: 0 }}>{targetName}{josa(targetName, '이', '가')} 너무 먼 마을 {sum.villagesNoFacility}곳{carTarget === 'er' && over.avg > 0 ? ` · 군 평균 응급의료센터까지 ${Math.round(over.avg)}분` : ''} · 서버에 자가용 판정이 없어 서버의 도로 기준 시간으로 화면에서 계산했어요</p>
             ) : (
@@ -140,7 +141,7 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
           <div className="hero">
             <p className="muted small" style={{ margin: 0 }}>참고 · 응급실(지역응급의료센터 이상)까지 자가용으로 30분 넘게 걸리는 {ageName} <SrcBadge kind="public" id="indicators" note="서버 도로 시간" /></p>
             <p className="big bad"><Count value={e30.gap} /><small>명</small></p>
-            <p className="muted small" style={{ margin: 0 }}>전체의 {pct(e30.rate)} · 군 평균은 <b style={{ color: `rgb(${minuteRgb(e30.avg).join(',')})` }}>{Math.round(e30.avg)}분</b>{e30.avg <= 30 && e30.gap > 0 ? ' — 평균만 보면 괜찮아 보여요' : ''}</p>
+            <p className="muted small" style={{ margin: 0 }}>{ageName} 중 {pct(e30.rate)}{st.age !== 'all' && e30All && ` · 지표 E30${e30All}은 전체 주민 기준`} · 군 평균은 <b style={{ color: `rgb(${minuteRgb(e30.avg).join(',')})` }}>{Math.round(e30.avg)}분</b>{e30.avg <= 30 && e30.gap > 0 ? ' — 평균만 보면 괜찮아 보여요' : ''}</p>
           </div>
         )}
         <div className="row">
@@ -206,9 +207,9 @@ function Indicators({ v }: { v: Vuln }) {
   const [open, setOpen] = useState<string | null>(null)
   const [formula, setFormula] = useState(false)
   const med: Row[] = [
-    ...(v.e30 == null || v.parts.e30 == null ? [] : [{ id: 'e30', label: '응급실 30분 밖 주민', value: pct(v.e30), sub: `취약지 기준 ${pct(STD.theta)}`, bar: v.e30, std: STD.theta, stdLabel: `기준 ${pct(STD.theta)}`, status: worse(v.e30, STD.theta), src: pub,
-      calc: <>지역응급의료센터 이상까지 자가용으로 30분 넘게 걸리는(길이 없는 곳 포함) 주민 비율이에요(서버 지표, 도로 기준). 기준 {pct(STD.theta)}을 50점, 100%를 100점으로: {pct(v.e30)} → {Math.round(v.parts.e30 * 100)}점</> } as Row]),
-    ...(v.e60 == null || v.parts.e60 == null ? [] : [{ id: 'e60', label: '권역센터 60분 밖 주민', value: pct(v.e60), sub: `취약지 기준 ${pct(STD.theta)}`, bar: v.e60, std: STD.theta, stdLabel: `기준 ${pct(STD.theta)}`, status: worse(v.e60, STD.theta), src: pub,
+    ...(v.e30 == null || v.parts.e30 == null ? [] : [{ id: 'e30', label: '응급실 30분 밖 주민', value: pct(v.e30), sub: `전체 주민 기준 · 취약지 기준 ${pct(STD.theta)}`, bar: v.e30, std: STD.theta, stdLabel: `기준 ${pct(STD.theta)}`, status: worse(v.e30, STD.theta), src: pub,
+      calc: <>지역응급의료센터 이상까지 자가용으로 30분 넘게 걸리는(길이 없는 곳 포함) 주민 비율이에요(서버 지표, 도로 기준). 나이대와 상관없이 전체 주민으로 세요. 기준 {pct(STD.theta)}을 50점, 100%를 100점으로: {pct(v.e30)} → {Math.round(v.parts.e30 * 100)}점</> } as Row]),
+    ...(v.e60 == null || v.parts.e60 == null ? [] : [{ id: 'e60', label: '권역센터 60분 밖 주민', value: pct(v.e60), sub: `전체 주민 기준 · 취약지 기준 ${pct(STD.theta)}`, bar: v.e60, std: STD.theta, stdLabel: `기준 ${pct(STD.theta)}`, status: worse(v.e60, STD.theta), src: pub,
       calc: <>권역응급의료센터까지 자가용으로 60분 넘게 걸리는 주민 비율이에요(서버 지표). 같은 방법으로: {pct(v.e60)} → {Math.round(v.parts.e60 * 100)}점</> } as Row]),
     { id: 'd', label: '인구 1천명당 의사 수', value: `${n2(v.doctors)}명`, sub: `72개 군 평균의 ${pct(v.doctors / STD.avgD)}`, bar: Math.min(1, v.doctors / (2 * STD.avgD)), std: 0.5, stdLabel: `군 평균 ${STD.avgD}명`, status: v.doctors >= STD.avgD ? 'good' : v.doctors >= STD.avgD * 0.85 ? 'near' : 'poor', src: pub,
       calc: <>72개 군 평균 {STD.avgD}명을 50점, 0명을 100점으로: 1 − {n2(v.doctors)} ÷ {n2(2 * STD.avgD)} = {n2(v.parts.d)} → {Math.round(v.parts.d * 100)}점. 도시가 섞인 전국 평균 대신 비슷한 군끼리 비교해요.</> },
