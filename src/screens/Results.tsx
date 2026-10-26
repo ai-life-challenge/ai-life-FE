@@ -11,6 +11,7 @@ import { useStore } from '../store'
 import { boxOf, fitCounty } from '../map/geo'
 import { Count } from '../ui/Count'
 import { AiBadge, SrcBadge } from '../ui/Badges'
+import { Basis } from '../ui/Basis'
 
 export function Results({ mapRef }: { mapRef: React.RefObject<MapRef | null> }) {
   const { code } = useParams()
@@ -35,6 +36,7 @@ export function Results({ mapRef }: { mapRef: React.RefObject<MapRef | null> }) 
         <p className="eyebrow">5단계 · 결과</p>
         <h1 style={{ fontSize: 26 }}>{r.name} · 연 {eok(st.budget)} · 대안 {list.length || 3}개</h1>
         <p className="muted small">카드를 누르면 그 안이 지도에 그려져요. 달성률은 이 기준에서 갈 수 있는 {st.age === 'all' ? '주민' : st.age === 'a65' ? '65세 이상' : '80세 이상'}의 비율이에요.</p>
+        <Basis />
 
         {plans.status === 'error' && (
           <div className="toast-inline" role="alert">{plans.error} <button className="link" onClick={() => void fetchPlans()}>다시 계산</button></div>

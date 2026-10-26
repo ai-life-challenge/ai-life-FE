@@ -8,6 +8,11 @@ export const CAR_TARGETS: { id: CarTarget; name: string; short: string }[] = [
   { id: 'med', name: '모든 병의원', short: '병의원' }, { id: 'hospital', name: '병원·종합병원', short: '병원·종합병원' }, { id: 'clinic', name: '동네 의원', short: '동네 의원' },
   { id: 'public', name: '보건소·진료소', short: '보건소·진료소' }, { id: 'er', name: '응급의료센터', short: '응급의료센터' },
 ]
+// 진단 화면에서 보는 시설 필터 · 이동 수단 이름. 서버 계산 기준(모든 병의원 · 대중교통)과 같으면 null
+export const viewName = (travel: 'transit' | 'car', target: CarTarget, carMinutes: number) => {
+  const name = CAR_TARGETS.find((x) => x.id === target)!.name
+  return travel === 'car' ? `${name} · 자가용 ${carMinutes}분` : target !== 'med' ? `${name} · 대중교통` : null
+}
 export const SERVICES: { id: Service; name: string; desc: string }[] = [
   { id: 'med', name: '병원 가는 길', desc: '차가 없는 주민이 마을 안 병의원이나 버스로 병원에 갈 수 있는지 봐요' },
   { id: 'bus', name: '버스 이용', desc: '정류장까지 걷는 거리와 버스 운행만 봐요' },

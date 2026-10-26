@@ -7,7 +7,7 @@ import { AnimatePresence, animate, motion, useReducedMotion } from 'motion/react
 import type { MapRef } from 'react-map-gl/maplibre'
 import { api } from '../api/client'
 import type { NearestEr, NearestMed, VillageDetail, VillageState } from '../api/types'
-import { AGES, CAR_TARGETS, STATE_CSS, STATE_NAME, fmt, pct } from '../api/meta'
+import { AGES, CAR_TARGETS, STATE_CSS, STATE_NAME, fmt, pct, viewName } from '../api/meta'
 import { useAutoFetch, useJudgeCompare, useShownJudge } from '../hooks'
 import { calcKey, errText, useStore } from '../store'
 import type { CarTarget } from '../api/judge'
@@ -40,7 +40,14 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
   useAutoFetch('fetchJudge')
 
   useEffect(() => { if (mapReady && data) fitCounty(mapRef.current, boxOf(data.villages), { duration: 1400 }) }, [mapReady, data, mapRef])
-  useEffect(() => () => set({ sweep: null, travel: 'transit', carTarget: 'med', carView: null }), [set]) // 다른 화면(결과 등)은 서버 판정 기준이라 나갈 때 대중교통으로 되돌린다
+  // 다른 화면(결과 등)은 서버 판정 기준이라 나갈 때 대중교통으로 되돌린다. 기본과 다른 것을 보고 있었으면 다른 화면에서 알리게 남겨 둔다
+  useEffect(() => {
+    set({ diagPick: null })
+    return () => {
+      const { travel, carTarget, carView, state } = useStore.getState()
+      set({ sweep: null, travel: 'transit', carTarget: 'med', carView: null, diagPick: viewName(travel, carTarget, carView ?? state!.criteria.carMinutes) })
+    }
+  }, [set])
 
   const vuln = useMemo(() => vulnOf(data!), [data])
   const times = useMemo(() => villageTimes(data!, st.age), [data, st.age])
