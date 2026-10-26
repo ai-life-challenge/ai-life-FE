@@ -32,7 +32,7 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
   const { code } = useParams()
   const nav = useNavigate()
   const reduce = useReducedMotion()
-  const { regions, data, state, judge, mapReady, sweep, travel, carTarget, set, patch } = useStore()
+  const { regions, data, state, judge, mapReady, sweep, travel, carTarget, carView, set, patch } = useStore()
   const r = regions.find((x) => x.code === code)!
   const st = state!
   const shown = useShownJudge()
@@ -40,11 +40,11 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
   useAutoFetch('fetchJudge')
 
   useEffect(() => { if (mapReady && data) fitCounty(mapRef.current, boxOf(data.villages), { duration: 1400 }) }, [mapReady, data, mapRef])
-  useEffect(() => () => set({ sweep: null, travel: 'transit', carTarget: 'med' }), [set]) // 다른 화면(결과 등)은 서버 판정 기준이라 나갈 때 대중교통으로 되돌린다
+  useEffect(() => () => set({ sweep: null, travel: 'transit', carTarget: 'med', carView: null }), [set]) // 다른 화면(결과 등)은 서버 판정 기준이라 나갈 때 대중교통으로 되돌린다
 
   const vuln = useMemo(() => vulnOf(data!), [data])
   const times = useMemo(() => villageTimes(data!, st.age), [data, st.age])
-  const T = st.criteria.carMinutes
+  const T = travel === 'car' ? carView ?? st.criteria.carMinutes : st.criteria.carMinutes // 자가용 탭은 화면 전용 값, 대중교통 탭은 서버 기준
   const over = useMemo(() => overLimit(times, T), [times, T])
   const e30 = useMemo(() => overLimit(times, 30), [times]) // 응급실 카드는 슬라이더가 아니라 E30 정의(30분)로 센다
   const minutesOf = useMemo(() => { const m = targetMinutes(data!, carTarget); return new Map(data!.villages.map((v, i) => [v.id, m[i]])) }, [data, carTarget]) // 공백 큰 마을 목록의 분: 고른 시설까지
@@ -99,7 +99,8 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
         {travel === 'car' ? (
           <>
             <p className="muted small" style={{ margin: '6px 0 0' }}>{carTarget === 'er' ? (T === 30 ? '지역응급의료센터 이상(권역센터 포함)까지예요. 30분일 때 서버 E30과 같은 기준이에요.' : `지역응급의료센터 이상(권역센터 포함)까지예요. 30분이 서버 E30 기준이라 ${T}분은 서버 값과 달라요.`) : `마을 안에 ${targetName}${josa(targetName, '이', '가')} 있으면 갈 수 있는 마을로 봐요.`}</p>
-            <Slider label={`${targetName}까지 자가용`} unit="분 이내" min={10} max={60} step={5} value={T} onChange={(v) => patch((s) => ({ ...s, criteria: { ...s.criteria, carMinutes: v } }))} />
+            <Slider label={`${targetName}까지 자가용`} unit="분 이내" min={10} max={60} step={5} value={T} onChange={(v) => set({ carView: v })}
+              note={`이 화면에서만 보는 값이에요. 결과와 레포트는 서버 기준(자가용 ${st.criteria.carMinutes}분)으로 계산해요`} />
           </>
         ) : (
           <>
