@@ -1,4 +1,4 @@
-# VillageCoverage-ai
+# LocalLens
 
 > "우리 군에 예산이 있다면, 어디에 써야 할까?"
 

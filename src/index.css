@@ -1,4 +1,4 @@
-/* 디자인 시스템: VillageCoverage 시제품과 같은 톤 — 흰/회색/검정 면, 얇은 제목, 테두리 없는 카드, 보라 단색 버튼 + 보라→분홍 그라데이션 글자 포인트.
+/* 디자인 시스템: LocalLens 시제품과 같은 톤 — 흰/회색/검정 면, 얇은 제목, 테두리 없는 카드, 보라 단색 버튼 + 보라→분홍 그라데이션 글자 포인트.
    고령 사용자 기준: 기본 16px, 핵심 숫자 28px 이상, 대비 4.5:1 이상. */
 :root {
   --bg: #ffffff;
@@ -77,8 +77,8 @@ p, li { text-wrap: pretty; } /* 마지막 줄에 한두 글자만 남지 않게 
 .logo { font-weight: 600; letter-spacing: -0.02em; display: inline-flex; align-items: center; gap: 8px; border: 0; background: none; padding: 0; white-space: nowrap; }
 /* LocalLens 로고(ui/Logo.tsx): 글자 + o 자리의 핀. 핀 크기 · 위치 · 간격을 모두 em으로 둬서 font-size만 바꾸면 비율이 그대로다.
    핀의 둥근 머리가 o처럼 x높이 안에 앉고, 뾰족한 끝은 기준선 아래로 살짝 내려간다. SVG 좌우 여백(24칸 중 핀 폭 15칸)은 음수 margin으로 줄인다 */
-.brand { font-size: 22px; font-weight: 700; letter-spacing: -0.02em; line-height: 1; color: #2b2f42; white-space: nowrap; }
-.brand-pin { width: 0.85em; height: 0.85em; vertical-align: -0.26em; margin: 0 -0.125em; }
+.brand { font-size: 22px; font-weight: 700; letter-spacing: 0.015em; line-height: 1; color: #2b2f42; white-space: nowrap; }
+.brand-pin { width: 0.85em; height: 0.85em; vertical-align: -0.26em; margin: 0 -0.08em; }
 @media (max-width: 360px) { .brand { font-size: 18px; } } /* 아주 좁은 화면에서 상단 바가 넘치지 않게 크기만 줄인다(비율은 em이라 그대로) */
 .page { max-width: 1080px; margin: 0 auto; padding: 28px clamp(16px, 3vw, 32px) 120px; }
 .page.narrow { max-width: 760px; }
@@ -371,7 +371,7 @@ button.badge:hover { background: var(--gray-2); }
 .toast { position: fixed; left: 50%; bottom: 28px; transform: translateX(-50%); background: var(--ink); color: #fff; padding: 10px 16px; border-radius: 10px; z-index: 60; font-size: 15px; }
 
 
-/* ---------- 지도 화면 (S1 · S2 · S5): 지도가 화면 전체, 왼쪽에 떠 있는 패널 (VillageCoverage와 같은 배치) ---------- */
+/* ---------- 지도 화면 (S1 · S2 · S5): 지도가 화면 전체, 왼쪽에 떠 있는 패널 (LocalLens 시제품과 같은 배치) ---------- */
 .app.with-map { height: 100vh; overflow: hidden; }
 .map-layer { position: fixed; top: 64px; left: 0; right: 0; bottom: 0; z-index: 0; }
 .map-layer.off, .map-layer.off * { visibility: hidden !important; pointer-events: none; } /* 지도 컨트롤은 자체 visibility를 가져서 자식까지 숨긴다 */
@@ -520,7 +520,7 @@ button.badge:hover { background: var(--gray-2); }
 .cellcard .close, .dock .close { position: absolute; top: 8px; right: 10px; border: 0; background: none; font-size: 22px; color: var(--muted); }
 .steps { margin: 10px 0 0; padding-left: 18px; display: grid; gap: 4px; font-size: 15px; }
 
-/* ---------- AI에게 물어보기 (VillageCoverage와 같은 버튼·창) ---------- */
+/* ---------- AI에게 물어보기 (LocalLens 시제품과 같은 버튼·창) ---------- */
 .spark { display: inline-block; background: var(--grad); -webkit-background-clip: text; background-clip: text; color: transparent; }
 .ai-fab {
   position: fixed; right: 18px; bottom: 28px; z-index: 30; border: 0; border-radius: 999px; padding: 14px 22px;
@@ -694,7 +694,7 @@ button.badge:hover { background: var(--gray-2); }
 .v3d-cap .eyebrow { display: block; font-size: 14px; margin-bottom: 10px; letter-spacing: 0; }
 .lenis.lenis-smooth { scroll-behavior: auto !important; }
 
-/* 랜딩 반응형 (VillageCoverage와 동일) */
+/* 랜딩 반응형 (LocalLens 시제품과 동일) */
 @media (max-width: 900px) {
   .land-hero { grid-template-columns: 1fr; min-height: auto; padding-top: 32px; }
   .hero-tagline { justify-self: start; }
