@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 
 // active일 때만 매 프레임 경과 ms를 돌려준다 (반복 애니메이션용)
-export function useRafTime(active: boolean) {
+export function useRafTime(active: boolean, reset?: unknown) { // reset이 바뀌면 0부터 다시 잰다
   const [t, setT] = useState(0)
   useEffect(() => {
     if (!active) return
@@ -10,6 +10,6 @@ export function useRafTime(active: boolean) {
     const tick = (now: number) => { setT(now - start); id = requestAnimationFrame(tick) }
     id = requestAnimationFrame(tick)
     return () => cancelAnimationFrame(id)
-  }, [active])
+  }, [active, reset])
   return t
 }

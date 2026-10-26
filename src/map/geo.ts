@@ -44,9 +44,9 @@ export function fitCounty(map: CamMap | undefined | null, bbox: Box, opts: { dur
 }
 
 // 고른 안이 그리는 범위가 빠짐없이 다 보이는 만큼만 다가간다
-// bottom: 지도 아래쪽 범례 높이만큼 비워 둘 때
-export function flyToArea(map: CamMap | undefined | null, area: Box, opts: { duration?: number; bottom?: number } = {}) {
-  flyToBox(map, area, opts.duration ?? 1200, opts.bottom ? { bottom: opts.bottom } : {})
+// bottom · right: 지도 위 범례가 차지한 만큼 비워 둘 때
+export function flyToArea(map: CamMap | undefined | null, area: Box, opts: { duration?: number; bottom?: number; right?: number } = {}) {
+  flyToBox(map, area, opts.duration ?? 1200, { ...(opts.bottom ? { bottom: opts.bottom } : {}), ...(opts.right ? { right: opts.right } : {}) })
 }
 
 // 점들을 모두 담는 상자 [서, 남, 동, 북]

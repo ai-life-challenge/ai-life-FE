@@ -5,7 +5,9 @@ import { useEffect, useMemo, useState } from 'react'
 import { Map, Popup, type MapRef } from 'react-map-gl/maplibre'
 import { MapLibreOverlay } from '@deck.gl/maplibre'
 import type { Layer } from '@deck.gl/core'
-import { GeoJsonLayer, IconLayer, PathLayer, PolygonLayer, ScatterplotLayer, TextLayer } from '@deck.gl/layers'
+import { GeoJsonLayer, IconLayer, PolygonLayer, ScatterplotLayer, TextLayer } from '@deck.gl/layers'
+import { PathStyleExtension } from '@deck.gl/extensions'
+import { TripsLayer } from '@deck.gl/geo-layers'
 import { useReducedMotion } from 'motion/react'
 import 'maplibre-gl/dist/maplibre-gl.css'
 import { setWorkerUrl } from 'maplibre-gl'
@@ -43,6 +45,9 @@ export type MapScreen = 'select' | 'diag' | 'result' | 'off'
 const STYLE = 'https://tiles.openfreemap.org/styles/positron'
 // 선은 마을 점과 같은 높이(0)라 깊이 검사에서 깨져 보인다 → 항상 위에 그린다
 const ON_TOP = { depthCompare: 'always', depthWriteEnabled: false } as const
+// 노선을 도는 버스 아이콘(순회 진료 버스 색 원 + 흰 버스)
+const BUS_ICON = `data:image/svg+xml;utf8,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><circle cx="32" cy="32" r="29" fill="#e3a21a" stroke="#fff" stroke-width="5"/><rect x="18" y="17" width="28" height="26" rx="5" fill="#fff"/><rect x="22" y="21" width="20" height="9" rx="2" fill="#e3a21a"/><circle cx="24" cy="46" r="3.5" fill="#fff"/><circle cx="40" cy="46" r="3.5" fill="#fff"/></svg>')}`
+const LABEL_FONT = 'Pretendard, "Apple SD Gothic Neo", "Malgun Gothic", "Noto Sans KR", sans-serif'
 const NEW_RGB: [number, number, number] = [47, 91, 211] // 이 안으로 새로 닿는 마을
 const radius = (people: number) => Math.min(24, 4 + Math.sqrt(people) * 0.9)
 // 진단 지도 묶음: 시설만 묶는다. 못 가는 마을(빨간 X)은 묶지 않고 항상 보인다('갈 수 있음' 마을은 그리지 않는다). 이 줌부터는 묶지 않는다
@@ -71,7 +76,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   onBlocked: (name: string) => void
   mapRef: React.RefObject<MapRef | null>
 }) {
-  const { regions, hoverRegion, hoverVillage, showDots, showFacilities, sweep, thinking, carTarget, map: myeon, data, state, plans, judge, set, patch } = useStore()
+  const { regions, hoverRegion, hoverVillage, hoverSupply, gridTarget, showDots, showFacilities, sweep, thinking, carTarget, map: myeon, data, state, plans, judge, set, patch } = useStore()
   const reduce = useReducedMotion()
   const [sigungu, setSigungu] = useState<any>(null)
   const [, setTick] = useState(0)
@@ -104,18 +109,65 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
     if (!shown || !sv || sv.length !== shown.coverage.length) return null
     return new globalThis.Map(sv.map((v, i) => [v.id, shown.coverage[i]]))
   }, [shown, judge.data])
-  const planPaths = useMemo(() => (shown?.picks ?? []).filter((p) => p.villages.length > 1).map((p) => ({ type: p.type, path: p.villages.flatMap((id) => { const v = byId.get(id); return v ? [[v.lon, v.lat]] : [] }) })), [shown, byId])
-  const planMarks = useMemo(() => (shown?.picks ?? []).flatMap((p) => p.villages.flatMap((id) => { const v = byId.get(id); return v ? [{ at: [v.lon, v.lat] as [number, number], type: p.type, label: `${p.label} · ${v.name}` }] : [] })), [shown, byId])
+  // 순회 진료 버스 노선: 보건소(depot)에서 출발해 고른 마을을 돌고 보건소로 돌아온다. 도로 경로 자료가 없어 정류장 사이를 곧게 잇는다
+  // ponytail: 정류장 사이 직선, 실제 도로를 따라가려면 경로 탐색(OSRM 등) 자료가 있어야 한다
+  const routes = useMemo(() => {
+    if (!data) return []
+    const depot = byId.get(data.depot)
+    return (shown?.picks ?? []).filter((p) => p.type === 'tour').map((p) => {
+      const stops = p.villages.flatMap((id) => { const v = byId.get(id); return v && v.id !== depot?.id ? [v] : [] })
+      const pts = [...(depot ? [depot] : []), ...stops, ...(depot ? [depot] : [])].map((v) => [v.lon, v.lat] as [number, number])
+      // 구간마다 가운데에 진행 방향 화살표
+      const arrows = pts.slice(1).map((q, i) => { const a = pts[i]; return { at: [(a[0] + q[0]) / 2, (a[1] + q[1]) / 2] as [number, number], angle: (Math.atan2(q[1] - a[1], (q[0] - a[0]) * Math.cos((a[1] * Math.PI) / 180)) * 180) / Math.PI } })
+      // 정류장까지 누적 거리(km, 대략): 노선이 그려지는 속도와 버스 위치를 거리에 맞춘다
+      const times = pts.reduce<number[]>((acc, q, i) => { if (!i) return [0]; const a = pts[i - 1]; const dx = (q[0] - a[0]) * 88.8, dy = (q[1] - a[1]) * 111; return [...acc, acc[i - 1] + Math.hypot(dx, dy)] }, [])
+      return { path: pts, times, length: times.at(-1) || 1, stops: stops.map((v, i) => ({ at: [v.lon, v.lat] as [number, number], n: i + 1, name: v.name })), depot: depot && { at: [depot.lon, depot.lat] as [number, number], name: depot.name }, arrows, label: p.label }
+    })
+  }, [shown, byId, data])
+  const planMarks = useMemo(() => (shown?.picks ?? []).filter((p) => p.type !== 'tour').flatMap((p) => p.villages.flatMap((id) => { const v = byId.get(id); return v ? [{ at: [v.lon, v.lat] as [number, number], type: p.type, label: `${p.label} · ${v.name}` }] : [] })), [shown, byId])
   const drtGeo = useMemo(() => myeon && shown && { ...myeon, features: myeon.features.filter((f) => shown.picks.some((p) => p.myeon && p.myeon === f.properties?.name)) }, [myeon, shown])
+  // 수요응답형 버스 구역 이름표 자리: 면에서 가장 큰 땅덩이(섬이 여럿이면 본섬)의 테두리 상자 가운데
+  const drtLabels = useMemo(() => (drtGeo?.features ?? []).map((f: any) => {
+    const rings: number[][][] = f.geometry.type === 'Polygon' ? [f.geometry.coordinates[0]] : f.geometry.coordinates.map((poly: number[][][]) => poly[0])
+    const ring = rings.reduce((a, r) => (r.length > a.length ? r : a), [] as number[][])
+    const xs = ring.map((c) => c[0]), ys = ring.map((c) => c[1])
+    const at = [(Math.min(...xs) + Math.max(...xs)) / 2, (Math.min(...ys) + Math.max(...ys)) / 2]
+    return { at, text: `수요응답형 버스 · ${f.properties?.name ?? ''} 안에서 부르면 와요` }
+  }), [drtGeo])
 
   // 진단 화면 바탕: 레퍼런스 지도처럼 600m 안팎의 칸마다 고른 시설까지 걸리는 시간(서버 마을 값을 이어 칠함)을 초록~주황으로 칠한다 칸과 이웃은 지역이 바뀔 때만 다시 계산한다
   const age = state?.age ?? 'a80'
   // 고른 시설(전체 · 병원급 · 의원 · 보건기관 · 응급실)에 맞춰 바탕색 시간도 바뀐다
+  // 결과 지도는 진단에서 고르고 넘어온 시설(gridTarget)과 나이대로 같은 격자를 깐다
+  const gridBy = screen === 'result' ? gridTarget : carTarget
   const timeCells = useMemo(() => {
     if (!data || !myeon) return []
-    const mins = targetMinutes(data, carTarget)
+    const mins = targetMinutes(data, gridBy)
     return erGrid(data.villages.map((v, i) => ({ lon: v.lon, lat: v.lat, people: v.pop[age], minutes: mins[i] })), myeon, 60)
-  }, [data, myeon, age, carTarget])
+  }, [data, myeon, age, gridBy])
+  const timeLayer = (alpha = 1) => new PolygonLayer<TimeCell>({
+    id: 'time', data: timeCells, pickable: screen === 'diag', getPolygon: (c: TimeCell) => c.polygon,
+    getFillColor: (c: TimeCell) => [...minuteRgb(c.minutes), sweep != null && c.minutes > sweep ? 0 : Math.round((c.lived ? 150 : 45) * alpha)], updateTriggers: { getFillColor: [sweep, alpha] }, // 스윕 중에는 아직 못 닿은 칸을 비운다
+    stroked: true, getLineColor: [255, 255, 255, 120], lineWidthUnits: 'pixels', getLineWidth: 1, beforeId: roadsBefore,
+  } as any)
+
+  // 결과 연출 시계: 안을 바꿀 때마다 0부터. 노선이 그려지고(0~1.4초) → 정류장이 차례로 뜨고 → 버스가 노선을 돈다. 수요응답 구역은 숨 쉬듯 깜빡인다
+  const planKey = screen === 'result' ? shown?.picks.map((p) => p.label).join('|') : undefined
+  const animate = screen === 'result' && !!shown && !reduce
+  const tp = useRafTime(animate, planKey) / 1000
+  const T = animate ? tp : 99 // 움직임 줄이기면 끝난 모습
+  const clamp01 = (x: number) => Math.min(1, Math.max(0, x))
+  const easeOut = (x: number) => 1 - Math.pow(1 - clamp01(x), 3)
+  const draw = easeOut(T / 1.4) // 노선이 그려진 비율
+  const pop = (i: number) => easeOut((T - 0.9 - i * 0.12) / 0.35) // 정류장 i가 뜬 정도
+  const dim = (type: string) => (hoverSupply && hoverSupply !== type ? 0.22 : 1) // 범례에서 다른 수단에 손을 올리면 흐리게
+  const LOOP = 9 // 버스가 노선을 한 바퀴 도는 초
+  const busAt = (r: (typeof routes)[number]) => {
+    const d = (((T - 1.6) % LOOP) / LOOP) * r.length
+    const i = Math.max(1, r.times.findIndex((x) => x >= d))
+    const a = r.path[i - 1], b = r.path[i] ?? a, seg = (r.times[i] ?? r.length) - r.times[i - 1] || 1, f = (d - r.times[i - 1]) / seg
+    return [a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f] as [number, number]
+  }
 
   const countyGeo = useMemo(() => sigungu && data && { ...sigungu, features: sigungu.features.filter((f: any) => f.properties.sgg === data.code) }, [sigungu, data])
 
@@ -167,11 +219,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   if (data && local && screen === 'diag') {
     const sel = state?.selectedVillage ?? null
     layers.push(
-      new PolygonLayer<TimeCell>({
-        id: 'time', data: timeCells, pickable: true, getPolygon: (c: TimeCell) => c.polygon,
-        getFillColor: (c: TimeCell) => [...minuteRgb(c.minutes), sweep != null && c.minutes > sweep ? 0 : c.lived ? 150 : 45], updateTriggers: { getFillColor: sweep }, // 스윕 중에는 아직 못 닿은 칸을 비운다
-        stroked: true, getLineColor: [255, 255, 255, 120], lineWidthUnits: 'pixels', getLineWidth: 1, beforeId: roadsBefore,
-      } as any),
+      timeLayer(),
       myeonLines,
       new GeoJsonLayer({ id: 'county-line', data: countyGeo ?? [], filled: false, getLineColor: [110, 110, 120, 200], lineWidthMinPixels: 1.2, parameters: ON_TOP }),
       ...facilityLayers(singles.flatMap((p) => (p.kind === 'facility' ? [p.f] : []))),
@@ -202,26 +250,64 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
 
   if (data && local && screen === 'result') {
     layers.push(
-      new GeoJsonLayer({ id: 'plan-drt', data: drtGeo ?? [], filled: true, stroked: true, getFillColor: [...hexRgb(SUPPLY.drt.color), 55], getLineColor: [...hexRgb(SUPPLY.drt.color), 255], lineWidthMinPixels: 2, beforeId: labelsBefore }),
+      timeLayer(0.75), // 진단과 같은 바탕 격자(조금 옅게: 노선 · 구역이 위에서 잘 보이게)
+      // 수요응답형 버스: 정해진 노선이 없어 운행 구역을 점선 테두리로 칠하고 이름표를 단다
+      new GeoJsonLayer({ id: 'plan-drt', data: drtGeo ?? [], filled: true, stroked: true, lineWidthMinPixels: 3,
+        getFillColor: [...hexRgb(SUPPLY.drt.color), Math.round((28 + 30 * (0.5 + 0.5 * Math.sin(T * 2.4))) * easeOut(T / 0.6) * dim('drt'))], getLineColor: [...hexRgb(SUPPLY.drt.color), Math.round(255 * easeOut(T / 0.6) * dim('drt'))],
+        updateTriggers: { getFillColor: [Math.round(T * 20), hoverSupply], getLineColor: [Math.round(T * 20), hoverSupply] },
+        getDashArray: [5, 3], dashJustified: true, extensions: [new PathStyleExtension({ dash: true })], beforeId: labelsBefore } as any),
       myeonLines,
-      new PathLayer({ id: 'plan-paths', data: planPaths, getPath: (d: any) => d.path, getColor: (d: any) => [...hexRgb(SUPPLY[d.type as keyof typeof SUPPLY].color), 200], widthMinPixels: 2.5, parameters: ON_TOP }),
       new ScatterplotLayer<JudgedVillage>({
-        id: 'villages', data: local.villages, pickable: true,
-        getPosition: (v) => [v.lon, v.lat], getRadius: (v) => radius(v.people), radiusUnits: 'pixels',
+        // 결과 지도는 노선 · 구역이 주인공이라, 원래 갈 수 있는 마을(초록 원)은 그리지 않고 이 안으로 새로 닿는 마을(파랑)과 여전히 못 가는 마을(빨강)만 작게 찍는다
+        id: 'villages', data: local.villages.filter((v) => v.state !== 0), pickable: true, beforeId: labelsBefore, // 지명 · 도로명이 마을 점 위에 보이게
+        getPosition: (v: JudgedVillage) => [v.lon, v.lat], getRadius: (v: JudgedVillage) => 4 + radius(v.people) * 0.35, radiusUnits: 'pixels',
         // 원래 갈 수 있는 마을은 초록, 안 때문에 새로 닿는 마을은 파랑, 아직 못 닿는 마을은 원래 색(빨강·보라). 일부만 닿으면 섞는다
-        getFillColor: (v) => {
-          if (v.state === 0) return [...STATE_RGB[0], 190]
+        getFillColor: (v: JudgedVillage) => {
+          if (v.state === 0) return [...STATE_RGB[0], 150]
           const c = cover?.get(v.id) ?? 0, a = STATE_RGB[v.state]
-          return [a[0] + (NEW_RGB[0] - a[0]) * c, a[1] + (NEW_RGB[1] - a[1]) * c, a[2] + (NEW_RGB[2] - a[2]) * c, 220]
+          return [a[0] + (NEW_RGB[0] - a[0]) * c, a[1] + (NEW_RGB[1] - a[1]) * c, a[2] + (NEW_RGB[2] - a[2]) * c, 190]
         },
         updateTriggers: { getFillColor: [cover, local] },
         stroked: true, getLineColor: [255, 255, 255, 230], lineWidthUnits: 'pixels', getLineWidth: 1,
         transitions: reduce ? {} : { getFillColor: 500 },
-      }),
+      } as any),
       new ScatterplotLayer({
         id: 'plan-marks', data: planMarks, pickable: true, getPosition: (d: any) => d.at, radiusUnits: 'pixels', getRadius: 13, filled: false, stroked: true,
-        getLineColor: (d: any) => [...hexRgb(SUPPLY[d.type as keyof typeof SUPPLY].color), 255], lineWidthUnits: 'pixels', getLineWidth: 3.5, parameters: ON_TOP,
+        getLineColor: (d: any) => [...hexRgb(SUPPLY[d.type as keyof typeof SUPPLY].color), Math.round(255 * dim(d.type))], lineWidthUnits: 'pixels', getLineWidth: 3.5, parameters: ON_TOP, updateTriggers: { getLineColor: hoverSupply },
       }),
+      // 순회 진료 버스 노선(버스 노선도처럼): 흰 테두리 + 굵은 노선 선이 보건소에서부터 그려지고 → 정류장이 차례로 뜨고 → 진행 방향 화살표와 이름표가 나타나고 → 버스가 노선을 돈다
+      new TripsLayer({ id: 'route-casing', data: routes, getPath: (d: any) => d.path, getTimestamps: (d: any) => d.times, currentTime: draw * Math.max(1, ...routes.map((r) => r.length)), trailLength: 1e6, fadeTrail: false,
+        getColor: [255, 255, 255, Math.round(255 * dim('tour'))], widthUnits: 'pixels', getWidth: 10, capRounded: true, jointRounded: true, parameters: ON_TOP, updateTriggers: { getColor: hoverSupply } } as any),
+      new TripsLayer({ id: 'route-line', data: routes, getPath: (d: any) => d.path, getTimestamps: (d: any) => d.times, currentTime: draw * Math.max(1, ...routes.map((r) => r.length)), trailLength: 1e6, fadeTrail: false,
+        getColor: [...hexRgb(SUPPLY.tour.color), Math.round(255 * dim('tour'))], widthUnits: 'pixels', getWidth: 5.5, capRounded: true, jointRounded: true, parameters: ON_TOP, updateTriggers: { getColor: hoverSupply } } as any),
+      // 버스가 지나간 자리에 남는 빛 꼬리
+      ...(T > 1.6 ? [new TripsLayer({ id: 'route-glow', data: routes, getPath: (d: any) => d.path, getTimestamps: (d: any) => d.times,
+        currentTime: routes.length ? (((T - 1.6) % LOOP) / LOOP) * routes[0].length : 0, trailLength: routes.length ? routes[0].length * 0.18 : 0, fadeTrail: true,
+        getColor: [255, 255, 255, Math.round(230 * dim('tour'))], widthUnits: 'pixels', getWidth: 3, capRounded: true, parameters: ON_TOP } as any)] : []),
+      new TextLayer({ id: 'route-arrows', data: routes.flatMap((r) => r.arrows), getPosition: (d: any) => d.at, getText: () => '▶', getAngle: (d: any) => d.angle, getSize: 16, characterSet: ['▶'], fontFamily: LABEL_FONT,
+        getColor: [...hexRgb(SUPPLY.tour.color), Math.round(255 * clamp01((T - 1.3) / 0.4) * dim('tour'))], fontSettings: { sdf: true }, outlineWidth: 3, outlineColor: [255, 255, 255, Math.round(255 * clamp01((T - 1.3) / 0.4) * dim('tour'))],
+        parameters: ON_TOP, updateTriggers: { getColor: [Math.round(T * 20), hoverSupply] } }),
+      new ScatterplotLayer({ id: 'route-stops', data: routes.flatMap((r) => r.stops), pickable: true, getPosition: (d: any) => d.at, radiusUnits: 'pixels', getRadius: (d: any) => 7 * pop(d.n - 1) * (1 + 0.35 * Math.max(0, 1 - Math.abs(T - 1.1 - (d.n - 1) * 0.12) * 4)),
+        getFillColor: [255, 255, 255, Math.round(255 * dim('tour'))], stroked: true, getLineColor: [...hexRgb(SUPPLY.tour.color), Math.round(255 * dim('tour'))], lineWidthUnits: 'pixels', getLineWidth: 3, parameters: ON_TOP,
+        updateTriggers: { getRadius: Math.round(T * 30), getFillColor: hoverSupply, getLineColor: hoverSupply } }),
+      new TextLayer({ id: 'route-stop-no', data: routes.flatMap((r) => r.stops), getPosition: (d: any) => d.at, getText: (d: any) => String(d.n), getSize: 10, fontWeight: 700,
+        getColor: (d: any) => [60, 40, 0, Math.round(255 * pop(d.n - 1) * dim('tour'))], parameters: ON_TOP, updateTriggers: { getColor: [Math.round(T * 30), hoverSupply] } }),
+      new ScatterplotLayer({ id: 'route-depot', data: routes.flatMap((r) => (r.depot ? [r.depot] : [])), getPosition: (d: any) => d.at, radiusUnits: 'pixels', getRadius: 10 * easeOut(T / 0.4), getFillColor: [...hexRgb(SUPPLY.tour.color), 255],
+        stroked: true, getLineColor: [255, 255, 255, 255], lineWidthUnits: 'pixels', getLineWidth: 3, parameters: ON_TOP, updateTriggers: { getRadius: Math.round(T * 30) } }),
+      // 노선을 도는 버스
+      ...(T > 1.6 ? [new IconLayer({ id: 'route-bus', data: routes, getPosition: busAt, getIcon: () => ({ id: 'bus', url: BUS_ICON, width: 64, height: 64 }), getSize: 30, sizeUnits: 'pixels',
+        getColor: [255, 255, 255, Math.round(255 * dim('tour'))], parameters: ON_TOP, updateTriggers: { getPosition: Math.round(T * 60) } })] : []),
+      new TextLayer({ id: 'route-label', data: routes.flatMap((r) => (r.depot ? [{ at: r.depot.at, text: `순회 진료 버스 노선 · ${r.depot.name} 보건소 출발·도착` }] : [])), getPosition: (d: any) => d.at, getText: (d: any) => d.text,
+        characterSet: 'auto', fontFamily: LABEL_FONT, getSize: 13, fontWeight: 700, getColor: [255, 255, 255, Math.round(255 * clamp01((T - 1.4) / 0.4) * dim('tour'))], background: true,
+        getBackgroundColor: [...hexRgb(SUPPLY.tour.color), Math.round(255 * clamp01((T - 1.4) / 0.4) * dim('tour'))], backgroundPadding: [8, 5], getPixelOffset: [0, -24], parameters: ON_TOP,
+        updateTriggers: { getColor: [Math.round(T * 20), hoverSupply], getBackgroundColor: [Math.round(T * 20), hoverSupply] } }),
+      new TextLayer({ id: 'drt-label', data: drtLabels, getPosition: (d: any) => d.at, getText: (d: any) => d.text, characterSet: 'auto', fontFamily: LABEL_FONT, getSize: 13, fontWeight: 700,
+        getColor: [255, 255, 255, Math.round(255 * clamp01((T - 0.6) / 0.4) * dim('drt'))], background: true, getBackgroundColor: [...hexRgb(SUPPLY.drt.color), Math.round(255 * clamp01((T - 0.6) / 0.4) * dim('drt'))],
+        backgroundPadding: [8, 5], parameters: ON_TOP, updateTriggers: { getColor: [Math.round(T * 20), hoverSupply], getBackgroundColor: [Math.round(T * 20), hoverSupply] } }),
+      // 이 안으로 새로 닿는 마을: 안을 고르면 물결이 한 번 퍼진다
+      ...(T > 1 && T < 2.6 ? [new ScatterplotLayer<JudgedVillage>({ id: 'new-ripple', data: local.villages.filter((v) => v.state !== 0 && (cover?.get(v.id) ?? 0) > 0.5), getPosition: (v) => [v.lon, v.lat],
+        radiusUnits: 'pixels', getRadius: (v) => 4 + radius(v.people) * 0.35 + 22 * easeOut((T - 1) / 1.6), filled: false, stroked: true, lineWidthUnits: 'pixels', getLineWidth: 2.5,
+        getLineColor: [...NEW_RGB, Math.round(230 * (1 - clamp01((T - 1) / 1.6)))], parameters: ON_TOP, updateTriggers: { getRadius: Math.round(T * 30), getLineColor: Math.round(T * 30) } })] : []),
       ...(scanning ? [new ScatterplotLayer<JudgedVillage>({
         id: 'scan', data: local.villages.filter((v) => v.state !== 0), getPosition: (v) => [v.lon, v.lat], radiusUnits: 'pixels', stroked: true, filled: false, lineWidthUnits: 'pixels', getLineWidth: 2, parameters: ON_TOP,
         // 마을마다 시작 시점을 어긋나게 해서, 파동이 하나씩 번져 나가는 것처럼 보인다
@@ -229,7 +315,6 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
         getLineColor: (_v: JudgedVillage, { index }: { index: number }) => [214, 69, 93, Math.round(220 * (1 - ((ring / 1400 + index * 0.37) % 1)))],
         updateTriggers: { getRadius: ring, getLineColor: ring },
       })] : []),
-      ...(data ? facilityLayers(facs) : []),
     )
   }
 
@@ -272,6 +357,8 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
           const map = e.target
           const symbols = map.getStyle().layers.filter((l) => l.type === 'symbol')
           symbols.forEach((l) => { if (map.getLayoutProperty(l.id, 'text-field')) map.setLayoutProperty(l.id, 'text-field', ['coalesce', ['get', 'name:ko'], ['get', 'name']]) })
+          // 도로 이름 · 번호판은 군 전체가 보이는 배율(10 안팎)에서도 보이게 더 일찍 켠다(기본은 큰길 12.2, 작은길 15)
+          symbols.forEach((l) => { if ((l as any)['source-layer'] === 'transportation_name') map.setLayerZoomRange(l.id, Math.min(l.minzoom ?? 0, /minor|path/.test(l.id) ? 12 : 9), l.maxzoom ?? 24) })
           ;(map as MapWithDeck).__labelsBefore = symbols[0]?.id
           // 바탕 격자는 도로 아래에 깔아 도로가 보이게 한다
           ;(map as MapWithDeck).__roadsBefore = map.getStyle().layers.find((l) => (l as any)['source-layer'] === 'transportation')?.id ?? symbols[0]?.id

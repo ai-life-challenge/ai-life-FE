@@ -4,11 +4,12 @@ import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import type { MapRef } from 'react-map-gl/maplibre'
-import { useAutoFetch } from '../hooks'
-import { STATE_CSS, SUPPLY, eok, fmt, pct } from '../api/meta'
+import { useAutoFetch, useShownJudge } from '../hooks'
+import { AGES, STATE_CSS, SUPPLY, eok, fmt, pct } from '../api/meta'
+import { MINUTE_STOPS, minuteRgb } from '../api/cells'
 import type { Plan } from '../api/types'
 import { useStore } from '../store'
-import { boxOf, fitCounty } from '../map/geo'
+import { boxOf, fitCounty, flyToArea } from '../map/geo'
 import { Count } from '../ui/Count'
 import { AiBadge, SrcBadge } from '../ui/Badges'
 import { Basis } from '../ui/Basis'
@@ -22,16 +23,24 @@ export function Results({ mapRef }: { mapRef: React.RefObject<MapRef | null> }) 
   useAutoFetch('fetchJudge') // 지도가 마을별로 칠하려면 서버 판정의 마을 순서가 필요하다
   useAutoFetch('fetchPlans')
   useAutoFetch('fetchSens', plans.status === 'ok', 400)
-  useEffect(() => { if (mapReady && data) fitCounty(mapRef.current, boxOf(data.villages), { duration: 1000 }) }, [mapReady, data, mapRef])
 
   const list = plans.data?.plans ?? []
   const rec = list.find((p) => p.recommended)
   const shown = list[st.planShow] ?? rec
   const [open, setOpen] = useState<number | null>(null)
+  // 안을 바꾸면 그 안이 놓는 곳(정류장 · 구역 · 거점)이 다 보이게 다가간다. 놓는 게 없으면 군 전체
+  useEffect(() => {
+    if (!mapReady || !data || !shown) return
+    const ids = new Set(shown.picks.flatMap((p) => [...p.villages, ...(p.type === 'tour' ? [data.depot] : []), ...(p.myeon ? data.villages.filter((v) => v.myeon === p.myeon).map((v) => v.id) : [])]))
+    const pts = data.villages.filter((v) => ids.has(v.id))
+    if (!pts.length) { fitCounty(mapRef.current, boxOf(data.villages), { duration: 900 }); return }
+    const b = boxOf(pts), pad = 0.06
+    flyToArea(mapRef.current, [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad], { duration: 1100, right: LEGEND_W })
+  }, [shown?.k, mapReady, data]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>
-      <PlanLegend plan={shown ?? null} />
+      <PlanLegend plan={shown ?? null} mapRef={mapRef} />
       <motion.aside className="panel wide" initial={{ x: -40, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -40, opacity: 0 }} transition={{ type: 'spring', stiffness: 260, damping: 28 }}>
         <p className="eyebrow">5단계 · 결과</p>
         <h1 style={{ fontSize: 26 }}>{r.name} · 연 {eok(st.budget)} · 대안 {list.length || 3}개</h1>
@@ -84,18 +93,69 @@ export function Results({ mapRef }: { mapRef: React.RefObject<MapRef | null> }) 
   )
 }
 
-// 지도 위 범례: 이 안으로 닿는 마을과 공급수단
-function PlanLegend({ plan }: { plan: Plan | null }) {
-  const types = plan ? [...new Set(plan.picks.map((x) => x.type))] : []
+const TARGET_NAME = { med: '모든 병의원', hospital: '병원·종합병원', clinic: '동네 의원', public: '보건소·진료소', er: '응급의료센터' } as const // 진단 화면 필터 이름과 같다
+const LEGEND_W = 370 // 오른쪽 위 범례(폭 330 + 여백): 지도를 맞출 때 이만큼 비운다
+
+// 지도 위 범례(오른쪽 위): 고른 안이 새로 놓는 공급수단(손을 올리면 지도에서 그것만 또렷하게, 누르면 그곳으로 다가간다)과 마을 판정 개수
+function PlanLegend({ plan, mapRef }: { plan: Plan | null; mapRef: React.RefObject<MapRef | null> }) {
+  const { data, state, judge, gridTarget, set } = useStore()
+  const shown = useShownJudge()
+  if (!plan || !data) return null
+  const byId = new Map(data.villages.map((v) => [v.id, v]))
+  // 마을 판정 개수: 원래 갈 수 있음 · 이 안으로 새로 닿음(절반 넘게) · 여전히 못 감(버스 없음 · 너무 멂)
+  const cov = new Map((judge.data?.villages ?? []).map((v, i) => [v.id, plan.coverage[i] ?? 0]))
+  const vs = shown?.villages ?? []
+  const ok = vs.filter((v) => v.state === 0).length
+  const reached = vs.filter((v) => v.state !== 0 && (cov.get(v.id) ?? 0) > 0.5).length
+  const still = vs.filter((v) => v.state !== 0 && (cov.get(v.id) ?? 0) <= 0.5)
+  const stillBus = still.filter((v) => v.state === 1).length, stillFar = still.filter((v) => v.state === 2).length // 못 가는 이유별(✕ 색과 같다)
+  const types = [...new Set(plan.picks.map((x) => x.type))]
+  const box = (ids: string[]) => {
+    const pts = ids.flatMap((id) => { const v = byId.get(id); return v ? [[v.lon, v.lat]] : [] })
+    if (!pts.length) return null
+    const xs = pts.map((p) => p[0]), ys = pts.map((p) => p[1]), pad = 0.02
+    return [Math.min(...xs) - pad, Math.min(...ys) - pad, Math.max(...xs) + pad, Math.max(...ys) + pad] as [number, number, number, number]
+  }
+  const rows = types.map((t) => {
+    const picks = plan.picks.filter((x) => x.type === t)
+    const ids = [...new Set(picks.flatMap((x) => (t === 'tour' ? [data.depot, ...x.villages] : t === 'drt' ? data.villages.filter((v) => x.myeon && v.myeon === x.myeon).map((v) => v.id) : x.villages)))]
+    const stops = new Set(picks.flatMap((x) => x.villages)).size
+    const sub = t === 'tour' ? `${picks.length}대 · ${stops}곳 정차 · 주 ${state!.assumptions.tourWeekly}회 · 보건소 출발`
+      : t === 'drt' ? `${picks.map((x) => x.myeon).filter(Boolean).join(', ')} 안에서 부르면 와요`
+      : t === 'fix' ? `${stops}곳에 새로 열어요` : `경로당 ${stops}곳에서 화상 진료`
+    return { t, name: t === 'tour' ? `${SUPPLY[t].name} 노선` : t === 'drt' ? `${SUPPLY[t].name} 구역` : SUPPLY[t].name, sub, year: picks.reduce((a, x) => a + x.year, 0), area: box(ids) }
+  })
   return (
-    <motion.div className="legend plan-legend" key={plan?.k ?? 'none'} initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}>
-      <p className="legend-title">{plan ? plan.name : '대안'}</p>
-      <p><i className="sw" style={{ background: '#2fa36b' }} /> 원래 갈 수 있는 마을</p>
-      <p><i className="sw" style={{ background: '#2f5bd3' }} /> 이 안으로 새로 닿는 마을</p>
-      <p><i className="sw" style={{ background: STATE_CSS[1] }} /> 여전히 못 가는 마을 · 버스가 없어서</p>
-      <p><i className="sw" style={{ background: STATE_CSS[2] }} /> 여전히 못 가는 마을 · 병원이 너무 멀어서</p>
-      {plan && plan.gapAfter > 0 && <p className="muted">남는 공백 {fmt(plan.gapAfter)}명</p>}
-      <div className="chips" style={{ marginTop: 8 }}>{types.map((t) => <span key={t} className="mini"><i style={{ background: SUPPLY[t].color }} />{SUPPLY[t].name}</span>)}</div>
+    <motion.div className="legend plan-legend" key={plan.k} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 260, damping: 26 }} onMouseLeave={() => set({ hoverSupply: null })}>
+      <div className="pl-head">
+        <p className="legend-title" style={{ margin: 0 }}>{plan.name}</p>
+        <span className="pl-rate">달성률 {pct(plan.baseRate)} → <b>{pct(plan.rate)}</b></span>
+      </div>
+      {rows.length > 0 && <p className="pl-sec">새로 놓이는 것 <span className="muted">· 누르면 그곳으로 가요</span></p>}
+      <div className="pl-rows">
+        {rows.map((r, i) => (
+          <motion.button key={r.t} type="button" className="pl-row" initial={{ opacity: 0, x: -10 }} animate={{ opacity: 1, x: 0 }} transition={{ delay: 0.15 + i * 0.08 }}
+            onMouseEnter={() => set({ hoverSupply: r.t })} onFocus={() => set({ hoverSupply: r.t })} onBlur={() => set({ hoverSupply: null })}
+            onClick={() => r.area && flyToArea(mapRef.current, r.area, { right: LEGEND_W })}>
+            <i className={r.t === 'tour' ? 'sw-route' : r.t === 'drt' ? 'sw-zone' : 'sw-dot'} style={r.t === 'tour' ? { color: SUPPLY[r.t].color } : r.t === 'drt' ? { borderColor: SUPPLY[r.t].color } : { borderColor: SUPPLY[r.t].color }} aria-hidden />
+            <span className="pl-text"><b>{r.name}</b><small>{r.sub}</small></span>
+            <span className="pl-cost">연 {eok(r.year)}</span>
+          </motion.button>
+        ))}
+      </div>
+      <p className="pl-sec">마을</p>
+      <div className="pl-villages">
+        <span><i style={{ background: '#2f5bd3' }} />새로 닿음 <b>{reached}</b></span>
+        <span><i style={{ background: STATE_CSS[1] }} />못 감 · 버스가 없어서 <b>{stillBus}</b></span>
+        <span><i style={{ background: STATE_CSS[2] }} />못 감 · 병원이 너무 멀어서 <b>{stillFar}</b></span>
+        <span className="muted">원래 갈 수 있는 마을 {ok}곳은 지도에서 뺐어요</span>
+      </div>
+      {plan.gapAfter > 0 && <p className="muted" style={{ marginTop: 6 }}>남는 공백 {fmt(plan.gapAfter)}명</p>}
+      {/* 진단에서 고르고 넘어온 기준: 바탕 격자가 같은 기준으로 칠해진다 */}
+      <p className="pl-sec">바탕색 · 진단에서 고른 기준</p>
+      <p className="pl-basis"><b>{TARGET_NAME[gridTarget]}</b>까지 걸리는 시간 · {AGES.find((a) => a.id === state!.age)!.name}</p>
+      <i className="time-bar" style={{ background: `linear-gradient(90deg, ${MINUTE_STOPS.map(([m]) => `rgb(${minuteRgb(m).join(',')}) ${(m / 45) * 100}%`).join(', ')})` }} />
+      <p className="muted time-scale" style={{ margin: 0 }}><span>10분 이하</span><span>30분</span><span>45분 이상</span></p>
     </motion.div>
   )
 }
