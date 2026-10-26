@@ -96,7 +96,7 @@ export interface Pick { type: SupplyId; typeName: string; label: string; year: n
 export interface Plan {
   k: number; name: string; summary: string; picks: Pick[]
   year: number; install: number
-  baseRate: number; rate: number; future: number
+  baseRate: number; rate: number; future: number | null // future: 10년 뒤 달성률. 서버는 80세 이상일 때만 주고 나머지 나이대는 null
   gapBefore: number; gapAfter: number
   meetsTarget: boolean; withinBudget: boolean; timedOut: boolean
   sameAs: number | null; recommended: boolean
@@ -121,7 +121,7 @@ export interface Report {
   form: ReportForm; title: string; plan: number
   sections: ReportSection[]
   table: {
-    k: number; name: string; summary: string; rate: number; year: number; install: number; future: number; recommended: boolean; chosen: boolean
+    k: number; name: string; summary: string; rate: number; year: number; install: number; future: number | null; recommended: boolean; chosen: boolean
     gapVillagesBefore: number; reachedVillages: number; teleOnlyVillages: number; gapVillagesAfter: number // 앞의 셋을 더하면 지금 공백 마을 수
   }[]
   notes: Note[] // 공문만. 주민 안내문은 빈 목록

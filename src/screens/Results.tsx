@@ -5,12 +5,13 @@ import { useNavigate, useParams } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import type { MapRef } from 'react-map-gl/maplibre'
 import { useAutoFetch } from '../hooks'
-import { SUPPLY, eok, fmt, pct } from '../api/meta'
+import { STATE_CSS, SUPPLY, eok, fmt, pct } from '../api/meta'
 import type { Plan } from '../api/types'
 import { useStore } from '../store'
 import { boxOf, fitCounty } from '../map/geo'
 import { Count } from '../ui/Count'
 import { AiBadge, SrcBadge } from '../ui/Badges'
+import { Basis } from '../ui/Basis'
 
 export function Results({ mapRef }: { mapRef: React.RefObject<MapRef | null> }) {
   const { code } = useParams()
@@ -35,6 +36,7 @@ export function Results({ mapRef }: { mapRef: React.RefObject<MapRef | null> }) 
         <p className="eyebrow">5단계 · 결과</p>
         <h1 style={{ fontSize: 26 }}>{r.name} · 연 {eok(st.budget)} · 대안 {list.length || 3}개</h1>
         <p className="muted small">카드를 누르면 그 안이 지도에 그려져요. 달성률은 이 기준에서 갈 수 있는 {st.age === 'all' ? '주민' : st.age === 'a65' ? '65세 이상' : '80세 이상'}의 비율이에요.</p>
+        <Basis />
 
         {plans.status === 'error' && (
           <div className="toast-inline" role="alert">{plans.error} <button className="link" onClick={() => void fetchPlans()}>다시 계산</button></div>
@@ -90,7 +92,8 @@ function PlanLegend({ plan }: { plan: Plan | null }) {
       <p className="legend-title">{plan ? plan.name : '대안'}</p>
       <p><i className="sw" style={{ background: '#2fa36b' }} /> 원래 갈 수 있는 마을</p>
       <p><i className="sw" style={{ background: '#2f5bd3' }} /> 이 안으로 새로 닿는 마을</p>
-      <p><i className="sw" style={{ background: '#d6455d' }} /> 여전히 못 가는 마을</p>
+      <p><i className="sw" style={{ background: STATE_CSS[1] }} /> 여전히 못 가는 마을 · 버스가 없어서</p>
+      <p><i className="sw" style={{ background: STATE_CSS[2] }} /> 여전히 못 가는 마을 · 병원이 너무 멀어서</p>
       {plan && plan.gapAfter > 0 && <p className="muted">남는 공백 {fmt(plan.gapAfter)}명</p>}
       <div className="chips" style={{ marginTop: 8 }}>{types.map((t) => <span key={t} className="mini"><i style={{ background: SUPPLY[t].color }} />{SUPPLY[t].name}</span>)}</div>
     </motion.div>
@@ -115,7 +118,7 @@ function PlanCard({ p, k, on, open, budget, target, onClick }: { p: Plan; k: num
         <div className="row">
           <span className="badge">연 {eok(p.year)}</span>
           <span className="badge">설치 {eok(p.install)}</span>
-          <span className="badge">10년 뒤 {pct(p.future)}</span>
+          {p.future != null && <span className="badge">10년 뒤 {pct(p.future)}</span>}
         </div>
         <div className="row">
           <span className={`badge ${p.meetsTarget ? 'green' : 'warnb'}`}>{p.meetsTarget ? `목표 ${pct(target)} 달성` : `목표 ${pct(target)} 미달`}</span>

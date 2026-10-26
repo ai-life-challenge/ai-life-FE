@@ -6,6 +6,7 @@ import type { SupplyId } from '../api/types'
 import { useStore } from '../store'
 import { Count } from '../ui/Count'
 import { SrcBadge } from '../ui/Badges'
+import { Basis } from '../ui/Basis'
 
 export function Goal() {
   const { code } = useParams()
@@ -24,6 +25,7 @@ export function Goal() {
       <p className="eyebrow">3단계 · 목표와 예산</p>
       <h1>{r.name}, 얼마를 써서 어디까지 닿을까요?</h1>
       <p className="muted">연 예산과 목표를 정하면 목표를 채우는 가장 싼 안부터, 예산 안에서 가장 많이 닿는 안까지 3개를 만들어요.</p>
+      <Basis />
 
       <div className="slider-box">
         <div className="row"><b>연 예산</b><span className="spacer" /><span className="big num"><Count value={st.budget} ms={300} format={(n) => (Math.round(n * 2) / 2).toString()} /><small>억</small></span></div>

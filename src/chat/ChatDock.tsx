@@ -10,6 +10,7 @@ import { historyOf, useStore, type ChatMsg, type ToolCallMsg } from '../store'
 import { Tools, type ToolCall } from '../ui/Tools'
 import { Md } from '../ui/Md'
 import { hidePendingRefs } from '../ui/mdText'
+import { Basis } from '../ui/Basis'
 
 const TOOL_MIN = 900 // 도구 한 개를 '계산 중'으로 보여 주는 최소 시간(ms)
 
@@ -95,6 +96,7 @@ export function ChatDock({ code }: { code: string }) {
               <span className="muted small">{STAGE_NAME[stage]} 단계{s.remainingToday != null ? ` · 오늘 ${s.remainingToday}번 더 물어볼 수 있어요` : ''}</span>
               <button className="close" onClick={() => s.set({ chatOpen: false })} aria-label="닫기">×</button>
             </header>
+            <Basis className="basis" style={{ margin: 0, padding: '6px 16px', borderTop: 0, borderBottom: '1px solid var(--gray-2)' }} />
             <div className="msgs" ref={listRef}>
               {off && <p className="check bad" role="status">지금은 에이전트를 쓸 수 없어요. 계산 화면은 그대로 쓸 수 있어요.</p>}
               {!s.chat.length && !off && <p className="muted small">숫자는 서버가 계산한 결과만 써서 답해요. 답에 따라 예산이나 기준이 바뀌면 화면이 바로 다시 그려져요.</p>}

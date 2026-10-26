@@ -13,7 +13,7 @@ import { setWorkerUrl } from 'maplibre-gl'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import { useStore } from '../store'
 import { useShownJudge } from '../hooks'
-import { STATE_NAME, STATE_RGB, SUPPLY } from '../api/meta'
+import { CAR_TARGETS, STATE_CSS, STATE_NAME, STATE_RGB, SUPPLY } from '../api/meta'
 import type { JudgedVillage, RawFacility } from '../api/types'
 import { useRafTime } from './useRafTime'
 import { erGrid, minuteRgb, type TimeCell } from '../api/cells'
@@ -31,9 +31,10 @@ const FACILITY = {
   'health-center': { icon: icon('hospital'), size: 900, min: 28, max: 80 },
   hospital: { icon: icon('hospital'), size: 900, min: 28, max: 80 },
 }
-// 못 가는 마을은 원 대신 빨간 X로 그린다 (흰 테두리를 둘러 바탕색 위에서도 보이게)
-const X_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M14 14L50 50M50 14L14 50" stroke="#fff" stroke-width="20" stroke-linecap="round"/><path d="M14 14L50 50M50 14L14 50" stroke="#d6455d" stroke-width="11" stroke-linecap="round"/></svg>`
-const X_ICON = { id: 'x', url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(X_SVG)}`, width: 64, height: 64 }
+// 못 가는 마을은 원 대신 X로 그린다 (흰 테두리를 둘러 바탕색 위에서도 보이게). 색은 이유별: 빨강 버스가 없어 못 감 · 보라 병원이 너무 멀어 못 감
+const xSvg = (color: string) => `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M14 14L50 50M50 14L14 50" stroke="#fff" stroke-width="20" stroke-linecap="round"/><path d="M14 14L50 50M50 14L14 50" stroke="${color}" stroke-width="11" stroke-linecap="round"/></svg>`
+const xIcon = (state: 1 | 2) => ({ id: `x${state}`, url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(xSvg(STATE_CSS[state]))}`, width: 64, height: 64 })
+const X_ICON = { 1: xIcon(1), 2: xIcon(2) }
 const facilityKind = (kind: string): keyof typeof FACILITY => (/병원|종합/.test(kind) ? 'hospital' : /보건/.test(kind) ? 'health-center' : 'clinic')
 
 setWorkerUrl(workerUrl)
@@ -107,7 +108,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   const planMarks = useMemo(() => (shown?.picks ?? []).flatMap((p) => p.villages.flatMap((id) => { const v = byId.get(id); return v ? [{ at: [v.lon, v.lat] as [number, number], type: p.type, label: `${p.label} · ${v.name}` }] : [] })), [shown, byId])
   const drtGeo = useMemo(() => myeon && shown && { ...myeon, features: myeon.features.filter((f) => shown.picks.some((p) => p.myeon && p.myeon === f.properties?.name)) }, [myeon, shown])
 
-  // 진단 화면 바탕: 레퍼런스 지도처럼 600m 안팎의 칸마다 응급실까지 걸리는 시간(서버 마을 값을 이어 칠함)을 초록~주황으로 칠한다 칸과 이웃은 지역이 바뀔 때만 다시 계산한다
+  // 진단 화면 바탕: 레퍼런스 지도처럼 600m 안팎의 칸마다 고른 시설까지 걸리는 시간(서버 마을 값을 이어 칠함)을 초록~주황으로 칠한다 칸과 이웃은 지역이 바뀔 때만 다시 계산한다
   const age = state?.age ?? 'a80'
   // 고른 시설(전체 · 병원급 · 의원 · 보건기관 · 응급실)에 맞춰 바탕색 시간도 바뀐다
   const timeCells = useMemo(() => {
@@ -188,9 +189,9 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
         getSize: 13, fontWeight: 700, getColor: [28, 28, 26, 255], getTextAnchor: 'middle', getAlignmentBaseline: 'center', parameters: ON_TOP,
       }),
       new IconLayer<JudgedVillage>({
-        // 못 가는 마을은 이유(버스 없음 · 너무 멂)와 상관없이 모두 X. 대중교통/자가용 중 무엇을 보는지는 useShownJudge가 정한다
+        // 못 가는 마을은 모두 X이고 색으로 이유(버스 없음 · 너무 멂)를 나눈다. 대중교통/자가용 중 무엇을 보는지는 useShownJudge가 정한다
         id: 'villages-x', data: local.villages.filter((v) => v.state !== 0), visible: showDots, pickable: true,
-        getPosition: (v) => [v.lon, v.lat], getIcon: () => X_ICON, sizeUnits: 'pixels',
+        getPosition: (v) => [v.lon, v.lat], getIcon: (v) => X_ICON[v.state as 1 | 2], sizeUnits: 'pixels',
         getSize: (v) => radius(v.people) * 2 * (v.id === sel || v.id === hoverVillage ? 1.25 : 1), updateTriggers: { getSize: [sel, hoverVillage] },
         parameters: ON_TOP,
         onClick: ({ object }: any) => object && patch((s) => ({ ...s, selectedVillage: object.id })),
@@ -235,7 +236,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   const getTooltip = ({ object, layer }: any) => {
     if (!object) return null
     if (layer?.id.startsWith('facilities')) return { text: `${object.name}\n${object.kind}${object.doctors ? ` · 의사 ${object.doctors}명` : ''}` }
-    if (layer?.id === 'time') return { text: `${data?.villages[object.village]?.name ?? ''}\n응급실까지 약 ${Math.round(object.minutes)}분 · ${object.lived ? `${Math.round(object.people)}명` : '사람이 안 사는 곳'} (마을 값을 이어 칠함)` }
+    if (layer?.id === 'time') return { text: `${data?.villages[object.village]?.name ?? ''}\n${CAR_TARGETS.find((x) => x.id === carTarget)!.short}까지 약 ${Math.round(object.minutes)}분 · ${object.lived ? `${Math.round(object.people)}명` : '사람이 안 사는 곳'} (마을 값을 이어 칠함)` }
     if (layer?.id === 'clusters') return { text: `${object.items.length}곳 · 누르면 펼쳐져요\n${clusterText(object)}` }
     if (layer?.id === 'plan-marks') return { text: object.label }
     if (layer?.id.startsWith('villages')) {

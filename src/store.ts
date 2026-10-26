@@ -34,6 +34,8 @@ interface Store {
   showFacilities: boolean // 진단 지도에 병원·의원·보건소 아이콘을 그릴지
   carTarget: CarTarget // 자가용 이용에서 어디까지 가는지: 가까운 병의원 · 병원급 · 의원 · 보건기관 · 응급실(지역응급의료센터 이상)
   travel: 'transit' | 'car' // 진단 화면에서 보는 이동 수단: 대중교통(차 없는 주민, 서버 판정) · 자가용(차 있는 주민, 화면 판정)
+  diagPick: string | null // 진단에서 마지막으로 본 시설 필터 · 이동 수단이 기본(모든 병의원 · 대중교통)과 다르면 그 이름. 다른 화면에서 계산에 안 쓴다고 알린다
+  carView: number | null // 자가용 탭 슬라이더(분). 화면 전용이라 서버 기준(criteria.carMinutes)을 바꾸지 않는다. null이면 서버 기준을 따른다
   thinking: boolean // 예산안 만들기 화면에서 서버가 계산하는 동안: 지도에서 못 가는 마을을 훑는 파동을 그린다
   sweep: number | null // 시간 스윕 중이면 지금 분: 바탕 격자에서 이 시간 안에 닿는 칸만 칠한다
   reached: { code: string | null; max: number } // 단계 메뉴: 이 지역에서 가 본 가장 먼 단계
@@ -76,7 +78,7 @@ export const useStore = create<Store>((set, get) => ({
   regions: [], state: null, defaults: null, listError: null,
   code: null, data: null, map: null, regionError: null,
   judge: idle(), plans: idle(), sens: idle(), report: idle(),
-  mapReady: false, hoverRegion: null, hoverVillage: null, showDots: true, showFacilities: true, travel: 'transit', carTarget: 'med', thinking: false, sweep: null,
+  mapReady: false, hoverRegion: null, hoverVillage: null, showDots: true, showFacilities: true, travel: 'transit', carView: null, diagPick: null, carTarget: 'med', thinking: false, sweep: null,
   reached: { code: null, max: 0 },
   sources: { open: false, focus: null, at: 0 },
   chat: [], chatOpen: false, remainingToday: null,
@@ -91,7 +93,7 @@ export const useStore = create<Store>((set, get) => ({
   },
   loadRegion: async (code) => {
     if (get().code === code && get().data) return
-    set({ code, data: null, map: null, regionError: null, judge: idle(), plans: idle(), sens: idle(), report: idle(), chat: [], hoverVillage: null })
+    set({ code, data: null, map: null, regionError: null, judge: idle(), plans: idle(), sens: idle(), report: idle(), chat: [], hoverVillage: null, diagPick: null })
     try {
       const [data, map] = await Promise.all([regionData(code), regionMap(code)])
       if (get().code === code) set({ data, map })

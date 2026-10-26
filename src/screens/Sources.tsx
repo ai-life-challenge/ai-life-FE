@@ -13,6 +13,9 @@ const FIELDS: { key: keyof Cost; label: string; min: number; max: number; step: 
   { key: 'years', label: '수명(년)', min: 1, max: 50, step: 1 },
 ]
 
+// 서버는 원격진료 효과를 0.1 단위로만 받는다(0.55 같은 값은 400). 보내기 전에 0.1 단위로 반올림한다
+const roundTele = (v: number) => Math.round(v * 10) / 10
+
 export function Sources() {
   const { sources, state, defaults, data, patch, set } = useStore()
   const ref = useRef<HTMLDivElement>(null)
@@ -85,8 +88,8 @@ export function Sources() {
                   <tbody>
                     <tr>
                       <td>원격진료가 병원 방문을 줄이는 정도</td>
-                      <td className="r"><input type="number" step="0.05" min="0" max="1" defaultValue={a.teleEffect} key={a.teleEffect} aria-label="원격진료 효과"
-                        onChange={(e) => { const v = e.currentTarget.valueAsNumber; if (v >= 0 && v <= 1) patch((s) => ({ ...s, assumptions: { ...s.assumptions, teleEffect: v } })) }} /></td>
+                      <td className="r"><input type="number" step="0.1" min="0" max="1" defaultValue={a.teleEffect} key={a.teleEffect} aria-label="원격진료 효과"
+                        onChange={(e) => { const v = roundTele(e.currentTarget.valueAsNumber); if (v >= 0 && v <= 1) patch((s) => ({ ...s, assumptions: { ...s.assumptions, teleEffect: v } })) }} /></td>
                     </tr>
                     <tr>
                       <td>순회 진료 버스 주당 운행 횟수</td>
@@ -102,7 +105,7 @@ export function Sources() {
             <table className="stable" data-src="std">
               <tbody>
                 <tr><td>버스 정류장 탐색 범위</td><td className="r">2km</td><td className="small">2km 안에 정류장이 없으면 걸음 60분으로 보고 ‘정류장 없음’</td></tr>
-                <tr><td>읍내행 첫차 (정밀 지역)</td><td className="r">{FIRST_BUS_LIMIT / 60}시 전</td><td className="small">서버 판정 결과에서 알아낸 값. 서버 판정과 다르면 서버 결과로 보여 줘요</td></tr>
+                <tr><td>읍내행 첫차 (정밀 지역)</td><td className="r">{FIRST_BUS_LIMIT / 60}시 전</td><td className="small">서버 판정 결과에서 알아낸 값. 서버 판정과 다르면 서버 결과로 보여 줘요. 마을 카드에서 ‘(추정)’이 붙은 첫차는 시간표가 없어 어림한 시각이에요</td></tr>
                 <tr><td>마을 안에 병의원이 있는 마을</td><td className="r">갈 수 있음</td><td className="small">가까운 병의원 시간과 상관없이 갈 수 있음으로 봐요</td></tr>
               </tbody>
             </table>

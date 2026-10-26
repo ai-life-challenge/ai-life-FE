@@ -6,6 +6,7 @@ import type { MapRef } from 'react-map-gl/maplibre'
 import { useStore } from '../store'
 import { fitCounty } from '../map/geo'
 import { RegionCard } from '../ui/RegionCard'
+import { useTierCounts } from '../hooks'
 
 const KOREA_BOX: [number, number, number, number] = [125.6, 34.2, 129.6, 38.4]
 
@@ -26,13 +27,15 @@ export function Select({ mapRef, blocked, pick, picked }: { mapRef: React.RefObj
       .filter((r) => !t || r.name.includes(t) || r.sido.includes(t))
       .sort((a, b) => Number(b.tier === 'precise') - Number(a.tier === 'precise') || a.sido.localeCompare(b.sido, 'ko') || a.name.localeCompare(b.name, 'ko'))
   }, [regions, q])
-  const precise = regions.filter((r) => r.tier === 'precise').length
+  // 정밀 지역 수는 숫자를 박지 않고 서버 /api/health(tiers.precise) 값을 쓴다. 받기 전이면 지역 목록에서 센다
+  const tiers = useTierCounts()
+  const precise = tiers?.precise ?? (regions.length ? regions.filter((r) => r.tier === 'precise').length : null)
 
   return (
     <motion.aside className="panel" initial={{ x: -40, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -40, opacity: 0 }} transition={{ type: 'spring', stiffness: 260, damping: 28 }}>
       <p className="eyebrow">1단계 · 지역 선택</p>
       <h1>어느 군을 살펴볼까요?</h1>
-      <p className="muted">지도에서 파랗게 빛나는 {regions.length || 72}곳 중에 골라 보세요. [정밀]은 버스 하루 운행 횟수와 읍내행 첫차까지 본 {precise || 5}곳이고, [간이 판정]은 정류장까지 걷는 거리만 봐요.</p>
+      <p className="muted">지도에서 파랗게 빛나는 {regions.length || 72}곳 중에 골라 보세요. [정밀]은 버스 하루 운행 횟수와 읍내행 첫차까지 본 {precise != null ? `${precise}곳` : '지역'}이고, [간이 판정]은 정류장까지 걷는 거리만 봐요.</p>
 
       <input className="search" type="search" placeholder="군 이름이나 시도로 찾기" value={q} onChange={(e) => setQ(e.target.value)} aria-label="지역 찾기" />
 

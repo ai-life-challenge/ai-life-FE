@@ -8,6 +8,7 @@ import { AGES, eok, pct } from '../api/meta'
 import { useAutoFetch } from '../hooks'
 import { useStore } from '../store'
 import { AiBadge, LevelBadge } from '../ui/Badges'
+import { Basis } from '../ui/Basis'
 import { Md } from '../ui/Md'
 import { Seg } from '../ui/Seg'
 import { linkNotes } from '../ui/mdText'
@@ -84,6 +85,7 @@ function Body({ rep, regionName, tier, onEdit, loading }: { rep: ReportT; region
     <div aria-busy={loading} style={{ opacity: loading ? 0.6 : 1, transition: 'opacity .2s' }}>
       <p className="muted small" style={{ margin: 0 }}>{today} · {regionName} <LevelBadge tier={tier} /> <AiBadge>서버 초안</AiBadge></p>
       <h1>{rep.title}</h1>
+      <Basis />
       {rep.sections.map((s) => s.key == null
         ? (
           // key가 null인 '출처와 근거' 문단은 고칠 수 없다. 각주 목록(notes)으로 그린다(없으면 서버 글 그대로)
@@ -101,7 +103,7 @@ function Body({ rep, regionName, tier, onEdit, loading }: { rep: ReportT; region
             <tr key={t.k} className={t.chosen ? 'rec' : ''}>
               <td><b>{t.name}</b>{t.recommended ? ' ⭐' : ''}<br /><span className="muted small">{t.summary}</span></td>
               <td className="r">{t.gapVillagesBefore}곳 → {t.gapVillagesAfter}곳<br /><span className="muted small">새로 닿음 {t.reachedVillages}{t.teleOnlyVillages > 0 ? ` · 원격만 ${t.teleOnlyVillages}` : ''}</span></td>
-              <td className="r">{pct(t.rate)}</td><td className="r">{eok(t.year)}</td><td className="r">{eok(t.install)}</td><td className="r">{pct(t.future)}</td>
+              <td className="r">{pct(t.rate)}</td><td className="r">{eok(t.year)}</td><td className="r">{eok(t.install)}</td><td className="r">{t.future != null ? pct(t.future) : <span className="muted" title="10년 뒤 값은 80세 이상 기준에서만 계산해요">—</span>}</td>
             </tr>
           ))}
         </tbody>
