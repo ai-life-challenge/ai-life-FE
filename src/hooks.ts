@@ -1,4 +1,5 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { api, cached } from './api/client'
 import { compare, judgeCar, judgeLocal } from './api/judge'
 import { calcKey, judgeKey, reportKey, useStore } from './store'
 import type { JudgedVillage, JudgeSummary } from './api/types'
@@ -50,4 +51,15 @@ export function useAutoFetch(kind: 'fetchJudge' | 'fetchPlans' | 'fetchSens' | '
     const t = setTimeout(() => { void useStore.getState()[kind]() }, delay)
     return () => clearTimeout(t)
   }, [key, ready, enabled, kind, delay])
+}
+
+// 판정 등급별 지역 수(서버 /api/health). 정밀 지역이 늘어도 문구를 고치지 않게 서버 값을 쓴다. 받기 전이나 실패하면 null
+export function useTierCounts() {
+  const [n, setN] = useState<{ precise: number; total: number } | null>(null)
+  useEffect(() => {
+    let live = true
+    cached('health', () => api.health()).then((h) => live && setN({ precise: h.tiers.precise, total: h.regions }), () => {})
+    return () => { live = false }
+  }, [])
+  return n
 }

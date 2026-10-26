@@ -102,7 +102,7 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
         <p className="muted small" style={{ margin: '6px 0 0' }}>{travel === 'transit' ? (carTarget === 'er' ? '응급의료센터는 버스를 보지 않고, 지역응급의료센터 이상까지 자가용 시간만 봐요.' : `차가 없는 주민 기준이에요. 마을 안에 ${targetName}${josa(targetName, '이', '가')} 있거나, 정류장까지 걸어가 버스로 ${targetName}에 갈 수 있는지 봐요.`) : TRAVEL.find((x) => x.id === travel)!.desc}</p>
         {travel === 'car' ? (
           <>
-            <p className="muted small" style={{ margin: '6px 0 0' }}>{carTarget === 'er' ? (T === 30 ? '지역응급의료센터 이상(권역센터 포함)까지예요. 30분일 때 서버 E30와 같은 기준이에요.' : `지역응급의료센터 이상(권역센터 포함)까지예요. 30분이 서버 E30 기준이라 ${T}분은 서버 값과 달라요.`) : `마을 안에 ${targetName}${josa(targetName, '이', '가')} 있으면 갈 수 있는 마을로 봐요.${carTarget === 'med' ? '' : ' (서버 시험 자료: 종류별 가장 가까운 곳)'}`}</p>
+            <p className="muted small" style={{ margin: '6px 0 0' }}>{carTarget === 'er' ? (T === 30 ? '지역응급의료센터 이상(권역센터 포함)까지예요. 30분일 때 서버 E30과 같은 기준이에요.' : `지역응급의료센터 이상(권역센터 포함)까지예요. 30분이 서버 E30 기준이라 ${T}분은 서버 값과 달라요.`) : `마을 안에 ${targetName}${josa(targetName, '이', '가')} 있으면 갈 수 있는 마을로 봐요.`}</p>
             <Slider label={`${targetName}까지 자가용`} unit="분 이내" min={10} max={60} step={5} value={T} onChange={(v) => patch((s) => ({ ...s, criteria: { ...s.criteria, carMinutes: v } }))} />
           </>
         ) : (
@@ -123,8 +123,9 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
             ) : (
               <>
                 <p className="small" style={{ margin: 0 }}>
-                  버스가 없어 못 가는 <b className="num">{fmt(sum.noBus)}명</b>({sum.villagesNoBus}곳)
-                  {st.service === 'med' && <> · {targetName}{josa(targetName, '이', '가')} 너무 먼 <b className="num">{fmt(sum.noFacility)}명</b>({sum.villagesNoFacility}곳)</>}
+                  {/* 응급의료센터는 버스를 안 봐서 '버스가 없어 못 감'이 늘 0이다: 숨긴다 */}
+                  {carTarget !== 'er' && <>버스가 없어 못 가는 <b className="num">{fmt(sum.noBus)}명</b>({sum.villagesNoBus}곳)</>}
+                  {st.service === 'med' && <>{carTarget !== 'er' && ' · '}{targetName}{josa(targetName, '이', '가')} 너무 먼 <b className="num">{fmt(sum.noFacility)}명</b>({sum.villagesNoFacility}곳)</>}
                 </p>
                 <ServerCheck />
               </>
@@ -273,7 +274,7 @@ function ServerCheck() {
   const carTarget = useStore((s) => s.carTarget)
   const cmp = useJudgeCompare()
   const [open, setOpen] = useState(false)
-  if (carTarget !== 'med') return <p className="small muted" role="status">서버는 이 필터를 몰라서 서버 판정과 대조하지 않아요 (서버 시험안)</p>
+  if (carTarget !== 'med') return <p className="small muted" role="status">서버 판정은 모든 병의원 기준이라 필터에서는 대조하지 않아요</p>
   if (cmp?.same) return <p className="small ok" role="status">✓ 서버 판정과 같아요</p>
   if (cmp && !cmp.same) {
     return (
@@ -353,7 +354,7 @@ function VillageCard() {
           <button className="close" onClick={() => { patch((s) => ({ ...s, selectedVillage: null })); set({ hoverVillage: null }) }} aria-label="닫기">×</button>
           {!cur && <p className="muted" role="status">불러오는 중…</p>}
           {cur && 'error' in cur && <p className="bad">{cur.error}</p>}
-          {cur && 'detail' in cur && <Detail v={cur.detail} service={state!.service} byKind={carTarget !== 'med' && carTarget !== 'er' ? { name: targetOf(carTarget), hit: data?.villages.find((x) => x.id === id)?.nearest.byKind?.[carTarget] ?? null } : null} shown={shown?.villages.find((x) => x.id === id)?.state ?? null} filter={travel === 'car' ? '자가용 · ' + targetOf(carTarget) : carTarget !== 'med' ? targetOf(carTarget) : null} er={data?.villages.find((x) => x.id === id)?.nearest.er ?? null} />}
+          {cur && 'detail' in cur && <Detail firstEstimated={!!data?.villages.find((x) => x.id === id)?.bus.firstEstimated} v={cur.detail} service={state!.service} byKind={carTarget !== 'med' && carTarget !== 'er' ? { name: targetOf(carTarget), hit: data?.villages.find((x) => x.id === id)?.nearest.byKind?.[carTarget] ?? null } : null} shown={shown?.villages.find((x) => x.id === id)?.state ?? null} filter={travel === 'car' ? '자가용 · ' + targetOf(carTarget) : carTarget !== 'med' ? targetOf(carTarget) : null} er={data?.villages.find((x) => x.id === id)?.nearest.er ?? null} />}
         </motion.div>
       )}
     </AnimatePresence>
@@ -362,7 +363,8 @@ function VillageCard() {
 
 const targetOf = (t: CarTarget) => CAR_TARGETS.find((x) => x.id === t)!.short
 // shown: 지도에 칠한 판정(필터 · 이동 수단 반영). 서버 카드(v.med.state)는 '전체 병의원 · 대중교통' 기준이라 필터나 자가용 탭이면 지도와 달라서 지도 판정을 따른다
-function Detail({ v, service, er, shown, filter, byKind }: { v: VillageDetail; byKind: { name: string; hit: NearestMed | null } | null; service: 'med' | 'bus'; er: NearestEr | null; shown: VillageState | null; filter: string | null }) {
+function Detail({ v, service, er, shown, filter, byKind, firstEstimated }: { v: VillageDetail; firstEstimated: boolean; // 첫차가 TS-BIS로 어림한 값이면 (추정)
+  byKind: { name: string; hit: NearestMed | null } | null; service: 'med' | 'bus'; er: NearestEr | null; shown: VillageState | null; filter: string | null }) {
   const own = filter != null && shown != null // 서버가 모르는 판정을 보고 있다
   const state = own ? shown : service === 'bus' ? (v.bus.ok ? 0 : 1) : v.med.state
   const reasons = own ? [] : service === 'bus' ? v.bus.reasons : v.med.reason ? [v.med.reason] : []
@@ -376,7 +378,7 @@ function Detail({ v, service, er, shown, filter, byKind }: { v: VillageDetail; b
       <p className="small muted" style={{ margin: '6px 0 0' }}>사는 사람 {fmt(v.pop.all)}명 (65세 이상 {fmt(v.pop.a65)}명 · 80세 이상 {fmt(v.pop.a80)}명)</p>
       <p className="small" style={{ margin: '6px 0 0' }}>
         {v.bus.noStop ? '2km 안에 정류장이 없어요' : <>정류장까지 걸어서 <b className="num">{v.bus.stopWalkMin}분</b></>}
-        {v.tier === 'precise' && <> · 하루 <b className="num">{v.bus.dailyRuns}번</b>{v.bus.firstToTown ? ` · 읍내행 첫차 ${v.bus.firstToTown}` : ' · 읍내행 버스 없음'}</>}
+        {v.tier === 'precise' && <> · 하루 <b className="num">{v.bus.dailyRuns}번</b>{v.bus.firstToTown ? ` · 읍내행 첫차 ${v.bus.firstToTown}${firstEstimated ? ' (추정)' : ''}` : ' · 읍내행 버스 없음'}</>}
       </p>
       {byKind ? (
         <p className="small" style={{ margin: '6px 0 0' }}>

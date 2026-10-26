@@ -13,6 +13,7 @@ import { AiBadge } from '../ui/Badges'
 import { Phrases } from '../ui/Phrases'
 import { Chevron } from '../ui/Chevron'
 import { useLandingScroll } from './landing/useLandingScroll'
+import { useTierCounts } from '../hooks'
 import type { Bar } from './landing/Village3D'
 import { criteria } from './landing/progress'
 
@@ -82,6 +83,7 @@ export function Landing() {
   const rootRef = useRef<HTMLDivElement>(null)
   const demo = useDemo()
   const g = useGrid(demo)
+  const tiers = useTierCounts()
   useLandingScroll(rootRef, g)
 
   return (
@@ -112,7 +114,7 @@ export function Landing() {
             <button className="primary big-btn" onClick={start}>서비스 시작하기</button>
             <a className="ghost big-btn" href="#diag">기능 둘러보기</a>
           </div>
-          <p className="muted small hero-note">시제품 · 전국 72개 시군구 · 5곳은 정밀 판정, 나머지는 간이 판정 · 지도의 칸은 마을을 묶어 집계한 거예요</p>
+          <p className="muted small hero-note">시제품 · {tiers ? `전국 ${tiers.total}개 시군구 · ${tiers.precise}곳은 정밀 판정, 나머지는 간이 판정` : '정밀 판정과 간이 판정'} · 지도의 칸은 마을을 묶어 집계한 거예요</p>
         </div>
         <div className="hero-tilt"><UnfoldMap demo={demo} g={g} /></div>
       </section>
@@ -177,7 +179,7 @@ export function Landing() {
           <div className="foot-grid">
             <div><h4>서비스</h4><p>현황 진단</p><p>예산안 비교 · What-if</p><p>레포트 · AI 질문</p></div>
             <div><h4>데이터</h4><p>지역별 출처는 서비스 안의 ‘가정과 출처’에서 볼 수 있어요</p><p>경계: 통계청 SGIS 기반 admdongkor 2026.7 (CC BY 4.0)</p><p>지도: OpenFreeMap, © OpenStreetMap 기여자</p></div>
-            <div><h4>시제품 안내</h4><p><Phrases text="정밀 판정은 5곳이고, 나머지 67곳은 정류장까지 걷는 거리만 보는 간이 판정이에요. 랜딩의 칸은 마을을 묶어 집계한 그림이에요." /></p><p>2026 AI 라이프 솔루션 챌린지 출품작</p></div>
+            <div><h4>시제품 안내</h4><p><Phrases text={`${tiers ? `정밀 판정은 ${tiers.precise}곳이고, 나머지 ${tiers.total - tiers.precise}곳은` : '정밀 판정이 아닌 지역은'} 정류장까지 걷는 거리만 보는 간이 판정이에요. 랜딩의 칸은 마을을 묶어 집계한 그림이에요.`} /></p><p>2026 AI 라이프 솔루션 챌린지 출품작</p></div>
           </div>
           <details className="credits">
             <summary>이미지 출처</summary>
@@ -476,7 +478,7 @@ function Marquee({ demo }: { demo: Demo | null }) {
 const FAQS: [string, string][] = [
   ['숫자는 어떻게 계산하나요?', '판정, 대안, 레포트 숫자는 모두 서버가 계산해요. 화면은 기준을 바꿀 때 바로 반응하도록 브라우저에서도 판정하는데, 서버 판정이 기준이라 결과를 대조해서 다르면 서버 결과로 보여 줘요.'],
   ['지도의 칸은 실제 격자인가요?', '아니에요. 서버가 마을 단위로만 자료를 주기 때문에, 마을을 일정한 크기의 칸으로 묶어 칸 안의 인구와 닿지 못하는 사람 비율을 합쳐서 칠한 거예요. 서비스 본 화면에서는 마을 한 곳이 점 하나예요.'],
-  ['정밀 지역과 간이 판정은 뭐가 다른가요?', '창녕·영양·진도·청양·보은 5곳은 버스 하루 운행 횟수와 읍내행 첫차까지 보고, 나머지 67곳은 정류장까지 걷는 거리만 봐요.'],
+  ['정밀 지역과 간이 판정은 뭐가 다른가요?', '정밀 지역은 버스 하루 운행 횟수와 읍내행 첫차까지 보고, 간이 판정 지역은 정류장까지 걷는 거리만 봐요. 정밀 지역은 계속 늘어나고 있어요.'],
   ['공급수단 단가는 믿어도 되나요?', '단가와 효과는 가정값이에요. ‘가정과 출처’ 화면에서 직접 고칠 수 있고, 고치면 대안이 다시 계산돼요. 단가가 ±20% 달라져도 추천이 그대로인지도 확인해 줘요.'],
   ['AI에게 물어볼 수 있나요?', '화면 오른쪽 아래 ‘AI에게 물어보기’로 물어볼 수 있어요. 서버 에이전트가 계산 도구로 답하는 구조인데, 에이전트를 쓸 수 없을 때는 안내가 나오고 나머지 화면은 그대로 쓸 수 있어요. 질문은 하루 횟수에 제한이 있어요.'],
 ]
