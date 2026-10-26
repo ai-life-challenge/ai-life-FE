@@ -33,10 +33,23 @@ function count(node: HTMLElement, tl: TL, at: number, dur: number) {
   tl.to(o, { v: to, duration: dur, onUpdate: show }, at)
 }
 
-// 메뉴 링크(#diag 등): 붙잡힌 장면은 움직이는 섹션 대신 그 자리(pin-spacer) 맨 위로 가야 장면 처음부터 보인다
-function goTo(lenis: Lenis, target: HTMLElement, immediate = false) {
+// 메뉴 · 푸터 링크(#diag 등)는 사이 장면을 훑지 않고 짧게 페이드 → 바로 이동 → 페이드인으로 옮긴다(직접 스크롤 연출은 그대로).
+// 쇼케이스(붙잡힌 장면)는 시작점(progress 0)이면 제목이 아직 숨어 있어 빈 화면이라, 제목 · 설명이 다 올라온 ARRIVE 지점에 내린다(카드는 0.16부터 들어온다).
+// 그 밖의 섹션은 맨 위가 고정 메뉴(.landing의 scroll-padding-top) 바로 아래에 오게 한다
+const ARRIVE = 0.15
+const FADE_OUT = 0.15, FADE_IN = 0.2 // 초. 합쳐 약 0.35초
+function arrival(lenis: Lenis, target: HTMLElement) {
+  const st = ScrollTrigger.getById(target.id)
+  if (st) return st.start + (st.end - st.start) * ARRIVE
   const spacer = target.parentElement?.classList.contains('pin-spacer') ? target.parentElement : target
-  lenis.scrollTo(spacer, { offset: -64, immediate, force: true })
+  const pad = parseFloat(getComputedStyle(lenis.rootElement).scrollPaddingTop) || 0
+  return spacer.getBoundingClientRect().top - lenis.rootElement.getBoundingClientRect().top + lenis.animatedScroll - pad
+}
+// 바로 옮기고, 따라오던 장면(scrub)도 그 자리 모습으로 끝내 둔다(페이드인 동안 장면이 뒤늦게 움직이지 않게)
+function jump(lenis: Lenis, to: number) {
+  lenis.scrollTo(Math.min(lenis.limit, Math.max(0, to)), { immediate: true, force: true })
+  ScrollTrigger.update()
+  ScrollTrigger.getAll().forEach((s) => { const t = s.getTween(); if (t) t.progress(1) }) // scrub가 숫자가 아니면 getTween()은 0이다
 }
 // 주소의 #자리(다른 화면 푸터에서 /#faq 등으로 들어온 경우). 랜딩 안의 요소만
 const hashTarget = (el: HTMLElement) => {
@@ -57,23 +70,37 @@ export function useLandingScroll(root: RefObject<HTMLDivElement | null>, ready: 
     gsap.ticker.add(tick)
     gsap.ticker.lagSmoothing(0)
     lenisRef.current = lenis
+    // 고정 메뉴는 그대로 두고 그 아래 내용만 흐려진다. 움직임 줄이기면 페이드 없이 바로 간다. 전환 중에는 휠 · 다른 클릭을 받지 않는다
+    const content = () => el.querySelectorAll<HTMLElement>('.landing-inner > :not(.land-nav):not(.land-progress)')
+    let busy = false
     const onClick = (e: MouseEvent) => {
       const a = (e.target as HTMLElement).closest<HTMLAnchorElement>('a[href^="#"]')
       const target = a && el.querySelector<HTMLElement>(a.getAttribute('href')!)
       if (!target) return
       e.preventDefault()
-      goTo(lenis, target)
+      const to = arrival(lenis, target)
+      if (busy || Math.abs(to - lenis.animatedScroll) < 2) return // 이미 그 자리
+      if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) { jump(lenis, to); return }
+      busy = true
+      lenis.stop()
+      gsap.to(content(), {
+        opacity: 0, duration: FADE_OUT, ease: 'power1.in',
+        onComplete: () => {
+          jump(lenis, to)
+          gsap.to(content(), { opacity: 1, duration: FADE_IN, ease: 'power1.out', clearProps: 'opacity', onComplete: () => { busy = false; lenis.start() } })
+        },
+      })
     }
     el.addEventListener('click', onClick)
     const first = hashTarget(el)
-    if (first) { goTo(lenis, first, true); hashJump.current = true }
+    if (first) { jump(lenis, arrival(lenis, first)); hashJump.current = true }
     const stop = () => { hashJump.current = false }
     el.addEventListener('wheel', stop, { passive: true })
     el.addEventListener('touchstart', stop, { passive: true })
     window.addEventListener('keydown', stop)
     return () => {
       el.removeEventListener('click', onClick); el.removeEventListener('wheel', stop); el.removeEventListener('touchstart', stop); window.removeEventListener('keydown', stop)
-      gsap.ticker.remove(tick); lenis.destroy(); lenisRef.current = null
+      gsap.killTweensOf(content()); gsap.ticker.remove(tick); lenis.destroy(); lenisRef.current = null
     }
   }, [root])
 
@@ -134,7 +161,7 @@ export function useLandingScroll(root: RefObject<HTMLDivElement | null>, ready: 
         const chars = SplitText.create(head.querySelector('h2')!, { type: 'chars', mask: 'chars' }).chars
         const [c1, c2] = cards
         gsap.set(cards, { xPercent: -50, yPercent: -50, transformPerspective: 1400 })
-        const tl = gsap.timeline({ defaults: { ease: 'none' }, scrollTrigger: pinned(sec, STAGE_PIN) })
+        const tl = gsap.timeline({ defaults: { ease: 'none' }, scrollTrigger: { ...pinned(sec, STAGE_PIN), id: sec.id } }) // id: 메뉴 이동 도착 지점(arrival)
         tl.to({}, { duration: 1 }, 0)
           .from(head.querySelector('.show-icon'), { rotate: -270, scale: 0, duration: 0.1 }, 0)
           .from(chars, { yPercent: 120, rotate: 8, stagger: 0.012, duration: 0.08 }, 0)
@@ -223,7 +250,7 @@ export function useLandingScroll(root: RefObject<HTMLDivElement | null>, ready: 
 
       ScrollTrigger.refresh()
       const lenis = lenisRef.current, target = hashJump.current && hashTarget(el)
-      if (lenis && target) { lenis.resize(); goTo(lenis, target, true) } // 고정 장면이 늘린 높이를 Lenis가 먼저 알아야 끝까지 간다
+      if (lenis && target) { lenis.resize(); jump(lenis, arrival(lenis, target)) } // 고정 장면이 늘린 높이를 Lenis가 먼저 알아야 끝까지 간다
       hashJump.current = false
       return () => el.querySelectorAll('.showcase.stage').forEach((s) => s.classList.remove('stage'))
     })
