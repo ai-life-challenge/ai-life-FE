@@ -660,12 +660,13 @@ button.badge:hover { background: var(--gray-2); }
 .faq-a p { margin: 0; padding: 0 24px 24px; color: var(--muted); line-height: 1.7; max-width: 52em; }
 
 /* 마지막 CTA + 사이트 푸터(ui/SiteFooter.tsx): 한 덩어리의 검정 면. 글자 대비는 #171717 바탕 기준 #8f8e8e 5.4:1, #a3a2a2 7:1, #d9d9d9 13:1 */
-.land-cta { background: var(--dark); color: #fff; padding-top: clamp(64px, 12vh, 120px); }
-.land-cta .wrap { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px 48px; flex-wrap: wrap; }
-.land-cta .wrap::after { content: ''; flex-basis: 100%; height: 1px; margin-top: clamp(40px, 7vh, 64px); background: #2a2a2a; } /* CTA와 푸터 사이 구분선(글 폭에 맞춘다) */
-.land-cta h2 { font-size: clamp(30px, 4vw, 52px); letter-spacing: -0.035em; line-height: 1.15; max-width: 14em; }
+.land-cta { background: var(--dark); color: #fff; padding-top: clamp(56px, 10vh, 96px); }
+.land-cta .wrap { display: flex; align-items: center; justify-content: space-between; gap: 24px 48px; flex-wrap: wrap; }
+.land-cta .wrap::after { content: ''; flex-basis: 100%; height: 1px; margin-top: clamp(36px, 6vh, 56px); background: #2a2a2a; } /* CTA와 푸터 사이 구분선(글 폭에 맞춘다) */
+.land-cta h2 { font-size: clamp(28px, 3.6vw, 48px); letter-spacing: -0.035em; line-height: 1.15; max-width: 14em; }
 .site-foot { background: var(--dark); color: #d9d9d9; }
 .foot-main { display: grid; grid-template-columns: minmax(0, 1.5fr) minmax(0, 1fr) minmax(0, 1fr); gap: 40px clamp(24px, 4vw, 64px); padding-top: clamp(40px, 7vh, 64px); padding-bottom: clamp(40px, 7vh, 64px); }
+.land-cta + .site-foot .foot-main { padding-top: clamp(36px, 6vh, 56px); } /* 구분선 위아래 간격을 맞춘다 */
 .foot-brand .brand { color: #fff; }
 .foot-brand p { margin: 14px 0 0; color: #a3a2a2; font-size: 15px; line-height: 1.6; }
 .foot-nav h2 { font-size: 13px; font-weight: 500; letter-spacing: 0.02em; color: #8f8e8e; margin: 0 0 16px; }
