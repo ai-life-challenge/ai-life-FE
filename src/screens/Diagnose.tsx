@@ -154,7 +154,7 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
         <ul className="villages">
           {gapList.map((v) => (
             <li key={v.id} onClick={() => patch((s) => ({ ...s, selectedVillage: v.id }))} onMouseEnter={() => set({ hoverVillage: v.id })} onMouseLeave={() => set({ hoverVillage: null })}>
-              <span><i className="sw-x" aria-hidden>✕</i>{v.name}<span className="muted small"> · {v.state === 2 && carTarget !== 'med' ? `${targetName}${josa(targetName, '이', '가')} 너무 멀어 못 감` : STATE_NAME[v.state]}</span></span>
+              <span><i className="sw-x" aria-hidden style={{ color: STATE_CSS[v.state] }}>✕</i>{v.name}<span className="muted small"> · {v.state === 2 && carTarget !== 'med' ? `${targetName}${josa(targetName, '이', '가')} 너무 멀어 못 감` : STATE_NAME[v.state]}</span></span>
               <span className="muted"><b className="num" style={{ color: 'var(--ink)' }}>{fmt(v.people)}명</b>{minutesOf.get(v.id) != null && ` · ${targetName} ${minutesOf.get(v.id)! === 0 ? '마을 안' : Math.round(minutesOf.get(v.id)!) + '분'}`}</span>
             </li>
           ))}
@@ -305,11 +305,13 @@ function Slider({ label, unit, min, max, step, value, onChange, disabled, note }
 }
 
 function Legend() {
-  const { showDots, showFacilities, travel, carTarget, data, set } = useStore()
+  const { showDots, showFacilities, travel, carTarget, data, state, set } = useStore()
   const villages = useShownJudge()?.villages ?? []
   const kindName = CAR_TARGETS.find((x) => x.id === carTarget)!.short
   const facCount = !data ? null : carTarget === 'med' ? null : carTarget === 'er' ? 0 : data.facilities.filter((f) => KIND_RE[carTarget].test(f.kind)).length
   const cannot = villages.filter((v) => v.state !== 0).length
+  const noBus = villages.filter((v) => v.state === 1).length
+  const split = travel === 'transit' && carTarget !== 'er' // 대중교통 탭은 ✕ 색으로 이유를 나눈다. 자가용 · 응급은 모두 '너무 멀어 못 감'(보라)
   const rgb = (m: number) => `rgb(${minuteRgb(m).join(',')})`
   const toggle = (on: boolean, label: React.ReactNode, n: number | null, onClick: () => void) => (
     <button type="button" role="switch" aria-checked={on} className={`map-toggle ${on ? 'on' : ''}`} onClick={onClick}>
@@ -319,17 +321,23 @@ function Legend() {
   return (
     <div className="legend">
       <p className="legend-title">지도에 보이기</p>
-      {toggle(showDots, <><i className="sw-x" aria-hidden>✕</i>{carTarget === 'er' ? '응급의료센터 먼 마을' : carTarget === 'med' ? (travel === 'car' ? '자가용으로 못 가는 마을' : '대중교통으로 못 가는 마을') : kindName + ' 못 가는 마을'}</>, cannot, () => set({ showDots: !showDots }))}
+      {toggle(showDots, <><i className="sw-x" aria-hidden style={{ color: STATE_CSS[split ? 1 : 2] }}>✕</i>{carTarget === 'er' ? '응급의료센터 먼 마을' : carTarget === 'med' ? (travel === 'car' ? '자가용으로 못 가는 마을' : '대중교통으로 못 가는 마을') : kindName + ' 못 가는 마을'}</>, cannot, () => set({ showDots: !showDots }))}
+      {split && showDots && (
+        <>
+          <p><i className="sw-x" aria-hidden style={{ color: STATE_CSS[1] }}>✕</i>버스가 없어 못 감 <span className="muted">{noBus}곳</span></p>
+          {state?.service === 'med' && <p><i className="sw-x" aria-hidden style={{ color: STATE_CSS[2] }}>✕</i>{kindName}{josa(kindName, '이', '가')} 너무 멀어 못 감 <span className="muted">{cannot - noBus}곳</span></p>}
+        </>
+      )}
       {carTarget === 'er'
         ? <p className="muted small" style={{ margin: '4px 0' }}>응급의료센터는 시설 목록에 없어 지도에 아이콘이 없어요</p>
         : facCount === 0 ? <p className="muted small" style={{ margin: '4px 0' }}>이 군 안에는 {kindName} 시설이 없어요. 군 밖 시설까지 시간으로 판정해요</p>
         : toggle(showFacilities, <><img className="legend-icon" src="/icons/hospital.png" alt="" />{carTarget === 'med' ? '병원·의원·보건소' : kindName}</>, facCount, () => set({ showFacilities: !showFacilities }))}
       <p><i className="sw-num" aria-hidden>3</i>가까운 시설 묶음 · 누르면 펼쳐져요</p>
       <p className="muted">표시가 클수록 사는 사람이 많아요</p>
-      <p className="legend-title" style={{ marginTop: 10 }}>바탕색: {kindName}까지 걸리는 시간</p>
+      <p className="legend-title" style={{ marginTop: 10 }}>바탕색: {kindName}까지 걸리는 시간 (자가용 기준)</p>
       <i className="time-bar" style={{ background: `linear-gradient(90deg, ${MINUTE_STOPS.map(([m]) => `${rgb(m)} ${(m / 45) * 100}%`).join(', ')})` }} />
       <p className="muted time-scale"><span>10분 이하</span><span>30분(기준)</span><span>45분 이상</span></p>
-      <p className="muted">{carTarget === 'er' ? '지역응급의료센터 이상' : '가장 가까운 ' + CAR_TARGETS.find((x) => x.id === carTarget)!.short}까지 서버 도로 시간을 마을 사이로 이어 칠했어요. 마을 안에 있으면 0분이에요. 옅은 칸은 근처에 마을이 없는 곳이에요.</p>
+      <p className="muted">{carTarget === 'er' ? '지역응급의료센터 이상' : '가장 가까운 ' + CAR_TARGETS.find((x) => x.id === carTarget)!.short}까지 자가용 시간(서버 도로 기준)을 마을 사이로 이어 칠했어요. 마을 안에 있으면 0분이에요. 옅은 칸은 근처에 마을이 없는 곳이에요.</p>
     </div>
   )
 }

@@ -13,7 +13,7 @@ import { setWorkerUrl } from 'maplibre-gl'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import { useStore } from '../store'
 import { useShownJudge } from '../hooks'
-import { CAR_TARGETS, STATE_NAME, STATE_RGB, SUPPLY } from '../api/meta'
+import { CAR_TARGETS, STATE_CSS, STATE_NAME, STATE_RGB, SUPPLY } from '../api/meta'
 import type { JudgedVillage, RawFacility } from '../api/types'
 import { useRafTime } from './useRafTime'
 import { erGrid, minuteRgb, type TimeCell } from '../api/cells'
@@ -31,9 +31,10 @@ const FACILITY = {
   'health-center': { icon: icon('hospital'), size: 900, min: 28, max: 80 },
   hospital: { icon: icon('hospital'), size: 900, min: 28, max: 80 },
 }
-// 못 가는 마을은 원 대신 빨간 X로 그린다 (흰 테두리를 둘러 바탕색 위에서도 보이게)
-const X_SVG = `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M14 14L50 50M50 14L14 50" stroke="#fff" stroke-width="20" stroke-linecap="round"/><path d="M14 14L50 50M50 14L14 50" stroke="#d6455d" stroke-width="11" stroke-linecap="round"/></svg>`
-const X_ICON = { id: 'x', url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(X_SVG)}`, width: 64, height: 64 }
+// 못 가는 마을은 원 대신 X로 그린다 (흰 테두리를 둘러 바탕색 위에서도 보이게). 색은 이유별: 빨강 버스가 없어 못 감 · 보라 병원이 너무 멀어 못 감
+const xSvg = (color: string) => `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M14 14L50 50M50 14L14 50" stroke="#fff" stroke-width="20" stroke-linecap="round"/><path d="M14 14L50 50M50 14L14 50" stroke="${color}" stroke-width="11" stroke-linecap="round"/></svg>`
+const xIcon = (state: 1 | 2) => ({ id: `x${state}`, url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(xSvg(STATE_CSS[state]))}`, width: 64, height: 64 })
+const X_ICON = { 1: xIcon(1), 2: xIcon(2) }
 const facilityKind = (kind: string): keyof typeof FACILITY => (/병원|종합/.test(kind) ? 'hospital' : /보건/.test(kind) ? 'health-center' : 'clinic')
 
 setWorkerUrl(workerUrl)
@@ -188,9 +189,9 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
         getSize: 13, fontWeight: 700, getColor: [28, 28, 26, 255], getTextAnchor: 'middle', getAlignmentBaseline: 'center', parameters: ON_TOP,
       }),
       new IconLayer<JudgedVillage>({
-        // 못 가는 마을은 이유(버스 없음 · 너무 멂)와 상관없이 모두 X. 대중교통/자가용 중 무엇을 보는지는 useShownJudge가 정한다
+        // 못 가는 마을은 모두 X이고 색으로 이유(버스 없음 · 너무 멂)를 나눈다. 대중교통/자가용 중 무엇을 보는지는 useShownJudge가 정한다
         id: 'villages-x', data: local.villages.filter((v) => v.state !== 0), visible: showDots, pickable: true,
-        getPosition: (v) => [v.lon, v.lat], getIcon: () => X_ICON, sizeUnits: 'pixels',
+        getPosition: (v) => [v.lon, v.lat], getIcon: (v) => X_ICON[v.state as 1 | 2], sizeUnits: 'pixels',
         getSize: (v) => radius(v.people) * 2 * (v.id === sel || v.id === hoverVillage ? 1.25 : 1), updateTriggers: { getSize: [sel, hoverVillage] },
         parameters: ON_TOP,
         onClick: ({ object }: any) => object && patch((s) => ({ ...s, selectedVillage: object.id })),

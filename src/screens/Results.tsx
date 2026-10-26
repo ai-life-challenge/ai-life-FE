@@ -5,7 +5,7 @@ import { useNavigate, useParams } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import type { MapRef } from 'react-map-gl/maplibre'
 import { useAutoFetch } from '../hooks'
-import { SUPPLY, eok, fmt, pct } from '../api/meta'
+import { STATE_CSS, SUPPLY, eok, fmt, pct } from '../api/meta'
 import type { Plan } from '../api/types'
 import { useStore } from '../store'
 import { boxOf, fitCounty } from '../map/geo'
@@ -92,7 +92,8 @@ function PlanLegend({ plan }: { plan: Plan | null }) {
       <p className="legend-title">{plan ? plan.name : '대안'}</p>
       <p><i className="sw" style={{ background: '#2fa36b' }} /> 원래 갈 수 있는 마을</p>
       <p><i className="sw" style={{ background: '#2f5bd3' }} /> 이 안으로 새로 닿는 마을</p>
-      <p><i className="sw" style={{ background: '#d6455d' }} /> 여전히 못 가는 마을</p>
+      <p><i className="sw" style={{ background: STATE_CSS[1] }} /> 여전히 못 가는 마을 · 버스가 없어서</p>
+      <p><i className="sw" style={{ background: STATE_CSS[2] }} /> 여전히 못 가는 마을 · 병원이 너무 멀어서</p>
       {plan && plan.gapAfter > 0 && <p className="muted">남는 공백 {fmt(plan.gapAfter)}명</p>}
       <div className="chips" style={{ marginTop: 8 }}>{types.map((t) => <span key={t} className="mini"><i style={{ background: SUPPLY[t].color }} />{SUPPLY[t].name}</span>)}</div>
     </motion.div>
