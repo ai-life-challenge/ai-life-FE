@@ -388,8 +388,8 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
           const map = e.target
           const symbols = map.getStyle().layers.filter((l) => l.type === 'symbol')
           symbols.forEach((l) => { if (map.getLayoutProperty(l.id, 'text-field')) map.setLayoutProperty(l.id, 'text-field', ['coalesce', ['get', 'name:ko'], ['get', 'name']]) })
-          // 도로 이름 · 번호판은 군 전체가 보이는 배율(10 안팎)에서도 보이게 더 일찍 켠다(기본은 큰길 12.2, 작은길 15)
-          symbols.forEach((l) => { if ((l as any)['source-layer'] === 'transportation_name') map.setLayerZoomRange(l.id, Math.min(l.minzoom ?? 0, /minor|path/.test(l.id) ? 12 : 9), l.maxzoom ?? 24) })
+          // 도로 이름은 숨긴다(지명은 그대로 둔다)
+          symbols.forEach((l) => { if ((l as any)['source-layer'] === 'transportation_name') map.setLayoutProperty(l.id, 'visibility', 'none') })
           ;(map as MapWithDeck).__labelsBefore = symbols[0]?.id
           // 바탕 격자는 도로 아래에 깔아 도로가 보이게 한다
           ;(map as MapWithDeck).__roadsBefore = map.getStyle().layers.find((l) => (l as any)['source-layer'] === 'transportation')?.id ?? symbols[0]?.id
