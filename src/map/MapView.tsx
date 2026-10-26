@@ -157,10 +157,20 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
     stroked: true, getLineColor: [255, 255, 255, 120], lineWidthUnits: 'pixels', getLineWidth: 1, beforeId: roadsBefore,
   } as any)
 
+  // 레이어 data는 참조가 바뀌면 deck.gl이 GPU 버퍼를 통째로 다시 만든다. 연출 중 매 프레임 다시 그려도 새 배열이 생기지 않게 미리 만들어 둔다
+  const badVillages = useMemo(() => local?.villages.filter((v) => v.state !== 0) ?? [], [local])
+  const newVillages = useMemo(() => badVillages.filter((v) => (cover?.get(v.id) ?? 0) > 0.5), [badVillages, cover])
+  const routeStops = useMemo(() => routes.flatMap((r) => r.stops), [routes])
+  const routeArrows = useMemo(() => routes.flatMap((r) => r.arrows), [routes])
+  const routeDepots = useMemo(() => routes.flatMap((r) => (r.depot ? [r.depot] : [])), [routes])
+  const routeLabels = useMemo(() => routes.flatMap((r) => (r.depot ? [{ at: r.depot.at, text: `순회 진료 버스 노선 · ${r.depot.name} 보건소 출발·도착` }] : [])), [routes])
+
   // 결과 연출 시계: 안을 바꿀 때마다 0부터. 노선이 그려지고(0~1.4초) → 정류장이 차례로 뜨고 → 버스가 노선을 돈다. 수요응답 구역은 숨 쉬듯 깜빡인다
   const planKey = screen === 'result' ? shown?.picks.map((p) => p.label).join('|') : undefined
   const animate = screen === 'result' && !!shown && !reduce
-  const tp = useRafTime(animate, planKey) / 1000
+  // 계속 움직이는 건 버스(30fps)와 수요응답 구역 깜빡임(15fps)뿐. 둘 다 없으면 등장 연출(3초)만 하고 멈춘다
+  const hasTour = (shown?.picks ?? []).some((p) => p.type === 'tour'), hasDrt = (shown?.picks ?? []).some((p) => p.type === 'drt')
+  const tp = useRafTime(animate, planKey, { fps: hasTour ? 30 : 15, until: hasTour || hasDrt ? Infinity : 3000 }) / 1000
   const T = animate ? tp : 99 // 움직임 줄이기면 끝난 모습
   const clamp01 = (x: number) => Math.min(1, Math.max(0, x))
   const easeOut = (x: number) => 1 - Math.pow(1 - clamp01(x), 3)
@@ -180,15 +190,14 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   // 고른 시설 종류만 지도에 보인다(병원급 · 의원 · 보건기관). 응급실은 시설 목록에 없어 아이콘을 숨긴다
   const facs = useMemo(() => (!data ? [] : carTarget === 'med' ? data.facilities : carTarget === 'er' ? [] : data.facilities.filter((f) => KIND_RE[carTarget].test(f.kind))), [data, carTarget])
 
-  const pins: Pin[] = local && data && screen === 'diag' ? [
-    ...(showFacilities ? facs.map((f) => ({ kind: 'facility' as const, f })) : []),
-  ] : []
-  const clusters = zoom >= CLUSTER_MAX_ZOOM ? pins.map((p) => ({ lon: pinAt(p)[0], lat: pinAt(p)[1], items: [p] })) : clusterByPixel(pins, pinAt, zoom, CLUSTER_PX)
+  // 시설 묶음은 O(n²)라 확대 단계나 시설 목록이 바뀔 때만 다시 계산한다(마우스를 올릴 때마다 다시 하지 않게)
+  const pins: Pin[] = useMemo(() => (local && data && screen === 'diag' && showFacilities ? facs.map((f) => ({ kind: 'facility' as const, f })) : []), [local, data, screen, showFacilities, facs])
+  const clusters = useMemo(() => (zoom >= CLUSTER_MAX_ZOOM ? pins.map((p) => ({ lon: pinAt(p)[0], lat: pinAt(p)[1], items: [p] })) : clusterByPixel(pins, pinAt, zoom, CLUSTER_PX)), [pins, zoom])
   const singles = clusters.filter((c) => c.items.length === 1).map((c) => c.items[0])
   const groups = clusters.filter((c) => c.items.length > 1)
 
   const scanning = thinking && screen === 'result' && !reduce // 예산안을 계산하는 동안 못 가는 마을을 훑는다
-  const ring = useRafTime((screen === 'select' || scanning) && !reduce)
+  const ring = useRafTime((screen === 'select' || scanning) && !reduce, undefined, { fps: 20 }) // 후보 테두리 깜빡임 · 계산 중 물결: 느린 반복이라 20fps면 충분
   const layers: Layer[] = []
 
   if (sigungu && screen === 'select') {
@@ -249,7 +258,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
       }),
       new IconLayer<JudgedVillage>({
         // 못 가는 마을은 모두 X이고 색으로 이유(버스 없음 · 너무 멂)를 나눈다. 대중교통/자가용 중 무엇을 보는지는 useShownJudge가 정한다
-        id: 'villages-x', data: local.villages.filter((v) => v.state !== 0), visible: showDots, pickable: true,
+        id: 'villages-x', data: badVillages, visible: showDots, pickable: true,
         getPosition: (v) => [v.lon, v.lat], getIcon: (v) => X_ICON[v.state as 1 | 2], sizeUnits: 'pixels',
         getSize: (v) => radius(v.people) * 2 * (v.id === sel || v.id === hoverVillage ? 1.25 : 1), updateTriggers: { getSize: [sel, hoverVillage] },
         parameters: ON_TOP,
@@ -270,7 +279,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
       myeonLines,
       new ScatterplotLayer<JudgedVillage>({
         // 결과 지도는 노선 · 구역이 주인공이라, 원래 갈 수 있는 마을(초록 원)은 그리지 않고 이 안으로 새로 닿는 마을(파랑)과 여전히 못 가는 마을(빨강)만 작게 찍는다
-        id: 'villages', data: local.villages.filter((v) => v.state !== 0), pickable: true, beforeId: labelsBefore, // 지명 · 도로명이 마을 점 위에 보이게
+        id: 'villages', data: badVillages, pickable: true, beforeId: labelsBefore, // 지명 · 도로명이 마을 점 위에 보이게
         getPosition: (v: JudgedVillage) => [v.lon, v.lat], getRadius: (v: JudgedVillage) => 4 + radius(v.people) * 0.35, radiusUnits: 'pixels',
         // 원래 갈 수 있는 마을은 초록, 안 때문에 새로 닿는 마을은 파랑, 아직 못 닿는 마을은 원래 색(빨강·보라). 일부만 닿으면 섞는다
         getFillColor: (v: JudgedVillage) => {
@@ -295,20 +304,20 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
       ...(T > 1.6 ? [new TripsLayer({ id: 'route-glow', data: routes, getPath: (d: any) => d.path, getTimestamps: (d: any) => d.times,
         currentTime: routes.length ? (((T - 1.6) % LOOP) / LOOP) * routes[0].length : 0, trailLength: routes.length ? routes[0].length * 0.18 : 0, fadeTrail: true,
         getColor: [255, 255, 255, Math.round(230 * dim('tour'))], widthUnits: 'pixels', getWidth: 3, capRounded: true, parameters: ON_TOP } as any)] : []),
-      new TextLayer({ id: 'route-arrows', data: routes.flatMap((r) => r.arrows), getPosition: (d: any) => d.at, getText: () => '▶', getAngle: (d: any) => d.angle, getSize: 16, characterSet: ['▶'], fontFamily: LABEL_FONT,
+      new TextLayer({ id: 'route-arrows', data: routeArrows, getPosition: (d: any) => d.at, getText: () => '▶', getAngle: (d: any) => d.angle, getSize: 16, characterSet: ['▶'], fontFamily: LABEL_FONT,
         getColor: [...hexRgb(SUPPLY.tour.color), Math.round(255 * clamp01((T - 1.3) / 0.4) * dim('tour'))], fontSettings: { sdf: true }, outlineWidth: 3, outlineColor: [255, 255, 255, Math.round(255 * clamp01((T - 1.3) / 0.4) * dim('tour'))],
         parameters: ON_TOP, updateTriggers: { getColor: [Math.round(T * 20), hoverSupply] } }),
-      new ScatterplotLayer({ id: 'route-stops', data: routes.flatMap((r) => r.stops), pickable: true, getPosition: (d: any) => d.at, radiusUnits: 'pixels', getRadius: (d: any) => 7 * pop(d.n - 1) * (1 + 0.35 * Math.max(0, 1 - Math.abs(T - 1.1 - (d.n - 1) * 0.12) * 4)),
+      new ScatterplotLayer({ id: 'route-stops', data: routeStops, pickable: true, getPosition: (d: any) => d.at, radiusUnits: 'pixels', getRadius: (d: any) => 7 * pop(d.n - 1) * (1 + 0.35 * Math.max(0, 1 - Math.abs(T - 1.1 - (d.n - 1) * 0.12) * 4)),
         getFillColor: [255, 255, 255, Math.round(255 * dim('tour'))], stroked: true, getLineColor: [...hexRgb(SUPPLY.tour.color), Math.round(255 * dim('tour'))], lineWidthUnits: 'pixels', getLineWidth: 3, parameters: ON_TOP,
         updateTriggers: { getRadius: Math.round(T * 30), getFillColor: hoverSupply, getLineColor: hoverSupply } }),
-      new TextLayer({ id: 'route-stop-no', data: routes.flatMap((r) => r.stops), getPosition: (d: any) => d.at, getText: (d: any) => String(d.n), getSize: 10, fontWeight: 700,
+      new TextLayer({ id: 'route-stop-no', data: routeStops, getPosition: (d: any) => d.at, getText: (d: any) => String(d.n), getSize: 10, fontWeight: 700,
         getColor: (d: any) => [60, 40, 0, Math.round(255 * pop(d.n - 1) * dim('tour'))], parameters: ON_TOP, updateTriggers: { getColor: [Math.round(T * 30), hoverSupply] } }),
-      new ScatterplotLayer({ id: 'route-depot', data: routes.flatMap((r) => (r.depot ? [r.depot] : [])), getPosition: (d: any) => d.at, radiusUnits: 'pixels', getRadius: 10 * easeOut(T / 0.4), getFillColor: [...hexRgb(SUPPLY.tour.color), 255],
+      new ScatterplotLayer({ id: 'route-depot', data: routeDepots, getPosition: (d: any) => d.at, radiusUnits: 'pixels', getRadius: 10 * easeOut(T / 0.4), getFillColor: [...hexRgb(SUPPLY.tour.color), 255],
         stroked: true, getLineColor: [255, 255, 255, 255], lineWidthUnits: 'pixels', getLineWidth: 3, parameters: ON_TOP, updateTriggers: { getRadius: Math.round(T * 30) } }),
       // 노선을 도는 버스
       ...(T > 1.6 ? [new IconLayer({ id: 'route-bus', data: routes, getPosition: busAt, getIcon: () => ({ id: 'bus', url: BUS_ICON, width: 64, height: 64 }), getSize: 30, sizeUnits: 'pixels',
         getColor: [255, 255, 255, Math.round(255 * dim('tour'))], parameters: ON_TOP, updateTriggers: { getPosition: Math.round(T * 60) } })] : []),
-      new TextLayer({ id: 'route-label', data: routes.flatMap((r) => (r.depot ? [{ at: r.depot.at, text: `순회 진료 버스 노선 · ${r.depot.name} 보건소 출발·도착` }] : [])), getPosition: (d: any) => d.at, getText: (d: any) => d.text,
+      new TextLayer({ id: 'route-label', data: routeLabels, getPosition: (d: any) => d.at, getText: (d: any) => d.text,
         characterSet: 'auto', fontFamily: LABEL_FONT, getSize: 13, fontWeight: 700, getColor: [255, 255, 255, Math.round(255 * clamp01((T - 1.4) / 0.4) * dim('tour'))], background: true,
         getBackgroundColor: [...hexRgb(SUPPLY.tour.color), Math.round(255 * clamp01((T - 1.4) / 0.4) * dim('tour'))], backgroundPadding: [8, 5], getPixelOffset: [0, -24], parameters: ON_TOP,
         updateTriggers: { getColor: [Math.round(T * 20), hoverSupply], getBackgroundColor: [Math.round(T * 20), hoverSupply] } }),
@@ -316,11 +325,11 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
         getColor: [255, 255, 255, Math.round(255 * clamp01((T - 0.6) / 0.4) * dim('drt'))], background: true, getBackgroundColor: [...hexRgb(SUPPLY.drt.color), Math.round(255 * clamp01((T - 0.6) / 0.4) * dim('drt'))],
         backgroundPadding: [8, 5], parameters: ON_TOP, updateTriggers: { getColor: [Math.round(T * 20), hoverSupply], getBackgroundColor: [Math.round(T * 20), hoverSupply] } }),
       // 이 안으로 새로 닿는 마을: 안을 고르면 물결이 한 번 퍼진다
-      ...(T > 1 && T < 2.6 ? [new ScatterplotLayer<JudgedVillage>({ id: 'new-ripple', data: local.villages.filter((v) => v.state !== 0 && (cover?.get(v.id) ?? 0) > 0.5), getPosition: (v) => [v.lon, v.lat],
+      ...(T > 1 && T < 2.6 ? [new ScatterplotLayer<JudgedVillage>({ id: 'new-ripple', data: newVillages, getPosition: (v) => [v.lon, v.lat],
         radiusUnits: 'pixels', getRadius: (v) => 4 + radius(v.people) * 0.35 + 22 * easeOut((T - 1) / 1.6), filled: false, stroked: true, lineWidthUnits: 'pixels', getLineWidth: 2.5,
         getLineColor: [...NEW_RGB, Math.round(230 * (1 - clamp01((T - 1) / 1.6)))], parameters: ON_TOP, updateTriggers: { getRadius: Math.round(T * 30), getLineColor: Math.round(T * 30) } })] : []),
       ...(scanning ? [new ScatterplotLayer<JudgedVillage>({
-        id: 'scan', data: local.villages.filter((v) => v.state !== 0), getPosition: (v) => [v.lon, v.lat], radiusUnits: 'pixels', stroked: true, filled: false, lineWidthUnits: 'pixels', getLineWidth: 2, parameters: ON_TOP,
+        id: 'scan', data: badVillages, getPosition: (v) => [v.lon, v.lat], radiusUnits: 'pixels', stroked: true, filled: false, lineWidthUnits: 'pixels', getLineWidth: 2, parameters: ON_TOP,
         // 마을마다 시작 시점을 어긋나게 해서, 파동이 하나씩 번져 나가는 것처럼 보인다
         getRadius: (_v: JudgedVillage, { index }: { index: number }) => 6 + 34 * ((ring / 1400 + index * 0.37) % 1),
         getLineColor: (_v: JudgedVillage, { index }: { index: number }) => [214, 69, 93, Math.round(220 * (1 - ((ring / 1400 + index * 0.37) % 1)))],
