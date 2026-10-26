@@ -36,6 +36,9 @@ const Icon = ({ name, size = 22 }: { name: IconName; size?: number }) => (
   <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden>{ICONS[name]}</svg>
 )
 
+// 랜딩에서는 예시 지역 이름(서버 글에 섞인 '○○군')을 빼고 보여 준다
+const noRegion = (text: string, name: string) => text.split(name).join('').replace(/\s{2,}/g, ' ').trim()
+
 const Village3D = lazy(() => import('./landing/Village3D')) // three.js는 무거워서 따로 불러온다
 // three.js는 WebGL2가 있어야 한다. 그래픽 가속이 꺼진 PC · 원격 데스크톱 · 오래된 그래픽 드라이버에서는 없을 수 있다
 const hasWebGL2 = () => { try { return !!document.createElement('canvas').getContext('webgl2') } catch { return false } }
@@ -81,7 +84,7 @@ const gapOf = (local: LocalJudge) => ({ people: local.villages.map((v) => v.peop
 
 export function Landing() {
   const nav = useNavigate()
-  const start = () => nav('/intro')
+  const start = () => nav('/start') // 바로 지역 선택(시뮬레이션 시작)
   const rootRef = useRef<HTMLDivElement>(null)
   const demo = useDemo()
   const g = useGrid(demo)
@@ -125,9 +128,9 @@ export function Landing() {
       <section className="wrap statement">
         <p className="say center"><span className="phrase">평균으로는 안 보이는 마을까지,</span> <span className="grad phrase">기준을 정해 숫자로 설명합니다.</span></p>
         <div className="stat-grid">
-          <Stat value={demo?.judge.summary.gap} unit="명" label="병원에 갈 수 없는 80세 이상" note={demo ? `${demo.data.name} · 자가용 30분, 정류장 걸어서 15분, 버스 하루 3번 기준` : '창녕군 · 기본 기준'} />
-          <Stat value={demo ? demo.judge.summary.rate * 100 : undefined} unit="%" digits={1} label="80세 이상 가운데 비율" note={demo ? `${fmt(demo.judge.summary.total)}명 중` : '창녕군 · 기본 기준'} />
-          <Stat value={demo?.judge.summary.gapVillages} unit="곳" label="닿지 못하는 마을" note={demo ? `마을 ${demo.data.villages.length}곳 중` : '창녕군 · 기본 기준'} />
+          <Stat value={demo?.judge.summary.gap} unit="명" label="병원에 갈 수 없는 80세 이상" note={demo ? '자가용 30분, 정류장 걸어서 15분, 버스 하루 3번 기준' : '기본 기준'} />
+          <Stat value={demo ? demo.judge.summary.rate * 100 : undefined} unit="%" digits={1} label="80세 이상 가운데 비율" note={demo ? `${fmt(demo.judge.summary.total)}명 중` : '기본 기준'} />
+          <Stat value={demo?.judge.summary.gapVillages} unit="곳" label="닿지 못하는 마을" note={demo ? `마을 ${demo.data.villages.length}곳 중` : '기본 기준'} />
         </div>
       </section>
 
@@ -201,7 +204,7 @@ function Village3DSection({ g }: { g: ReturnType<typeof useGrid> }) {
     <section className="v3d">
       <div className="v3d-canvas" aria-hidden>{scene && webgl && <Quiet><Suspense fallback={null}><Village3D {...scene} /></Suspense></Quiet>}</div>
       <div className="v3d-caps wrap" role="note">
-        <p className="v3d-cap on"><span className="eyebrow">창녕군 · 실제 계산 결과</span>마을을 칸으로 묶고</p>
+        <p className="v3d-cap on"><span className="eyebrow">실제 계산 결과</span>마을을 칸으로 묶고</p>
         <p className="v3d-cap">칸마다 병원에 닿지 못하는 사람만큼 막대를 세우면</p>
         <p className="v3d-cap">평균으로 안 보이던 <span className="grad">의료취약지역</span>이 한눈에 보여요</p>
       </div>
@@ -282,11 +285,11 @@ function UnfoldMap({ demo, g }: { demo: Demo | null; g: ReturnType<typeof useGri
   return (
     <div className="hero-visual">
       {g && view ? (
-        <CellSvg grid={g.grid} fills={view.fills.map(() => view.avg)} to={view.fills} delays={view.delays} label="창녕군 마을을 칸으로 묶어, 군 평균 한 색에서 칸마다 닿지 못하는 비율의 색으로 펼친 지도" big />
+        <CellSvg grid={g.grid} fills={view.fills.map(() => view.avg)} to={view.fills} delays={view.delays} label="마을을 칸으로 묶어, 군 평균 한 색에서 칸마다 닿지 못하는 비율의 색으로 펼친 지도" big />
       ) : <div className="hero-ph" />}
       {demo && g && (
         <div className="hero-tags">
-          <span className="tag hero-avg">{demo.data.name} 80세 이상 중 닿지 못하는 사람 평균 <b>{Math.round(g.local.summary.rate * 100)}%</b></span>
+          <span className="tag hero-avg">80세 이상 중 닿지 못하는 사람 평균 <b>{Math.round(g.local.summary.rate * 100)}%</b></span>
           <span className="tag bad hero-gap">병원에 갈 수 없는 80세 이상 <b><span data-count={g.local.summary.gap}>{fmt(g.local.summary.gap)}</span>명</b></span>
         </div>
       )}
@@ -397,7 +400,7 @@ function SensDemo({ demo }: { demo: Demo | null }) {
   const s = demo.sens
   return (
     <div className="memo-demo">
-      <p className="muted small" style={{ margin: 0 }}>{demo.data.name} · 추천안 {s.base.name}</p>
+      <p className="muted small" style={{ margin: 0 }}>추천안 {s.base.name}</p>
       <p style={{ margin: '6px 0' }}>단가 −20% <b className="num">연 {eok(s.lo.year)}</b><br />기준 <b className="num">연 {eok(s.base.year)}</b><br />단가 +20% <b className="num">연 {eok(s.hi.year)}</b></p>
       <span className="badge" style={{ color: s.same ? 'var(--ok)' : 'var(--warn)' }}>{s.same ? '✓ 추천이 그대로예요' : '추천이 바뀔 수 있어요'}</span>
     </div>
@@ -409,8 +412,8 @@ function ReportDemo({ demo }: { demo: Demo | null }) {
   if (!demo || !sec) return <div className="hero-ph" />
   return (
     <div className="memo-demo">
-      <p className="muted small" style={{ margin: 0 }}>{demo.report.title} · {sec.title}</p>
-      <p style={{ margin: '6px 0 12px' }}><Phrases text={sec.text} /></p>
+      <p className="muted small" style={{ margin: 0 }}>{noRegion(demo.report.title, demo.data.name)} · {sec.title}</p>
+      <p style={{ margin: '6px 0 12px' }}><Phrases text={noRegion(sec.text, demo.data.name)} /></p>
     </div>
   )
 }
@@ -431,7 +434,7 @@ const tileStyle = (name: string, color: string): React.CSSProperties => {
 const BG = ['#cfe2fb', '#f6d8cf', '#c9f0da', '#dccbfa', '#fde7b0', '#f9d2e4']
 function Marquee({ demo }: { demo: Demo | null }) {
   const tiles: [string, string][] = [
-    ...(demo?.data.sources.map((s): [string, string] => [s, `${demo.data.name} 자료`]) ?? []),
+    ...(demo?.data.sources.map((s): [string, string] => [noRegion(s, demo.data.name), '지역 자료']) ?? []),
     ['행정 경계', 'SGIS · admdongkor'], ['바탕 지도', 'OpenFreeMap · OpenStreetMap'], ['마을별 병의원', '시설 좌표와 의사 수'], ['공급수단 단가', '가정값 · 화면에서 수정'],
   ]
   const rows = [tiles.slice(0, Math.ceil(tiles.length / 2)), tiles.slice(Math.ceil(tiles.length / 2))]

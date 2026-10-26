@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { api, ApiError, regionData, regionMap } from './api/client'
 import type { CarTarget } from './api/judge'
-import type { Judge, Plans, RegionData, RegionItem, Report, Sensitivity, State, Turn } from './api/types'
+import type { Judge, Plans, RegionData, RegionItem, Report, Sensitivity, State, SupplyId, Turn } from './api/types'
 
 export type ToolCallMsg = { id: string; label: string; result?: string }
 export type ChatMsg =
@@ -30,8 +30,10 @@ interface Store {
   mapReady: boolean
   hoverRegion: string | null
   hoverVillage: string | null
+  hoverSupply: SupplyId | null // 결과 범례에서 손을 올린 공급수단: 지도에서 그것만 또렷하게
   showDots: boolean // 진단 지도에 못 가는 마을(빨간 X)을 그릴지 — 대중교통/자가용 중 지금 보는 판정 기준
   showFacilities: boolean // 진단 지도에 병원·의원·보건소 아이콘을 그릴지
+  gridTarget: CarTarget // 진단에서 마지막으로 고른 시설 필터: 결과 지도 바탕 격자가 같은 기준으로 칠한다
   carTarget: CarTarget // 자가용 이용에서 어디까지 가는지: 가까운 병의원 · 병원급 · 의원 · 보건기관 · 응급실(지역응급의료센터 이상)
   travel: 'transit' | 'car' // 진단 화면에서 보는 이동 수단: 대중교통(차 없는 주민, 서버 판정) · 자가용(차 있는 주민, 화면 판정)
   diagPick: string | null // 진단에서 마지막으로 본 시설 필터 · 이동 수단이 기본(모든 병의원 · 대중교통)과 다르면 그 이름. 다른 화면에서 계산에 안 쓴다고 알린다
@@ -78,7 +80,7 @@ export const useStore = create<Store>((set, get) => ({
   regions: [], state: null, defaults: null, listError: null,
   code: null, data: null, map: null, regionError: null,
   judge: idle(), plans: idle(), sens: idle(), report: idle(),
-  mapReady: false, hoverRegion: null, hoverVillage: null, showDots: true, showFacilities: true, travel: 'transit', carView: null, diagPick: null, carTarget: 'med', thinking: false, sweep: null,
+  mapReady: false, hoverRegion: null, hoverVillage: null, hoverSupply: null, showDots: true, showFacilities: true, travel: 'transit', carView: null, diagPick: null, carTarget: 'med', gridTarget: 'med', thinking: false, sweep: null,
   reached: { code: null, max: 0 },
   sources: { open: false, focus: null, at: 0 },
   chat: [], chatOpen: false, remainingToday: null,

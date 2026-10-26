@@ -40,12 +40,13 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
   useAutoFetch('fetchJudge')
 
   useEffect(() => { if (mapReady && data) fitCounty(mapRef.current, boxOf(data.villages), { duration: 1400 }) }, [mapReady, data, mapRef])
-  // 다른 화면(결과 등)은 서버 판정 기준이라 나갈 때 대중교통으로 되돌린다. 기본과 다른 것을 보고 있었으면 다른 화면에서 알리게 남겨 둔다
+  // 다른 화면(결과 등)은 서버 판정 기준이라 나갈 때 대중교통 · 모든 병의원으로 되돌린다. 기본과 다른 것을 보고 있었으면 다른 화면에서 알리게 남겨 두고,
+  // 고른 시설은 결과 지도 바탕 격자에 쓰려고 gridTarget에 남긴다
   useEffect(() => {
     set({ diagPick: null })
     return () => {
       const { travel, carTarget, carView, state } = useStore.getState()
-      set({ sweep: null, travel: 'transit', carTarget: 'med', carView: null, diagPick: viewName(travel, carTarget, carView ?? state!.criteria.carMinutes) })
+      set({ sweep: null, travel: 'transit', gridTarget: carTarget, carTarget: 'med', carView: null, diagPick: viewName(travel, carTarget, carView ?? state!.criteria.carMinutes) })
     }
   }, [set])
 
@@ -337,7 +338,7 @@ function Legend() {
       <p className="legend-title" style={{ marginTop: 10 }}>바탕색: {kindName}까지 걸리는 시간 (자가용 기준)</p>
       <i className="time-bar" style={{ background: `linear-gradient(90deg, ${MINUTE_STOPS.map(([m]) => `${rgb(m)} ${(m / 45) * 100}%`).join(', ')})` }} />
       <p className="muted time-scale"><span>10분 이하</span><span>30분(기준)</span><span>45분 이상</span></p>
-      <p className="muted">{carTarget === 'er' ? '지역응급의료센터 이상' : '가장 가까운 ' + CAR_TARGETS.find((x) => x.id === carTarget)!.short}까지 자가용 시간(서버 도로 기준)을 마을 사이로 이어 칠했어요. 마을 안에 있으면 0분이에요. 옅은 칸은 근처에 마을이 없는 곳이에요.</p>
+      <p className="muted">{carTarget === 'er' ? '지역응급의료센터 이상' : '가장 가까운 ' + CAR_TARGETS.find((x) => x.id === carTarget)!.short}까지 자가용 시간(서버 도로 기준)을 마을 사이로 이어 칠했어요. 마을 안에 있으면 0분이에요. 옅은 칸은 근처에 마을이 없거나 이 나이대 주민이 없는 곳이에요.</p>
     </div>
   )
 }
