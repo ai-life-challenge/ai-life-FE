@@ -5,7 +5,7 @@ import { useNavigate, useParams } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import type { MapRef } from 'react-map-gl/maplibre'
 import { useAutoFetch, useShownJudge } from '../hooks'
-import { AGES, STATE_CSS, SUPPLY, eok, fmt, pct } from '../api/meta'
+import { AGES, STATE_CSS, SUPPLY, eok, fmt, pct, pct1 } from '../api/meta'
 import { MINUTE_STOPS, minuteRgb } from '../api/cells'
 import type { Plan } from '../api/types'
 import { useStore } from '../store'
@@ -129,7 +129,7 @@ function PlanLegend({ plan, mapRef }: { plan: Plan | null; mapRef: React.RefObje
     <motion.div className="legend plan-legend" key={plan.k} initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }} transition={{ type: 'spring', stiffness: 260, damping: 26 }} onMouseLeave={() => set({ hoverSupply: null })}>
       <div className="pl-head">
         <p className="legend-title" style={{ margin: 0 }}>{plan.name}</p>
-        <span className="pl-rate">달성률 {pct(plan.baseRate)} → <b>{pct(plan.rate)}</b></span>
+        <span className="pl-rate">달성률 {pct1(plan.baseRate)} → <b>{pct1(plan.rate)}</b></span>
       </div>
       {rows.length > 0 && <p className="pl-sec">새로 놓이는 것 <span className="muted">· 누르면 그곳으로 가요</span></p>}
       <div className="pl-rows">
@@ -172,13 +172,13 @@ function PlanCard({ p, k, on, open, budget, target, onClick }: { p: Plan; k: num
         <p className="muted small" style={{ margin: 0 }}>{p.summary}</p>
         <div className="score-row">
           <span className="lbl">달성률</span>
-          <span className="score-val"><span className="from">{pct(p.baseRate)} → </span><Count value={p.rate * 100} delay={k * 80} format={(n) => `${(Math.round(n * 10) / 10).toFixed(1)}%`} /></span>
+          <span className="score-val"><span className="from">{pct1(p.baseRate)} → </span><Count value={p.rate * 100} delay={k * 80} format={(n) => pct1(n / 100)} /></span>
         </div>
         <div className="benefit">공백 <b><Count value={p.gapBefore} delay={k * 80} /></b>명 → <b><Count value={p.gapAfter} delay={k * 80} /></b>명</div>
         <div className="row">
           <span className="badge">연 {eok(p.year)}</span>
           <span className="badge">설치 {eok(p.install)}</span>
-          {p.future != null && <span className="badge">10년 뒤 {pct(p.future)}</span>}
+          {p.future != null && <span className="badge">10년 뒤 {pct1(p.future)}</span>}
         </div>
         <div className="row">
           <span className={`badge ${p.meetsTarget ? 'green' : 'warnb'}`}>{p.meetsTarget ? `목표 ${pct(target)} 달성` : `목표 ${pct(target)} 미달`}</span>

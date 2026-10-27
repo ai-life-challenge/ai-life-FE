@@ -49,4 +49,6 @@ export const STATE_CSS: Record<VillageState, string> = { 0: '#2fa36b', 1: '#d645
 
 export const eok = (x: number) => `${Math.round(x * 100) / 100}억`
 export const pct = (x: number) => `${Math.round(x * 1000) / 10}%`
+// 달성률처럼 소수 한 자리까지 늘 맞춰 보여 줄 비율 (0.81 → 81.0%). 숫자가 아니면 —
+export const pct1 = (x: number) => (Number.isFinite(x) ? `${(Math.round(x * 1000) / 10).toFixed(1)}%` : '—')
 export const fmt = (n: number) => Math.round(n).toLocaleString('ko-KR')
