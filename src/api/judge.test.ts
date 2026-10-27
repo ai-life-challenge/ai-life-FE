@@ -20,8 +20,12 @@ const rule = { service: 'med', age: 'a80', criteria: { carMinutes: 30, stopWalkM
 
 describe('브라우저 판정', () => {
   test('정밀 지역은 하루 운행 횟수와 읍내행 첫차를 본다', () => {
-    const d = data('precise', [village('ok'), village('few', { dailyRuns: 2 }), village('late', { firstToTownMin: 732 }), village('none', { firstToTownMin: null }), village('edge', { firstToTownMin: 720 })])
-    expect(judgeLocal(d, rule).villages.map((v) => v.state)).toEqual([0, 1, 1, 1, 0])
+    const d = data('precise', [village('ok'), village('few', { dailyRuns: 2 }), village('late', { firstToTownMin: 732 }), village('none', { firstToTownMin: null })])
+    expect(judgeLocal(d, rule).villages.map((v) => v.state)).toEqual([0, 1, 1, 1])
+  })
+  test('읍내행 첫차는 12시 전이어야 한다: 11:59 통과 · 12:00 · 12:01 탈락 (서버와 같은 < 720)', () => {
+    const d = data('precise', [village('1159', { firstToTownMin: 719 }), village('1200', { firstToTownMin: 720 }), village('1201', { firstToTownMin: 721 })])
+    expect(judgeLocal(d, rule).villages.map((v) => v.state)).toEqual([0, 1, 1])
   })
   test('자동 추정 지역은 정류장까지 걷는 거리만 본다', () => {
     const d = data('auto', [village('a', { dailyRuns: 0, firstToTownMin: null }), village('far', { stopWalkMin: 16 }), village('nostop', { noStop: true, stopWalkMin: 60 })])
