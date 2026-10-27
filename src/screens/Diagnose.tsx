@@ -356,7 +356,7 @@ function Legend() {
         {at != null && <i className="time-mark" style={{ left: `${at}%` }} aria-hidden />}
       </div>
       <p className="muted time-scale"><span>10분 이하</span><span>45분 이상</span></p>
-      <p className="muted">{carTarget === 'er' ? '지역응급의료센터 이상' : '가장 가까운 ' + CAR_TARGETS.find((x) => x.id === carTarget)!.short}까지 자가용 시간(서버 도로 기준)을 마을 사이로 이어 칠했어요. 마을 안에 있으면 0분이에요. 옅은 칸은 근처에 마을이 없거나 이 나이대 주민이 없는 곳이에요.</p>
+      <p className="muted">{carTarget === 'er' ? '지역응급의료센터 이상' : '가장 가까운 ' + CAR_TARGETS.find((x) => x.id === carTarget)!.short}까지 자가용 시간(서버 도로 기준)을 마을 사이로 이어 칠했어요. 마을 안에 있으면 0분이에요. 옅은 칸은 1.2km 안에 마을이 없거나, 칸 안에 이 나이대 주민이 사는 마을(대표점)이 없는 곳이에요.</p>
     </div>
   )
 }
