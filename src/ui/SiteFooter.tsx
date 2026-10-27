@@ -6,7 +6,7 @@ import { Logo } from './Logo'
 type Item = [label: string, path: string, hash: string]
 const COLUMNS: { id: string; title: string; items: Item[] }[] = [
   { id: 'foot-service', title: '서비스', items: [['현황 진단', '/', '#diag'], ['예산안 비교', '/', '#plan'], ['레포트 · AI 질문', '/', '#report'], ['자주 묻는 질문', '/', '#faq']] },
-  { id: 'foot-project', title: '프로젝트', items: [['2026 AI 라이프 솔루션 챌린지', '/about', '#challenge'], ['데이터 및 분석 기준', '/about', '#data'], ['라이선스 및 출처', '/about', '#licenses']] },
+  { id: 'foot-project', title: '프로젝트', items: [['2026 AI 라이프 솔루션 챌린지', '/about', '#challenge'], ['데이터 및 분석 기준', '/about', '#data'], ['데이터 활용 및 출처', '/about', '#sources']] },
 ]
 
 export function SiteFooter() {
