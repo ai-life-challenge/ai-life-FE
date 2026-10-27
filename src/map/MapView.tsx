@@ -15,10 +15,10 @@ import { setWorkerUrl } from 'maplibre-gl'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import { useStore } from '../store'
 import { useShownJudge } from '../hooks'
-import { CAR_TARGETS, STATE_CSS, STATE_NAME, STATE_RGB, SUPPLY } from '../api/meta'
+import { AGES, CAR_TARGETS, STATE_CSS, STATE_RGB, SUPPLY, fmt, stateName } from '../api/meta'
 import type { JudgedVillage, RawFacility } from '../api/types'
 import { useRafTime } from './useRafTime'
-import { erGrid, minuteRgb, type TimeCell } from '../api/cells'
+import { erGrid, km, minuteRgb, type TimeCell } from '../api/cells'
 import { KIND_RE, targetMinutes } from '../api/judge'
 import { KOREA_VIEW, boxOf, fitCounty, loadSigungu } from './geo'
 import { clusterByPixel, type Cluster } from './cluster'
@@ -34,7 +34,7 @@ const FACILITY = {
   hospital: { icon: icon('hospital'), size: 36 },
 }
 const CLUSTER_PX = 48 // 화면에서 이만큼 가까운 시설은 한 묶음으로
-// 못 가는 마을은 원 대신 X로 그린다 (흰 테두리를 둘러 바탕색 위에서도 보이게). 색은 이유별: 빨강 버스가 없어 못 감 · 보라 병원이 너무 멀어 못 감
+// 못 가는 마을은 원 대신 X로 그린다 (흰 테두리를 둘러 바탕색 위에서도 보이게). 색은 이유별: 빨강 버스가 없어 못 감 · 보라 고른 시설이 너무 멀어 못 감
 const xSvg = (color: string) => `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M14 14L50 50M50 14L14 50" stroke="#fff" stroke-width="20" stroke-linecap="round"/><path d="M14 14L50 50M50 14L14 50" stroke="${color}" stroke-width="11" stroke-linecap="round"/></svg>`
 const xIcon = (state: 1 | 2) => ({ id: `x${state}`, url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(xSvg(STATE_CSS[state]))}`, width: 64, height: 64 })
 const X_ICON = { 1: xIcon(1), 2: xIcon(2) }
@@ -149,7 +149,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
     const mins = targetMinutes(data, gridBy)
     return erGrid(data.villages.map((v, i) => ({ lon: v.lon, lat: v.lat, people: v.pop[age], minutes: mins[i] })), myeon, 60)
   }, [data, myeon, age, gridBy])
-  // 옅게 칠하는 칸: 근처 1.2km에 마을이 없거나(lived=false), 가장 가까운 마을에 고른 나이대 주민이 0명인 칸. 사람이 있는 칸만 진하게
+  // 옅게 칠하는 칸: 근처 1.2km에 마을이 없거나(lived=false), 칸 안에 대표점이 있는 마을의 고른 나이대 주민 합이 0명인 칸. 나머지만 진하게
   const faint = (c: TimeCell) => !c.lived || Math.round(c.people) === 0
   const timeLayer = (alpha = 1) => new PolygonLayer<TimeCell>({
     id: 'time', data: timeCells, pickable: screen === 'diag', getPolygon: (c: TimeCell) => c.polygon,
@@ -341,12 +341,19 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   const getTooltip = ({ object, layer }: any) => {
     if (!object) return null
     if (layer?.id.startsWith('facilities')) return { text: `${object.name}\n${object.kind}${object.doctors ? ` · 의사 ${object.doctors}명` : ''}` }
-    if (layer?.id === 'time') return { text: `${data?.villages[object.village]?.name ?? ''}\n${CAR_TARGETS.find((x) => x.id === carTarget)!.short}까지 약 ${Math.round(object.minutes)}분 · ${!object.lived ? '사람이 안 사는 곳' : Math.round(object.people) === 0 ? '이 나이대 주민 0명' : `${Math.round(object.people)}명`} (마을 값을 이어 칠함)` }
+    if (layer?.id === 'time') {
+      // 칸 단위 인구는 없다. 칸 가운데서 실제 거리로 가장 가까운 마을(object.village, erGrid가 계산)과 그 마을의 고른 나이대 인구를 보여 준다
+      const v = data?.villages[object.village]
+      const [[lon0, lat0], , [lon1, lat1]] = object.polygon
+      const d = v && km((lon0 + lon1) / 2, (lat0 + lat1) / 2, v.lon, v.lat)
+      const near = v ? `가까운 마을: ${v.name} (${d! < 1 ? '1km 안' : `${d!.toFixed(1)}km`}) · ${AGES.find((a) => a.id === age)!.name} ${fmt(v.pop[age])}명\n` : ''
+      return { text: `${near}${CAR_TARGETS.find((x) => x.id === gridBy)!.short}까지 약 ${Math.round(object.minutes)}분 (마을 값을 이어 칠함)` }
+    }
     if (layer?.id === 'clusters') return { text: `${object.items.length}곳 · 누르면 펼쳐져요\n${clusterText(object)}` }
     if (layer?.id === 'plan-marks') return { text: object.label }
     if (layer?.id.startsWith('villages')) {
       const c = screen === 'result' ? cover?.get(object.id) : undefined
-      return { text: `${object.name}\n${Math.round(object.people)}명 · ${STATE_NAME[object.state as 0]}${c != null && object.state !== 0 ? `\n이 안으로 ${Math.round(c * 100)}% 닿음` : ''}` }
+      return { text: `${object.name}\n${Math.round(object.people)}명 · ${stateName(object.state, carTarget)}${c != null && object.state !== 0 ? `\n이 안으로 ${Math.round(c * 100)}% 닿음` : ''}` }
     }
     return null
   }

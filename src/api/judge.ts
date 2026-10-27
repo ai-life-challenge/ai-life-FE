@@ -3,7 +3,8 @@
 // 규칙은 문서에 없어서 서버 결과에 맞춰 알아낸 것이다(5개 시군구 · 여러 기준 조합에서 마을 판정과 합계가 모두 일치).
 import type { JudgedVillage, Judge, JudgeSummary, KindFilter, RegionData, State, VillageState } from './types'
 
-// 읍내행 첫차는 낮 12시(720분) 전이어야 한다. 서버 결과에서 688분은 통과, 732분은 탈락이라 그 사이를 12시로 잡았다
+// 읍내행 첫차는 낮 12시(자정부터 720분) 전이어야 한다. 서버 결과에서 688분은 통과, 732분은 탈락이라 그 사이를 12시로 잡았다.
+// 정확히 12:00(720분)은 '전'이 아니라 탈락이다(서버도 < 720)
 export const FIRST_BUS_LIMIT = 720
 
 type Rule = Pick<State, 'service' | 'age' | 'criteria'>
@@ -18,7 +19,7 @@ export function judgeLocal(data: RegionData, rule: Rule, target: CarTarget = 'me
     const b = v.bus
     let busOk = !b.noStop && b.stopWalkMin <= stopWalkMinutes
     // 정밀 지역은 하루 운행 횟수와 읍내행 첫차도 본다. 나머지(자동 추정)는 정류장까지 걷는 거리만 본다
-    if (data.tier === 'precise') busOk &&= b.dailyRuns >= dailyRuns && b.firstToTownMin != null && b.firstToTownMin <= FIRST_BUS_LIMIT
+    if (data.tier === 'precise') busOk &&= b.dailyRuns >= dailyRuns && b.firstToTownMin != null && b.firstToTownMin < FIRST_BUS_LIMIT
     let state: VillageState
     if (rule.service === 'bus') state = busOk ? 0 : 1
     else if (withFacility.has(v.id)) state = 0 // 마을 안에 병의원(필터면 그 종류 시설)이 있으면 갈 수 있음으로 본다
