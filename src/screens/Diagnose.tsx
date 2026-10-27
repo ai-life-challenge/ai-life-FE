@@ -394,6 +394,7 @@ function VillageCard() {
 }
 
 const targetOf = (t: CarTarget) => CAR_TARGETS.find((x) => x.id === t)!.short
+// 분은 다른 화면처럼 정수로 반올림해 보여 준다(판정은 원래 값으로 한다)
 // shown: 지도에 칠한 판정(필터 · 이동 수단 반영). 서버 카드(v.med.state)는 '전체 병의원 · 대중교통' 기준이라 필터나 자가용 탭이면 지도와 달라서 지도 판정을 따른다
 // inTown: 첫차 0분은 시각이 아니라 '읍내 마을'(읍내 기준 리에서 자가용 6분 안)이라는 서버 표시다
 function Detail({ v, service, target, er, shown, filter, byKind, firstEstimated, inTown }: { v: VillageDetail; firstEstimated: boolean; inTown: boolean; // 첫차가 TS-BIS로 어림한 값이면 (추정)
@@ -410,16 +411,16 @@ function Detail({ v, service, target, er, shown, filter, byKind, firstEstimated,
       {reasons.length > 0 && <p className="small">{reasons.join(' · ')}</p>}
       <p className="small muted" style={{ margin: '6px 0 0' }}>사는 사람 {fmt(v.pop.all)}명 (65세 이상 {fmt(v.pop.a65)}명 · 80세 이상 {fmt(v.pop.a80)}명)</p>
       <p className="small" style={{ margin: '6px 0 0' }}>
-        {v.bus.noStop ? '2km 안에 정류장이 없어요' : <>정류장까지 걸어서 <b className="num">{v.bus.stopWalkMin}분</b></>}
+        {v.bus.noStop ? '2km 안에 정류장이 없어요' : <>정류장까지 걸어서 <b className="num">{Math.round(v.bus.stopWalkMin)}분</b></>}
         {v.tier === 'precise' && <> · 하루 <b className="num">{v.bus.dailyRuns}번</b>{inTown ? ' · 읍내 마을' : v.bus.dailyRuns === 0 ? '' : v.bus.firstToTown ? <> · 읍내행 첫차 {v.bus.firstToTown}{firstEstimated && <span className="muted" title="정류장 시간표가 없어 운행 자료로 어림한 시각이에요"> (추정)</span>}</> : ' · 읍내행 버스 없음'}</>}
       </p>
       {byKind ? (
         <p className="small" style={{ margin: '6px 0 0' }}>
-          가까운 {byKind.name} {byKind.hit ? <><b>{byKind.hit.name}</b>({byKind.hit.kind}) 자가용 {byKind.hit.minutes}분{byKind.hit.outside ? ' · 군 밖' : ''}</> : '없어요 (길이 없어요)'}
+          가까운 {byKind.name} {byKind.hit ? <><b>{byKind.hit.name}</b>({byKind.hit.kind}) 자가용 {Math.round(byKind.hit.minutes)}분{byKind.hit.outside ? ' · 군 밖' : ''}</> : '없어요 (길이 없어요)'}
         </p>
       ) : v.med.nearest && (
         <p className="small" style={{ margin: '6px 0 0' }}>
-          가까운 병의원 <b>{v.med.nearest.name}</b>({v.med.nearest.kind}) 자가용 {v.med.nearest.minutes}분{v.med.nearest.inVillage ? ' · 마을 안' : v.med.nearest.outside ? ' · 군 밖' : ''}
+          가까운 병의원 <b>{v.med.nearest.name}</b>({v.med.nearest.kind}) 자가용 {Math.round(v.med.nearest.minutes)}분{v.med.nearest.inVillage ? ' · 마을 안' : v.med.nearest.outside ? ' · 군 밖' : ''}
         </p>
       )}
       {ers.length > 0 && (
