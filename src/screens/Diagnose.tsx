@@ -204,7 +204,7 @@ function Gauge({ label, value, delay, worst }: { label: string; value: number; d
 }
 
 type Status = 'good' | 'near' | 'poor'
-interface Row { id: string; label: string; value: string; sub: string; bar: number; std: number; stdLabel: string; status: Status; calc: React.ReactNode; src: React.ReactNode }
+interface Row { id: string; label: string; note?: string; value: string; sub: string; bar: number; std: number; stdLabel: string; status: Status; calc: React.ReactNode; src: React.ReactNode }
 const n2 = (x: number) => x.toFixed(2)
 const worse = (x: number, limit: number, near = 0.85): Status => (x >= limit ? 'poor' : x >= limit * near ? 'near' : 'good')
 const pub = <SrcBadge kind="public" id="indicators" note="서버 지표" />
@@ -222,9 +222,11 @@ function Indicators({ v, ind }: { v: Vuln; ind: Ind }) {
       calc: <>72개 군 평균 {STD.avgD}명을 50점, 0명을 100점으로: 1 − {n2(v.doctors)} ÷ {n2(2 * STD.avgD)} = {n2(v.parts.d)} → {Math.round(v.parts.d * 100)}점. 도시가 섞인 전국 평균 대신 비슷한 군끼리 비교해요.</> },
   ]
   const walkEx = ind.walkMinExcluded > 0 ? ind.walkMinExcluded : 0 // 2km 안에 정류장이 없어 서버가 평균에서 뺀 마을 수
+  // 최소서비스는 위 슬라이더가 아니라 서버의 고정 기준(정류장 도보 · 하루 운행)으로 센다. 간이 판정 지역은 운행 자료가 없어 도보만 쓴다
+  const msRule = [Number.isFinite(ind.stopShareMinutes) && `정류장 도보 ${ind.stopShareMinutes}분 이내`, v.tp != null && Number.isFinite(ind.runsShareMin) && `하루 ${ind.runsShareMin}회 이상`].filter(Boolean).join(' · ')
   const tra: Row[] = [
-    { id: 'ms', label: '대중교통 최소서비스', value: pct(v.ms), sub: v.ms >= STD.msTarget ? '확보' : v.ms >= 0.6 ? '취약 (80% 미달)' : '사각 (60% 미만)', bar: v.ms, std: STD.msTarget, stdLabel: `확보 ${pct(STD.msTarget)}`, status: v.ms >= STD.msTarget ? 'good' : v.ms >= 0.6 ? 'near' : 'poor', src: pub,
-      calc: <>{v.tp == null ? <>MS = 공간 {pct(v.sp)}. 이 지역은 간이 판정이라 하루 운행 횟수(시간) 자료가 없어 정류장까지 걸어서 닿는 주민 비율만 써요.</> : <>MS = (공간 {pct(v.sp)} + 시간 {pct(v.tp)}) / 2 = {pct(v.ms)}. 공간은 정류장까지 걸어서 닿는 주민, 시간은 하루 운행 기준을 채우는 주민 비율이에요.</>} 미확보 {pct(1 - v.ms)}를 기준(미확보 {pct(1 - STD.msTarget)}) = 50점, 100%를 100점으로 → {Math.round(v.parts.ms * 100)}점</> },
+    { id: 'ms', label: '대중교통 최소서비스', note: msRule ? `${msRule} 기준` : undefined, value: pct(v.ms), sub: v.ms >= STD.msTarget ? '확보' : v.ms >= 0.6 ? '취약 (80% 미달)' : '사각 (60% 미만)', bar: v.ms, std: STD.msTarget, stdLabel: `확보 ${pct(STD.msTarget)}`, status: v.ms >= STD.msTarget ? 'good' : v.ms >= 0.6 ? 'near' : 'poor', src: pub,
+      calc: <>{v.tp == null ? <>MS = 공간 {pct(v.sp)}. 이 지역은 간이 판정이라 하루 운행 횟수(시간) 자료가 없어 정류장까지 걸어서 {ind.stopShareMinutes}분 안에 닿는 주민 비율만 써요.</> : <>MS = (공간 {pct(v.sp)} + 시간 {pct(v.tp)}) / 2 = {pct(v.ms)}. 공간은 정류장까지 걸어서 {ind.stopShareMinutes}분 안에 닿는 주민, 시간은 버스가 하루 {ind.runsShareMin}회 이상 다니는 주민 비율이에요.</>} 이 지표는 위 슬라이더와 별도 기준으로 계산돼요. 미확보 {pct(1 - v.ms)}를 기준(미확보 {pct(1 - STD.msTarget)}) = 50점, 100%를 100점으로 → {Math.round(v.parts.ms * 100)}점</> },
     { id: 'walk', label: '정류장까지 걷는 시간', value: `${v.walk.toFixed(1)}분`, sub: walkEx ? `주민 평균 · 정류장 없는 마을 ${walkEx}곳 제외` : '주민 평균', bar: Math.min(1, v.walk / (2 * STD.walkStd)), std: 0.5, stdLabel: `참고 ${STD.walkStd}분`, status: worse(v.walk, STD.walkStd, 0.7), src: pub,
       calc: <>참고 기준 {STD.walkStd}분을 50점으로: {v.walk.toFixed(1)} ÷ {2 * STD.walkStd} = {n2(v.parts.walk)} → {Math.round(v.parts.walk * 100)}점.{walkEx > 0 && <> 2km 안에 정류장이 없는 마을 {walkEx}곳은 걷는 시간을 잴 수 없어 평균에서 빠졌어요(서버 지표).</>} 원래 지표는 '병원까지 대중교통 시간'인데 노선 자료가 없어 정류장까지 걷는 시간으로 대신했어요.</> },
   ]
@@ -258,7 +260,7 @@ function IndGroup({ title, rows, open, toggle }: { title: string; rows: Row[]; o
       {rows.map((row, k) => (
         <div className="ind" key={row.id}>
           <button className="ind-head" onClick={() => toggle(row.id)} aria-expanded={open === row.id}>
-            <span>{row.label} <Chevron open={open === row.id} /></span>
+            <span>{row.label} <Chevron open={open === row.id} />{row.note && <small className="ind-note">{row.note}</small>}</span>
             <span className="track">
               <motion.span className={`fill ${row.status}`} initial={{ width: 0 }} animate={{ width: `${row.bar * 100}%` }} transition={{ duration: 0.8, delay: 0.2 + k * 0.08, ease: 'easeOut' }} />
               <span className="std-line" style={{ left: `${row.std * 100}%` }}><span>{row.stdLabel}</span></span>
