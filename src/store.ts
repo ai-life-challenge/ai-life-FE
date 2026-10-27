@@ -1,7 +1,7 @@
 import { create } from 'zustand'
 import { api, ApiError, regionData, regionMap } from './api/client'
 import type { CarTarget } from './api/judge'
-import type { Judge, Plans, RegionData, RegionItem, Report, Sensitivity, State, SupplyId, Turn } from './api/types'
+import type { Judge, Plans, RegionData, RegionItem, Report, SectionKey, Sensitivity, State, SupplyId, Turn } from './api/types'
 
 export type ToolCallMsg = { id: string; label: string; result?: string }
 export type ChatMsg =
@@ -53,6 +53,7 @@ interface Store {
   fetchPlans: () => Promise<void>
   fetchSens: () => Promise<void>
   fetchReport: () => Promise<void>
+  saveSections: (code: string, changes: Partial<Record<SectionKey, string | null>>) => Promise<void>
   openSources: (focus?: string) => void
 }
 
@@ -104,7 +105,30 @@ export const useStore = create<Store>((set, get) => ({
   fetchJudge: () => { const { code, state } = get(); return code && state ? run('judge', judgeKey(code, state), (sg) => api.judge({ region: code, state }, sg), set, get) : Promise.resolve() },
   fetchPlans: () => { const { code, state } = get(); return code && state ? run('plans', calcKey(code, state), (sg) => api.plans({ region: code, state }, sg), set, get) : Promise.resolve() },
   fetchSens: () => { const { code, state } = get(); return code && state ? run('sens', calcKey(code, state), (sg) => api.sensitivity({ region: code, state }, sg), set, get) : Promise.resolve() },
-  fetchReport: () => { const { code, state } = get(); return code && state ? run('report', reportKey(code, state), (sg) => api.report({ region: code, state }, sg), set, get) : Promise.resolve() },
+  fetchReport: () => {
+    const { code, state, report } = get()
+    if (!code || !state) return Promise.resolve()
+    const key = reportKey(code, state)
+    if (report.status === 'ok' && report.key === key) return Promise.resolve() // 문단 저장이 방금 같은 조건의 레포트를 받아 왔다
+    return run('report', key, (sg) => api.report({ region: code, state }, sg), set, get)
+  },
+  // 고친 문단 저장: 고친 글을 넣은 state로 레포트를 다시 받아, 서버가 받아 준 뒤에만 state에 넣는다(실패하면 state와 레포트는 그대로).
+  // 실패하면 오류를 던지고, 부른 쪽(자동 저장)이 고친 글을 들고 다시 보낸다
+  saveSections: async (code, changes) => {
+    const withChanges = (st: State): State => ({ ...st, report: { ...st.report, sections: { ...st.report.sections, ...changes } } })
+    const before = get().state
+    if (get().code !== code || !before) throw new ApiError(0, 'stale', '지역이 바뀌어 저장하지 않았어요.')
+    const sent = withChanges(before)
+    const data = await api.report({ region: code, state: sent })
+    const now = get()
+    if (now.code !== code || !now.state) return
+    const next = withChanges(now.state)
+    const key = reportKey(code, next)
+    if (key === reportKey(code, sent)) {
+      inflight.report?.abort() // 앞서 보낸(고치기 전 글의) 레포트 요청이 이 결과를 덮지 않게
+      set({ state: next, report: { status: 'ok', data, error: null, key: key ?? undefined } })
+    } else set({ state: next }) // 저장하는 동안 기준 안 등이 바뀌었다: 글만 넣고, 레포트는 새 조건으로 다시 받는다
+  },
   openSources: (focus) => set({ sources: { open: true, focus: focus ?? null, at: Date.now() } }),
 }))
 
