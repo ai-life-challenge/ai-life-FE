@@ -490,6 +490,9 @@ button.badge:hover { background: var(--gray-2); }
 .sw-x { display: inline-block; width: 12px; margin-right: 6px; color: #d6455d; font-style: normal; font-weight: 900; font-size: 13px; line-height: 1; text-align: center; }
 .time-bar { display: block; height: 8px; border-radius: 4px; margin: 4px 0 2px; opacity: .75; }
 .time-scale { display: flex; justify-content: space-between; }
+.time-bar-wrap { position: relative; padding-top: 16px; }
+.time-std { position: absolute; top: 0; transform: translateX(-50%); white-space: nowrap; font-weight: 600; }
+.time-mark { position: absolute; top: 15px; height: 16px; margin-left: -1px; border-left: 2px dashed var(--ink); }
 .map-toggle { display: flex; align-items: center; justify-content: space-between; gap: 10px; width: 100%; margin-top: 6px; padding: 7px 10px; border: 1px solid var(--gray-2); border-radius: 10px; background: #fff; font-size: 13px; color: var(--muted); cursor: pointer; transition: background .15s, border-color .15s, color .15s; }
 .map-toggle:hover { background: var(--gray); }
 .map-toggle.on { border-color: var(--ink); color: var(--ink); font-weight: 600; }

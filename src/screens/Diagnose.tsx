@@ -315,7 +315,7 @@ function Slider({ label, unit, min, max, step, value, onChange, disabled, note }
 }
 
 function Legend() {
-  const { showDots, showFacilities, travel, carTarget, data, state, set } = useStore()
+  const { showDots, showFacilities, travel, carTarget, carView, data, state, set } = useStore()
   const villages = useShownJudge()?.villages ?? []
   const kindName = CAR_TARGETS.find((x) => x.id === carTarget)!.short
   const facCount = !data ? null : carTarget === 'med' ? null : carTarget === 'er' ? 0 : data.facilities.filter((f) => KIND_RE[carTarget].test(f.kind)).length
@@ -323,6 +323,10 @@ function Legend() {
   const noBus = villages.filter((v) => v.state === 1).length
   const split = travel === 'transit' && carTarget !== 'er' // 대중교통 탭은 ✕ 색으로 이유를 나눈다. 자가용 · 응급은 모두 '너무 멀어 못 감'(보라)
   const rgb = (m: number) => `rgb(${minuteRgb(m).join(',')})`
+  // 바탕색 눈금은 모든 군에 같은 고정 눈금(MINUTE_STOPS, 끝 45분)이다. 점선은 지금 판정에 쓰는 기준 시간 자리(진단 화면 T와 같다)
+  const T = travel === 'car' ? carView ?? state?.criteria.carMinutes : state?.criteria.carMinutes
+  const scaleMax = MINUTE_STOPS[MINUTE_STOPS.length - 1][0]
+  const at = T == null ? null : Math.min(100, (T / scaleMax) * 100) // 45분을 넘는 기준은 '45분 이상' 끝에 둔다
   const toggle = (on: boolean, label: React.ReactNode, n: number | null, onClick: () => void) => (
     <button type="button" role="switch" aria-checked={on} className={`map-toggle ${on ? 'on' : ''}`} onClick={onClick}>
       <span className="map-toggle-label">{label}{n != null && <span className="map-toggle-n">{n}곳</span>}</span><span className="switch" aria-hidden><i /></span>
@@ -345,8 +349,13 @@ function Legend() {
       <p><i className="sw-num" aria-hidden>3</i>가까운 시설 묶음 · 누르면 펼쳐져요</p>
       <p className="muted">표시가 클수록 사는 사람이 많아요</p>
       <p className="legend-title" style={{ marginTop: 10 }}>바탕색: {kindName}까지 걸리는 시간 (자가용 기준)</p>
-      <i className="time-bar" style={{ background: `linear-gradient(90deg, ${MINUTE_STOPS.map(([m]) => `${rgb(m)} ${(m / 45) * 100}%`).join(', ')})` }} />
-      <p className="muted time-scale"><span>10분 이하</span><span>30분(기준)</span><span>45분 이상</span></p>
+      <div className="time-bar-wrap">
+        {/* 기준 글자는 범례 밖으로 나가지 않게 양 끝에서 조금 안쪽까지만 따라간다(점선은 정확한 자리) */}
+        {at != null && <span className="time-std" style={{ left: `${Math.min(89, Math.max(11, at))}%` }}>{T}분(기준)</span>}
+        <i className="time-bar" style={{ background: `linear-gradient(90deg, ${MINUTE_STOPS.map(([m]) => `${rgb(m)} ${(m / scaleMax) * 100}%`).join(', ')})` }} />
+        {at != null && <i className="time-mark" style={{ left: `${at}%` }} aria-hidden />}
+      </div>
+      <p className="muted time-scale"><span>10분 이하</span><span>45분 이상</span></p>
       <p className="muted">{carTarget === 'er' ? '지역응급의료센터 이상' : '가장 가까운 ' + CAR_TARGETS.find((x) => x.id === carTarget)!.short}까지 자가용 시간(서버 도로 기준)을 마을 사이로 이어 칠했어요. 마을 안에 있으면 0분이에요. 옅은 칸은 근처에 마을이 없거나 이 나이대 주민이 없는 곳이에요.</p>
     </div>
   )
