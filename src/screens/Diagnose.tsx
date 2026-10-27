@@ -6,7 +6,7 @@ import { useNavigate, useParams } from 'react-router'
 import { AnimatePresence, animate, motion, useReducedMotion } from 'motion/react'
 import type { MapRef } from 'react-map-gl/maplibre'
 import { api } from '../api/client'
-import type { NearestEr, NearestMed, VillageDetail, VillageState } from '../api/types'
+import type { Indicators as Ind, NearestEr, NearestMed, VillageDetail, VillageState } from '../api/types'
 import { AGES, CAR_TARGETS, STATE_CSS, fmt, josa, pct, stateName, viewName } from '../api/meta'
 import { useAutoFetch, useJudgeCompare, useShownJudge } from '../hooks'
 import { calcKey, errText, useStore } from '../store'
@@ -168,7 +168,7 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
         </ul>
       </section>
 
-      <Indicators v={vuln} />
+      <Indicators v={vuln} ind={data!.indicators} />
 
       <div className="next-row">
         <button className="ghost" onClick={() => nav('/start')}>← 지역 다시 고르기</button>
@@ -209,8 +209,8 @@ const n2 = (x: number) => x.toFixed(2)
 const worse = (x: number, limit: number, near = 0.85): Status => (x >= limit ? 'poor' : x >= limit * near ? 'near' : 'good')
 const pub = <SrcBadge kind="public" id="indicators" note="서버 지표" />
 
-// 지표별 기준선 막대와 계산식, 맨 아래 점수 계산 방법
-function Indicators({ v }: { v: Vuln }) {
+// 지표별 기준선 막대와 계산식, 맨 아래 점수 계산 방법. ind는 서버 지표 원값(평균에서 뺀 마을 수 등)
+function Indicators({ v, ind }: { v: Vuln; ind: Ind }) {
   const [open, setOpen] = useState<string | null>(null)
   const [formula, setFormula] = useState(false)
   const med: Row[] = [
@@ -221,11 +221,12 @@ function Indicators({ v }: { v: Vuln }) {
     { id: 'd', label: '인구 1천명당 의사 수', value: `${n2(v.doctors)}명`, sub: `72개 군 평균의 ${pct(v.doctors / STD.avgD)}`, bar: Math.min(1, v.doctors / (2 * STD.avgD)), std: 0.5, stdLabel: `군 평균 ${STD.avgD}명`, status: v.doctors >= STD.avgD ? 'good' : v.doctors >= STD.avgD * 0.85 ? 'near' : 'poor', src: pub,
       calc: <>72개 군 평균 {STD.avgD}명을 50점, 0명을 100점으로: 1 − {n2(v.doctors)} ÷ {n2(2 * STD.avgD)} = {n2(v.parts.d)} → {Math.round(v.parts.d * 100)}점. 도시가 섞인 전국 평균 대신 비슷한 군끼리 비교해요.</> },
   ]
+  const walkEx = ind.walkMinExcluded > 0 ? ind.walkMinExcluded : 0 // 2km 안에 정류장이 없어 서버가 평균에서 뺀 마을 수
   const tra: Row[] = [
     { id: 'ms', label: '대중교통 최소서비스', value: pct(v.ms), sub: v.ms >= STD.msTarget ? '확보' : v.ms >= 0.6 ? '취약 (80% 미달)' : '사각 (60% 미만)', bar: v.ms, std: STD.msTarget, stdLabel: `확보 ${pct(STD.msTarget)}`, status: v.ms >= STD.msTarget ? 'good' : v.ms >= 0.6 ? 'near' : 'poor', src: pub,
       calc: <>{v.tp == null ? <>MS = 공간 {pct(v.sp)}. 이 지역은 간이 판정이라 하루 운행 횟수(시간) 자료가 없어 정류장까지 걸어서 닿는 주민 비율만 써요.</> : <>MS = (공간 {pct(v.sp)} + 시간 {pct(v.tp)}) / 2 = {pct(v.ms)}. 공간은 정류장까지 걸어서 닿는 주민, 시간은 하루 운행 기준을 채우는 주민 비율이에요.</>} 미확보 {pct(1 - v.ms)}를 기준(미확보 {pct(1 - STD.msTarget)}) = 50점, 100%를 100점으로 → {Math.round(v.parts.ms * 100)}점</> },
-    { id: 'walk', label: '정류장까지 걷는 시간', value: `${v.walk.toFixed(1)}분`, sub: '주민 평균', bar: Math.min(1, v.walk / (2 * STD.walkStd)), std: 0.5, stdLabel: `참고 ${STD.walkStd}분`, status: worse(v.walk, STD.walkStd, 0.7), src: pub,
-      calc: <>참고 기준 {STD.walkStd}분을 50점으로: {v.walk.toFixed(1)} ÷ {2 * STD.walkStd} = {n2(v.parts.walk)} → {Math.round(v.parts.walk * 100)}점. 원래 지표는 '병원까지 대중교통 시간'인데 노선 자료가 없어 정류장까지 걷는 시간으로 대신했어요.</> },
+    { id: 'walk', label: '정류장까지 걷는 시간', value: `${v.walk.toFixed(1)}분`, sub: walkEx ? `주민 평균 · 정류장 없는 마을 ${walkEx}곳 제외` : '주민 평균', bar: Math.min(1, v.walk / (2 * STD.walkStd)), std: 0.5, stdLabel: `참고 ${STD.walkStd}분`, status: worse(v.walk, STD.walkStd, 0.7), src: pub,
+      calc: <>참고 기준 {STD.walkStd}분을 50점으로: {v.walk.toFixed(1)} ÷ {2 * STD.walkStd} = {n2(v.parts.walk)} → {Math.round(v.parts.walk * 100)}점.{walkEx > 0 && <> 2km 안에 정류장이 없는 마을 {walkEx}곳은 걷는 시간을 잴 수 없어 평균에서 빠졌어요(서버 지표).</>} 원래 지표는 '병원까지 대중교통 시간'인데 노선 자료가 없어 정류장까지 걷는 시간으로 대신했어요.</> },
   ]
   const toggle = (id: string) => setOpen(open === id ? null : id)
   return (
