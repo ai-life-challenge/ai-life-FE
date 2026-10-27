@@ -3,7 +3,7 @@ import { useStore } from '../store'
 
 // 정밀 지역은 버스 하루 운행 횟수·읍내행 첫차까지 보고, 나머지는 정류장까지 걷는 거리만 본다
 export const LevelBadge = ({ tier }: { tier: Tier }) =>
-  tier === 'precise' ? <span className="badge precise" title="버스 운행 횟수와 첫차까지 반영">정밀</span> : <span className="badge estimated" title="정류장까지 걷는 거리만 반영">간이 판정</span>
+  tier === 'precise' ? <span className="badge precise" title="버스 운행 횟수와 첫차까지 반영">정밀 판정</span> : <span className="badge estimated" title="정류장까지 걷는 거리만 반영">간이 판정</span>
 
 // AI가 만든 요소(에이전트 답, 레포트 초안)는 모두 같은 배지를 쓴다
 export const AiBadge = ({ children = 'AI' }: { children?: React.ReactNode }) => <span className="badge ai"><span>✦ {children}</span></span>

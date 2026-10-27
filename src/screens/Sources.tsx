@@ -51,7 +51,7 @@ export function Sources() {
                 {data ? data.sources.map((s) => <tr key={s}><td>{s}</td></tr>) : <tr><td className="muted">지역을 고르면 그 지역의 출처가 보여요</td></tr>}
               </tbody>
             </table>
-            {data && <p className="muted small">{data.tier === 'precise' ? '정밀 지역: 버스 하루 운행 횟수와 읍내행 첫차까지 반영해요.' : '간이 판정 지역: 버스 운행 정보가 없어 정류장까지 걷는 거리만 반영해요.'}</p>}
+            {data && <p className="muted small">{data.tier === 'precise' ? '정밀 판정 지역: 버스 하루 운행 횟수와 읍내행 첫차까지 반영해요.' : '간이 판정 지역: 버스 운행 정보가 없어 정류장까지 걷는 거리만 반영해요.'}</p>}
 
             <h3><span className="badge assume">가정값</span> 공급수단 단가 {edited && defaults && <button className="link small" onClick={() => patch((s) => ({ ...s, assumptions: defaults.assumptions }))}>기본값으로</button>}</h3>
             {a ? (

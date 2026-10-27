@@ -33,7 +33,7 @@ export function RegionCard({ r, compact, on, dim, onClick, onHover }: { r: Regio
     <>
       <div className="row">
         <h2>{r.name}</h2>
-        {s?.vulnerable && <span className="badge red" title={`응급실 30분 밖 또는 권역센터 60분 밖 주민이 ${pct(STD.theta)} 이상이에요`}>응급취약</span>}
+        {s?.vulnerable && <span className="badge red" title={`응급실 30분 밖 또는 권역센터 60분 밖 주민이 ${pct(STD.theta)} 이상이에요`}>응급의료 취약지</span>}
         <span className="muted small">{r.sido}</span>
         <span className="spacer" />
         <LevelBadge tier={r.tier} />

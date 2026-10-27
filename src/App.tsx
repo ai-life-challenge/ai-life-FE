@@ -73,7 +73,7 @@ function Shell() {
         <header className="topbar no-print">
           <button className="logo" onClick={() => nav('/')}><Logo /></button>
           <span className="spacer" />
-          <span className="disclaimer">시제품 · {tiers ? `정밀 ${tiers.precise}곳, 나머지는 간이 판정` : '정밀 · 간이 판정'}</span>
+          <span className="disclaimer">시제품 · {tiers ? `정밀 판정 ${tiers.precise}곳, 나머지는 간이 판정` : '정밀 판정 · 간이 판정'}</span>
           <Progress code={code} at={stepOf(loc.pathname)} />
           <button className="ghost" style={{ padding: '9px 12px', fontSize: 14 }} onClick={() => openSources()}>가정과 출처</button>
         </header>
