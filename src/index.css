@@ -851,6 +851,22 @@ button.badge:hover { background: var(--gray-2); }
 .fx-scale-labels { margin: 0 0 8px; font-size: 13px; }
 .about-sec h4 { font-size: 14px; font-weight: 500; color: var(--muted); margin: 24px 0 10px; }
 .about-sec h3 + h4 { margin-top: 0; }
+/* 데이터 및 분석 기준: 단계 행 · 비교 표 · 계산 예시. 카드 없이 선과 여백으로만 나눈다 */
+.about-stages { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
+.about-stages li { display: grid; grid-template-columns: 32px 120px minmax(0, 1fr); gap: 4px 12px; padding: 14px 0; border-bottom: 1px solid var(--line); line-height: 1.65; align-items: baseline; }
+.about-stages .num { font-size: 13px; color: var(--accent); font-weight: 600; }
+.about-stages b { font-weight: 500; }
+.about-stages span:last-child { color: var(--muted); font-size: 15px; }
+.kv dd .sub, .data-table .sub { display: block; margin-top: 4px; color: var(--muted); font-size: 14px; line-height: 1.65; }
+.data-table { width: 100%; border-collapse: collapse; margin: 16px 0 0; font-size: 15px; line-height: 1.6; word-break: keep-all; }
+.data-table thead th { text-align: left; font-weight: 500; font-size: 13px; color: var(--muted); padding: 0 12px 10px 0; border-bottom: 1px solid var(--line); }
+.data-table tbody th, .data-table td { text-align: left; vertical-align: baseline; padding: 12px 12px 12px 0; border-bottom: 1px solid var(--line); }
+.data-table tbody th { font-weight: 500; width: 24%; }
+.data-table td:last-child { padding-right: 0; }
+.about-example { margin: 0 0 18px; padding: 16px 20px; border: 1px solid var(--line); border-radius: var(--r-card); font-size: 15px; line-height: 1.7; }
+.about-example .ex-head { margin: 0 0 8px; display: flex; flex-wrap: wrap; gap: 4px 10px; align-items: baseline; }
+.about-example .ex-head .muted { font-size: 13px; }
+.about-example ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
 /* 데이터 활용 현황 표: 데이터 이름 · 출처(기관은 옅게, 그 아래 원본 데이터) · 쓰는 곳. 묶음 이름 줄로 나누고, 좁으면 행마다 세로로 쌓는다 */
 .use-table { width: 100%; border-collapse: collapse; font-size: 14px; line-height: 1.6; word-break: keep-all; }
 .use-table thead th { text-align: left; font-weight: 500; font-size: 13px; color: var(--muted); padding: 0 16px 10px 0; border-bottom: 1px solid var(--line); }
@@ -880,6 +896,10 @@ button.badge:hover { background: var(--gray-2); }
   .credit-table, .credit-table tbody, .credit-table tr, .credit-table th, .credit-table td { display: block; width: auto; }
   .credit-table tr { padding: 12px 0; border-bottom: 1px solid var(--line); }
   .credit-table tbody th, .credit-table td { border: 0; padding: 2px 0; white-space: normal; }
+  .about-stages li { grid-template-columns: 28px minmax(0, 1fr); }
+  .about-stages span:last-child { grid-column: 2; }
+  .data-table { font-size: 14px; }
+  .data-table tbody th { width: 30%; }
   .use-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
   .use-table, .use-table tbody, .use-table tr, .use-table th, .use-table td { display: block; width: auto !important; }
   .use-table tr:not(.grp) { padding: 14px 0; border-bottom: 1px solid var(--line); }

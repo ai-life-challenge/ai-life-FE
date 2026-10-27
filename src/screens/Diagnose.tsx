@@ -86,7 +86,7 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
         <Gauge label="의료 취약도" value={vuln.mvi} delay={0} worst={worstOf([['응급실 30분 밖 주민', vuln.parts.e30 ?? 0], ['권역센터 60분 밖 주민', vuln.parts.e60 ?? 0], ['의사 수', vuln.parts.d]])} />
         <Gauge label="교통 취약도" value={vuln.tvi} delay={150} worst={worstOf([['대중교통 최소서비스', vuln.parts.ms], ['정류장까지 걷는 시간', vuln.parts.walk]])} />
       </div>
-      <p className="muted small" style={{ marginTop: -6 }}>0점이 가장 좋고 100점이 가장 취약해요 · 50점 = 정부 기준선 · ⚖️ 균형 가중치 기준</p>
+      <p className="muted small" style={{ marginTop: -6 }}>0점이 가장 좋고 100점이 가장 취약해요 · 50점 = 지표별 기준선 · ⚖️ 균형 가중치 기준</p>
 
       <section className="map-card">
         <h3>🗺 병원까지 가는 길 <span className="muted small">시간은 서버 도로 기준</span></h3>
@@ -241,7 +241,7 @@ function Indicators({ v, ind }: { v: Vuln; ind: Ind }) {
         <AnimatePresence>
           {formula && (
             <motion.div className="formula-body" initial={{ height: 0, opacity: 0 }} animate={{ height: 'auto', opacity: 1 }} exit={{ height: 0, opacity: 0 }}>
-              <p>지표마다 정부 기준선(의사 수는 72개 군 평균)을 <b>50점</b>, 가장 나쁜 값을 100점으로 바꿔요. 비율 지표는 기준까지와 기준부터 100%까지 두 구간으로 나눠 펴서, 기준을 크게 넘어도 100점에 몰리지 않아요. 그래서 <b>50점을 넘으면 기준 미달</b>이에요.</p>
+              <p>지표마다 기준선(응급 · 대중교통은 정부 기준, 의사 수는 72개 군 평균, 걷는 시간은 팀 참고값)을 <b>50점</b>, 가장 나쁜 값을 100점으로 바꿔요. 비율 지표는 기준까지와 기준부터 100%까지 두 구간으로 나눠 펴서, 기준을 크게 넘어도 100점에 몰리지 않아요. 그래서 <b>50점을 넘으면 기준 미달</b>이에요.</p>
               <p><code>의료 = 100 × ({W.med.e30}·E30 + {W.med.e60}·E60 + {W.med.d}·의사)</code> = 100 × ({n2(v.parts.e30 ?? 0)}·{W.med.e30} + {n2(v.parts.e60 ?? 0)}·{W.med.e60} + {n2(v.parts.d)}·{W.med.d}) = <b>{Math.round(v.mvi)}</b></p>
               <p><code>교통 = 100 × ({W.tra.ms}·(1−MS) + {W.tra.walk}·걷는 시간)</code> = 100 × ({n2(v.parts.ms)}·{W.tra.ms} + {n2(v.parts.walk)}·{W.tra.walk}) = <b>{Math.round(v.tvi)}</b></p>
               <p className="muted small">교통사고 사망률은 자료가 없어 빼고, 남은 교통 지표에 원래 비율대로 가중치를 나눠 줬어요. 응급 자료가 없는 군은 그 지표를 빼고 남은 가중치로 다시 나눠요. 가중치는 팀 확정 전 예시값이에요.</p>
