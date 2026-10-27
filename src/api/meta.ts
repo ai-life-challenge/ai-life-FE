@@ -1,5 +1,5 @@
 // 화면에서 쓰는 이름·색. 값은 서버가 주고, 여기는 보여 주는 방법만 정한다.
-import type { AgeId, Service, SupplyId, VillageState } from './types'
+import type { AgeId, Cost, Service, SupplyId, VillageState } from './types'
 import type { CarTarget } from './judge'
 
 export const AGES: { id: AgeId; name: string }[] = [{ id: 'a80', name: '80세 이상' }, { id: 'a65', name: '65세 이상' }, { id: 'all', name: '전체 주민' }]
@@ -24,6 +24,14 @@ export const SUPPLY: Record<SupplyId, { name: string; color: string }> = {
   tele: { name: '경로당 원격진료', color: '#9b3fe8' },
 }
 export const SUPPLY_IDS = Object.keys(SUPPLY) as SupplyId[]
+// 공급수단 단가 입력칸(가정과 출처)과 공유 링크가 같이 쓰는 범위. 범위를 벗어나면 서버가 400을 준다
+export const COST_FIELDS: { key: keyof Cost; label: string; min: number; max: number; step: number }[] = [
+  { key: 'install', label: '설치(억)', min: 0, max: 100, step: 0.1 },
+  { key: 'yearly', label: '연 운영(억)', min: 0, max: 50, step: 0.1 },
+  { key: 'years', label: '수명(년)', min: 1, max: 50, step: 1 },
+]
+// 서버는 원격진료 효과를 0.1 단위로만 받는다(0.55 같은 값은 400). 보내기 전에 0.1 단위로 반올림한다
+export const roundTele = (v: number) => Math.round(v * 10) / 10
 
 // 받침에 맞는 조사(이/가 · 을/를): 필터 이름이 바뀌어도 문장이 어색하지 않게
 export const josa = (w: string, a: string, b: string) => ((w.charCodeAt(w.length - 1) - 0xac00) % 28 === 0 ? b : a)

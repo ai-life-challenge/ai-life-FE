@@ -3,8 +3,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useSearchParams } from 'react-router'
 import { motion } from 'motion/react'
-import type { AgeId, Note, Report as ReportT, ReportSection, SectionKey, Service } from '../api/types'
-import { AGES, eok, pct } from '../api/meta'
+import type { Note, Report as ReportT, ReportSection, SectionKey } from '../api/types'
+import { eok, pct } from '../api/meta'
+import { readShare, shareQuery } from '../api/share'
 import { useAutoFetch } from '../hooks'
 import { useStore } from '../store'
 import { AiBadge, LevelBadge } from '../ui/Badges'
@@ -23,20 +24,12 @@ export function Report() {
   const r = regions.find((x) => x.code === code)!
   const [toast, setToast] = useState<string | null>(null)
 
-  // 공유 링크(?s=&a=&b=&t=&p=)로 들어오면 그 조건을 먼저 적용한다
+  // 공유 링크로 들어오면 그 조건(기준 · 공급수단 · 단가 · 예산 · 목표 · 안)을 먼저 적용한다. 서버 계산은 바뀐 조건으로 다시 부른다(useAutoFetch)
   const applied = useRef(false)
   useEffect(() => {
     if (applied.current) return
     applied.current = true
-    const s = q.get('s') as Service, a = q.get('a') as AgeId, b = Number(q.get('b')), t = Number(q.get('t')), p = Number(q.get('p'))
-    patch((x) => ({
-      ...x,
-      service: s === 'med' || s === 'bus' ? s : x.service,
-      age: AGES.some((g) => g.id === a) ? a : x.age,
-      budget: q.get('b') && b >= 0 && b <= 30 ? b : x.budget,
-      target: q.get('t') && t >= 0.5 && t <= 1 ? t : x.target,
-      planShow: q.get('p') && [0, 1, 2].includes(p) ? p : x.planShow,
-    }))
+    patch((x) => readShare(q, x))
   }, [q, patch])
 
   useEffect(() => { if (st.report.form !== 'official') patch((s) => ({ ...s, report: { ...s.report, form: 'official' } })) }, [st.report.form, patch]) // 주민 안내문은 없앴다: 공문만
@@ -47,8 +40,9 @@ export function Report() {
   const toastIt = (m: string) => { setToast(m); setTimeout(() => setToast(null), 1800) }
   const copyLink = async () => {
     const u = new URL(window.location.href)
-    u.search = new URLSearchParams({ s: st.service, a: st.age, b: String(st.budget), t: String(st.target), p: String(st.planShow) }).toString()
-    try { await navigator.clipboard.writeText(u.toString()); toastIt('링크를 복사했어요') } catch { toastIt('복사하지 못했어요. 주소창의 링크를 써 주세요') }
+    u.search = shareQuery(st, u.searchParams).toString()
+    const edited = Object.values(st.report.sections).some((t) => t != null) // 고쳐 쓴 문단은 링크에 담지 않는다
+    try { await navigator.clipboard.writeText(u.toString()); toastIt(edited ? '링크를 복사했어요 · 직접 고친 문단은 링크에 담기지 않아요' : '링크를 복사했어요') } catch { toastIt('복사하지 못했어요. 주소창의 링크를 써 주세요') }
   }
   const setSection = (key: SectionKey, text: string | null) => patch((s) => ({ ...s, report: { ...s.report, sections: { ...s.report.sections, [key]: text } } }))
 

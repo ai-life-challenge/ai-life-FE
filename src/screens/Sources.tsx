@@ -2,19 +2,10 @@
 // 단가·효과 가정을 고치면 서버 계산이 모두 다시 돈다. 값의 범위는 서버가 정한다(범위를 벗어나면 400).
 import { useEffect, useRef } from 'react'
 import { AnimatePresence, motion } from 'motion/react'
-import { SUPPLY, SUPPLY_IDS } from '../api/meta'
+import { COST_FIELDS as FIELDS, SUPPLY, SUPPLY_IDS, roundTele } from '../api/meta'
 import { FIRST_BUS_LIMIT } from '../api/judge'
 import type { Cost, SupplyId } from '../api/types'
 import { useStore } from '../store'
-
-const FIELDS: { key: keyof Cost; label: string; min: number; max: number; step: number }[] = [
-  { key: 'install', label: '설치(억)', min: 0, max: 100, step: 0.1 },
-  { key: 'yearly', label: '연 운영(억)', min: 0, max: 50, step: 0.1 },
-  { key: 'years', label: '수명(년)', min: 1, max: 50, step: 1 },
-]
-
-// 서버는 원격진료 효과를 0.1 단위로만 받는다(0.55 같은 값은 400). 보내기 전에 0.1 단위로 반올림한다
-const roundTele = (v: number) => Math.round(v * 10) / 10
 
 export function Sources() {
   const { sources, state, defaults, data, patch, set } = useStore()
