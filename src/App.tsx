@@ -51,7 +51,6 @@ function Shell() {
   const loc = useLocation()
   const nav = useNavigate()
   const code = loc.pathname.match(/^\/r\/(\d+)/)?.[1] ?? null
-  const openSources = useStore((s) => s.openSources)
   useEffect(() => { window.scrollTo(0, 0) }, [loc.pathname])
   const intro = loc.pathname === '/' || loc.pathname === '/about' // 랜딩·프로젝트 정보는 헤더·공용 지도 없이 전체 화면
   // 지도가 깔리는 화면: S1 지역 선택 · S2 진단 · S5 결과 (나머지 화면에서는 숨겨 두고 카메라는 그대로 둔다)
@@ -75,7 +74,7 @@ function Shell() {
           <span className="spacer" />
           <span className="disclaimer">시제품 · {tiers ? `정밀 ${tiers.precise}곳, 나머지는 간이 판정` : '정밀 · 간이 판정'}</span>
           <Progress code={code} at={stepOf(loc.pathname)} />
-          <button className="ghost" style={{ padding: '9px 12px', fontSize: 14 }} onClick={() => openSources()}>가정과 출처</button>
+          <button className="ghost" style={{ padding: '9px 12px', fontSize: 14 }} onClick={() => nav('/about#data')}>데이터 분석 기준</button>
         </header>
       )}
       {!intro && <MapView mapRef={mapRef} screen={mapScreen} onPickRegion={pick} onBlocked={setBlocked} />}

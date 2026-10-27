@@ -806,6 +806,7 @@ button.badge:hover { background: var(--gray-2); }
 .about-note b { font-weight: 600; margin-right: 6px; }
 .ext { color: var(--ink); text-decoration: underline; text-underline-offset: 3px; text-decoration-color: #c9c9c9; transition: text-decoration-color .15s; overflow-wrap: anywhere; }
 .ext:hover { text-decoration-color: var(--ink); }
+.ext .nowrap { white-space: nowrap; color: inherit; }
 .ext span[aria-hidden] { display: inline-block; margin-left: 3px; font-size: 0.85em; color: var(--muted); text-decoration: none; }
 .src-list { list-style: none; margin: 0; padding: 0; border-top: 1px solid var(--line); }
 .src-list li { display: grid; grid-template-columns: 180px minmax(0, 1fr) auto; gap: 4px 16px; padding: 14px 0; border-bottom: 1px solid var(--line); align-items: baseline; line-height: 1.6; }
@@ -817,6 +818,21 @@ button.badge:hover { background: var(--gray-2); }
 .credit-table tbody th { font-weight: 500; width: 30%; }
 .credit-table td:last-child { padding-right: 0; white-space: nowrap; }
 .lic { display: inline-block; font-size: 12px; background: var(--gray); border-radius: 6px; padding: 2px 8px; white-space: normal; }
+.about-sec h4 { font-size: 14px; font-weight: 500; color: var(--muted); margin: 24px 0 10px; }
+.about-sec h3 + h4 { margin-top: 0; }
+/* 데이터 활용 현황 표: 데이터 이름 · 출처(기관은 옅게, 그 아래 원본 데이터) · 쓰는 곳. 묶음 이름 줄로 나누고, 좁으면 행마다 세로로 쌓는다 */
+.use-table { width: 100%; border-collapse: collapse; font-size: 14px; line-height: 1.6; word-break: keep-all; }
+.use-table thead th { text-align: left; font-weight: 500; font-size: 13px; color: var(--muted); padding: 0 16px 10px 0; border-bottom: 1px solid var(--line); }
+.use-table tbody th, .use-table td { text-align: left; vertical-align: top; padding: 14px 16px 14px 0; border-bottom: 1px solid var(--line); }
+.use-table td:last-child { padding-right: 0; }
+.use-table tbody th[scope="row"] { font-weight: 500; width: 22%; }
+.use-table .src { width: 30%; font-size: 13px; }
+.use-table .src div > span { display: block; }
+.use-table .src div > span + span { margin-top: 8px; }
+.use-table .src small { display: block; font-size: 12px; color: var(--muted); }
+.use-table .grp th { font-size: 13px; font-weight: 600; color: var(--accent); padding: 28px 0 8px; }
+.use-table tbody:first-of-type .grp th { padding-top: 16px; }
+.use-notes { margin-top: 20px; font-size: 14px; gap: 6px; }
 @media (max-width: 900px) {
   .about-body { grid-template-columns: 1fr; gap: 24px; }
   .about-toc { position: static; display: flex; flex-wrap: wrap; gap: 6px; border: 0; padding: 0; }
@@ -833,6 +849,14 @@ button.badge:hover { background: var(--gray-2); }
   .credit-table, .credit-table tbody, .credit-table tr, .credit-table th, .credit-table td { display: block; width: auto; }
   .credit-table tr { padding: 12px 0; border-bottom: 1px solid var(--line); }
   .credit-table tbody th, .credit-table td { border: 0; padding: 2px 0; white-space: normal; }
+  .use-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+  .use-table, .use-table tbody, .use-table tr, .use-table th, .use-table td { display: block; width: auto !important; }
+  .use-table tr:not(.grp) { padding: 14px 0; border-bottom: 1px solid var(--line); }
+  .use-table tbody th, .use-table td { border: 0; padding: 0; }
+  .use-table .grp th { padding: 28px 0 0; }
+  .use-table tbody:first-of-type .grp th { padding-top: 0; }
+  .use-table td { margin-top: 6px; display: grid; grid-template-columns: 36px minmax(0, 1fr); align-items: baseline; }
+  .use-table td::before { content: attr(data-label); color: var(--muted); font-size: 12px; }
 }
 @media (max-width: 480px) { .about-flow { grid-template-columns: 1fr; } }
 
