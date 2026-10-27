@@ -147,7 +147,7 @@ function PlanLegend({ plan, mapRef }: { plan: Plan | null; mapRef: React.RefObje
       <div className="pl-villages">
         <span><i style={{ background: '#2f5bd3' }} />새로 닿음 <b>{reached}</b></span>
         <span><i style={{ background: STATE_CSS[1] }} />못 감 · 버스가 없어서 <b>{stillBus}</b></span>
-        <span><i style={{ background: STATE_CSS[2] }} />못 감 · 병원이 너무 멀어서 <b>{stillFar}</b></span>
+        <span><i style={{ background: STATE_CSS[2] }} />못 감 · 병의원이 너무 멀어서 <b>{stillFar}</b></span>
         <span className="muted">원래 갈 수 있는 마을 {ok}곳은 지도에서 뺐어요</span>
       </div>
       {plan.gapAfter > 0 && <p className="muted" style={{ marginTop: 6 }}>남는 공백 {fmt(plan.gapAfter)}명</p>}

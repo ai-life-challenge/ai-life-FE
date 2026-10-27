@@ -15,7 +15,7 @@ import { setWorkerUrl } from 'maplibre-gl'
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import { useStore } from '../store'
 import { useShownJudge } from '../hooks'
-import { CAR_TARGETS, STATE_CSS, STATE_NAME, STATE_RGB, SUPPLY } from '../api/meta'
+import { CAR_TARGETS, STATE_CSS, STATE_RGB, SUPPLY, stateName } from '../api/meta'
 import type { JudgedVillage, RawFacility } from '../api/types'
 import { useRafTime } from './useRafTime'
 import { erGrid, minuteRgb, type TimeCell } from '../api/cells'
@@ -34,7 +34,7 @@ const FACILITY = {
   hospital: { icon: icon('hospital'), size: 36 },
 }
 const CLUSTER_PX = 48 // 화면에서 이만큼 가까운 시설은 한 묶음으로
-// 못 가는 마을은 원 대신 X로 그린다 (흰 테두리를 둘러 바탕색 위에서도 보이게). 색은 이유별: 빨강 버스가 없어 못 감 · 보라 병원이 너무 멀어 못 감
+// 못 가는 마을은 원 대신 X로 그린다 (흰 테두리를 둘러 바탕색 위에서도 보이게). 색은 이유별: 빨강 버스가 없어 못 감 · 보라 고른 시설이 너무 멀어 못 감
 const xSvg = (color: string) => `<svg xmlns="http://www.w3.org/2000/svg" width="64" height="64" viewBox="0 0 64 64"><path d="M14 14L50 50M50 14L14 50" stroke="#fff" stroke-width="20" stroke-linecap="round"/><path d="M14 14L50 50M50 14L14 50" stroke="${color}" stroke-width="11" stroke-linecap="round"/></svg>`
 const xIcon = (state: 1 | 2) => ({ id: `x${state}`, url: `data:image/svg+xml;charset=utf-8,${encodeURIComponent(xSvg(STATE_CSS[state]))}`, width: 64, height: 64 })
 const X_ICON = { 1: xIcon(1), 2: xIcon(2) }
@@ -346,7 +346,7 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
     if (layer?.id === 'plan-marks') return { text: object.label }
     if (layer?.id.startsWith('villages')) {
       const c = screen === 'result' ? cover?.get(object.id) : undefined
-      return { text: `${object.name}\n${Math.round(object.people)}명 · ${STATE_NAME[object.state as 0]}${c != null && object.state !== 0 ? `\n이 안으로 ${Math.round(c * 100)}% 닿음` : ''}` }
+      return { text: `${object.name}\n${Math.round(object.people)}명 · ${stateName(object.state, carTarget)}${c != null && object.state !== 0 ? `\n이 안으로 ${Math.round(c * 100)}% 닿음` : ''}` }
     }
     return null
   }

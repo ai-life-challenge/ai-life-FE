@@ -25,8 +25,17 @@ export const SUPPLY: Record<SupplyId, { name: string; color: string }> = {
 }
 export const SUPPLY_IDS = Object.keys(SUPPLY) as SupplyId[]
 
+// 받침에 맞는 조사(이/가 · 을/를): 필터 이름이 바뀌어도 문장이 어색하지 않게
+export const josa = (w: string, a: string, b: string) => ((w.charCodeAt(w.length - 1) - 0xac00) % 28 === 0 ? b : a)
+// 마을 판정 이름(왼쪽 목록 · 범례 · 지도 툴팁 · 마을 카드가 같이 쓴다). '너무 멂'(2)은 고른 시설 이름으로 적는다.
+// 서버의 짧은 이름(버스 없음 · 없음)은 화면에 그대로 쓰지 않는다
+export const stateName = (state: VillageState, target: CarTarget) => {
+  if (state === 0) return '갈 수 있음'
+  if (state === 1) return '버스가 없어 못 감'
+  const name = CAR_TARGETS.find((x) => x.id === target)!.short
+  return `${name}${josa(name, '이', '가')} 너무 멀어 못 감`
+}
 // 마을 판정 색 (지도 · 범례 · 목록이 같이 쓴다)
-export const STATE_NAME: Record<VillageState, string> = { 0: '갈 수 있음', 1: '버스가 없어 못 감', 2: '병원이 너무 멀어 못 감' }
 export const STATE_RGB: Record<VillageState, [number, number, number]> = { 0: [47, 163, 107], 1: [214, 69, 93], 2: [155, 63, 232] }
 export const STATE_CSS: Record<VillageState, string> = { 0: '#2fa36b', 1: '#d6455d', 2: '#9b3fe8' }
 

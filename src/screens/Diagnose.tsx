@@ -7,7 +7,7 @@ import { AnimatePresence, animate, motion, useReducedMotion } from 'motion/react
 import type { MapRef } from 'react-map-gl/maplibre'
 import { api } from '../api/client'
 import type { NearestEr, NearestMed, VillageDetail, VillageState } from '../api/types'
-import { AGES, CAR_TARGETS, STATE_CSS, STATE_NAME, fmt, pct, viewName } from '../api/meta'
+import { AGES, CAR_TARGETS, STATE_CSS, fmt, josa, pct, stateName, viewName } from '../api/meta'
 import { useAutoFetch, useJudgeCompare, useShownJudge } from '../hooks'
 import { calcKey, errText, useStore } from '../store'
 import type { CarTarget } from '../api/judge'
@@ -25,9 +25,6 @@ const TRAVEL = [
   { id: 'transit', name: '🚌 대중교통 이용', desc: '' },
   { id: 'car', name: '🚗 자가용 이용', desc: '차가 있는 주민 기준이에요. 아래에서 고른 곳까지 자가용 시간(서버 값, 도로 기준)이 기준 안인지 봐요.' },
 ] as const
-// 받침에 맞는 조사(이/가 · 을/를): 필터 이름이 바뀌어도 문장이 어색하지 않게
-const josa = (w: string, a: string, b: string) => ((w.charCodeAt(w.length - 1) - 0xac00) % 28 === 0 ? b : a)
-
 export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> }) {
   const { code } = useParams()
   const nav = useNavigate()
@@ -155,7 +152,7 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
         <ul className="villages">
           {gapList.map((v) => (
             <li key={v.id} onClick={() => patch((s) => ({ ...s, selectedVillage: v.id }))} onMouseEnter={() => set({ hoverVillage: v.id })} onMouseLeave={() => set({ hoverVillage: null })}>
-              <span><i className="sw-x" aria-hidden style={{ color: STATE_CSS[v.state] }}>✕</i>{v.name}<span className="muted small"> · {v.state === 2 && carTarget !== 'med' ? `${targetName}${josa(targetName, '이', '가')} 너무 멀어 못 감` : STATE_NAME[v.state]}</span></span>
+              <span><i className="sw-x" aria-hidden style={{ color: STATE_CSS[v.state] }}>✕</i>{v.name}<span className="muted small"> · {stateName(v.state, carTarget)}</span></span>
               <span className="muted"><b className="num" style={{ color: 'var(--ink)' }}>{fmt(v.people)}명</b>{minutesOf.get(v.id) != null && ` · ${targetName} ${minutesOf.get(v.id)! === 0 ? '마을 안' : Math.round(minutesOf.get(v.id)!) + '분'}`}</span>
             </li>
           ))}
@@ -325,8 +322,8 @@ function Legend() {
       {toggle(showDots, <><i className="sw-x" aria-hidden style={{ color: STATE_CSS[split ? 1 : 2] }}>✕</i>{carTarget === 'er' ? '응급의료센터 먼 마을' : carTarget === 'med' ? (travel === 'car' ? '자가용으로 못 가는 마을' : '대중교통으로 못 가는 마을') : kindName + ' 못 가는 마을'}</>, cannot, () => set({ showDots: !showDots }))}
       {split && showDots && (
         <>
-          <p><i className="sw-x" aria-hidden style={{ color: STATE_CSS[1] }}>✕</i>버스가 없어 못 감 <span className="muted">{noBus}곳</span></p>
-          {state?.service === 'med' && <p><i className="sw-x" aria-hidden style={{ color: STATE_CSS[2] }}>✕</i>{kindName}{josa(kindName, '이', '가')} 너무 멀어 못 감 <span className="muted">{cannot - noBus}곳</span></p>}
+          <p><i className="sw-x" aria-hidden style={{ color: STATE_CSS[1] }}>✕</i>{stateName(1, carTarget)} <span className="muted">{noBus}곳</span></p>
+          {state?.service === 'med' && <p><i className="sw-x" aria-hidden style={{ color: STATE_CSS[2] }}>✕</i>{stateName(2, carTarget)} <span className="muted">{cannot - noBus}곳</span></p>}
         </>
       )}
       {carTarget === 'er'
@@ -368,7 +365,7 @@ function VillageCard() {
           <button className="close" onClick={() => { patch((s) => ({ ...s, selectedVillage: null })); set({ hoverVillage: null }) }} aria-label="닫기">×</button>
           {!cur && <p className="muted" role="status">불러오는 중…</p>}
           {cur && 'error' in cur && <p className="bad">{cur.error}</p>}
-          {cur && 'detail' in cur && <Detail firstEstimated={!!data?.villages.find((x) => x.id === id)?.bus.firstEstimated} inTown={data?.villages.find((x) => x.id === id)?.bus.firstToTownMin === 0} v={cur.detail} service={state!.service} byKind={carTarget !== 'med' && carTarget !== 'er' ? { name: targetOf(carTarget), hit: data?.villages.find((x) => x.id === id)?.nearest.byKind?.[carTarget] ?? null } : null} shown={shown?.villages.find((x) => x.id === id)?.state ?? null} filter={travel === 'car' ? '자가용 · ' + targetOf(carTarget) : carTarget !== 'med' ? targetOf(carTarget) : null} er={data?.villages.find((x) => x.id === id)?.nearest.er ?? null} />}
+          {cur && 'detail' in cur && <Detail firstEstimated={!!data?.villages.find((x) => x.id === id)?.bus.firstEstimated} inTown={data?.villages.find((x) => x.id === id)?.bus.firstToTownMin === 0} v={cur.detail} service={state!.service} target={carTarget} byKind={carTarget !== 'med' && carTarget !== 'er' ? { name: targetOf(carTarget), hit: data?.villages.find((x) => x.id === id)?.nearest.byKind?.[carTarget] ?? null } : null} shown={shown?.villages.find((x) => x.id === id)?.state ?? null} filter={travel === 'car' ? '자가용 · ' + targetOf(carTarget) : carTarget !== 'med' ? targetOf(carTarget) : null} er={data?.villages.find((x) => x.id === id)?.nearest.er ?? null} />}
         </motion.div>
       )}
     </AnimatePresence>
@@ -378,8 +375,8 @@ function VillageCard() {
 const targetOf = (t: CarTarget) => CAR_TARGETS.find((x) => x.id === t)!.short
 // shown: 지도에 칠한 판정(필터 · 이동 수단 반영). 서버 카드(v.med.state)는 '전체 병의원 · 대중교통' 기준이라 필터나 자가용 탭이면 지도와 달라서 지도 판정을 따른다
 // inTown: 첫차 0분은 시각이 아니라 '읍내 마을'(읍내 기준 리에서 자가용 6분 안)이라는 서버 표시다
-function Detail({ v, service, er, shown, filter, byKind, firstEstimated, inTown }: { v: VillageDetail; firstEstimated: boolean; inTown: boolean; // 첫차가 TS-BIS로 어림한 값이면 (추정)
-  byKind: { name: string; hit: NearestMed | null } | null; service: 'med' | 'bus'; er: NearestEr | null; shown: VillageState | null; filter: string | null }) {
+function Detail({ v, service, target, er, shown, filter, byKind, firstEstimated, inTown }: { v: VillageDetail; firstEstimated: boolean; inTown: boolean; // 첫차가 TS-BIS로 어림한 값이면 (추정)
+  byKind: { name: string; hit: NearestMed | null } | null; service: 'med' | 'bus'; target: CarTarget; er: NearestEr | null; shown: VillageState | null; filter: string | null }) {
   const own = filter != null && shown != null // 서버가 모르는 판정을 보고 있다
   const state = own ? shown : service === 'bus' ? (v.bus.ok ? 0 : 1) : v.med.state
   const reasons = own ? [] : service === 'bus' ? v.bus.reasons : v.med.reason ? [v.med.reason] : []
@@ -388,7 +385,7 @@ function Detail({ v, service, er, shown, filter, byKind, firstEstimated, inTown 
     <>
       <p className="eyebrow">{v.myeon}</p>
       <h3 style={{ fontSize: 20 }}>{v.name}</h3>
-      <p><span className="badge" style={{ background: STATE_CSS[state], color: '#fff' }}>{own ? STATE_NAME[state] : service === 'bus' ? (v.bus.ok ? '버스 이용 가능' : '버스 이용 어려움') : v.med.stateText}</span>{own && <span className="muted small"> {filter} 기준</span>}</p>
+      <p><span className="badge" style={{ background: STATE_CSS[state], color: '#fff' }}>{!own && service === 'bus' ? (v.bus.ok ? '버스 이용 가능' : '버스 이용 어려움') : stateName(state, target)}</span>{own && <span className="muted small"> {filter} 기준</span>}</p>
       {reasons.length > 0 && <p className="small">{reasons.join(' · ')}</p>}
       <p className="small muted" style={{ margin: '6px 0 0' }}>사는 사람 {fmt(v.pop.all)}명 (65세 이상 {fmt(v.pop.a65)}명 · 80세 이상 {fmt(v.pop.a80)}명)</p>
       <p className="small" style={{ margin: '6px 0 0' }}>
