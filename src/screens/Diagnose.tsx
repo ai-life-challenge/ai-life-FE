@@ -113,10 +113,16 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
           </>
         ) : (
           <>
-            <Slider label="정류장까지 걸어서" unit="분 이내" min={5} max={30} step={1} value={st.criteria.stopWalkMinutes} onChange={(v) => patch((s) => ({ ...s, criteria: { ...s.criteria, stopWalkMinutes: v } }))} />
-            <Slider label="버스 하루 운행" unit="번 이상" min={1} max={10} step={1} value={st.criteria.dailyRuns} disabled={!precise}
-              note={precise ? '읍내행 첫차는 낮 12시 전이어야 해요' : '이 지역은 간이 판정이라 정류장까지 거리만 봐요'} onChange={(v) => patch((s) => ({ ...s, criteria: { ...s.criteria, dailyRuns: v } }))} />
-            {st.service === 'med' && <Slider label="병원이 너무 먼 기준 · 자가용" unit="분 넘게" min={10} max={60} step={5} value={T} note="이보다 멀면 버스가 있어도 '병원이 너무 멀어 못 감'이에요" onChange={(v) => patch((s) => ({ ...s, criteria: { ...s.criteria, carMinutes: v } }))} />}
+            {/* 응급의료센터는 버스를 보지 않아 걷는 시간 · 운행 횟수 슬라이더를 숨긴다(값은 state에 그대로 남는다) */}
+            {carTarget !== 'er' && (
+              <>
+                <Slider label="정류장까지 걸어서" unit="분 이내" min={5} max={30} step={1} value={st.criteria.stopWalkMinutes} onChange={(v) => patch((s) => ({ ...s, criteria: { ...s.criteria, stopWalkMinutes: v } }))} />
+                <Slider label="버스 하루 운행" unit="번 이상" min={1} max={10} step={1} value={st.criteria.dailyRuns} disabled={!precise}
+                  note={precise ? '읍내행 첫차는 낮 12시 전이어야 해요' : '이 지역은 간이 판정이라 정류장까지 거리만 봐요'} onChange={(v) => patch((s) => ({ ...s, criteria: { ...s.criteria, dailyRuns: v } }))} />
+              </>
+            )}
+            {st.service === 'med' && <Slider label={`${targetName}${josa(targetName, '이', '가')} 너무 먼 기준 · 자가용`} unit="분 넘게" min={10} max={60} step={5} value={T}
+              note={`이보다 멀면 ${carTarget === 'er' ? '' : '버스가 있어도 '}'${stateName(2, carTarget)}'이에요`} onChange={(v) => patch((s) => ({ ...s, criteria: { ...s.criteria, carMinutes: v } }))} />}
           </>
         )}
 
