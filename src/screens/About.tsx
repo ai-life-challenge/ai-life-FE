@@ -5,6 +5,7 @@ import { useEffect } from 'react'
 import { Link, useNavigate } from 'react-router'
 import { motion } from 'motion/react'
 import { FIRST_BUS_LIMIT } from '../api/judge'
+import { STD, W } from '../api/vuln'
 import { useTierCounts } from '../hooks'
 import { Logo } from '../ui/Logo'
 import { SiteFooter } from '../ui/SiteFooter'
@@ -12,6 +13,8 @@ import { SiteFooter } from '../ui/SiteFooter'
 const SECTIONS = [
   { id: 'challenge', name: '2026 AI 라이프 솔루션 챌린지' },
   { id: 'data', name: '데이터 및 분석 기준' },
+  { id: 'read', name: '결과를 읽기 전에' },
+  { id: 'formulas', name: '계산식과 도출 기준' },
   { id: 'sources', name: '데이터 활용 및 출처' },
 ]
 
@@ -20,6 +23,32 @@ const FLOW: [string, string][] = [
   ['목표 · 예산', '목표 달성률과 연 예산, 쓸 공급수단을 정해요.'],
   ['예산안 비교', '서버가 대안 세 가지를 만들어 비교하고 하나를 추천해요.'],
   ['레포트', '고른 안을 공문 형식으로 만들고 문단을 직접 고쳐요.'],
+]
+
+// 결과를 읽을 때 알아야 할 것: 숫자 해석이 달라지는 항목만 추렸다(docs/data-audit.md 전수조사에서 사용자에게 필요한 것만)
+const pct0 = (x: number) => `${Math.round(x * 100)}%`
+const READ: { group: string; items: [string, string][] }[] = [
+  { group: '판정 기준', items: [
+    ['‘병원에 갈 수 없는 사람’의 뜻', '차가 없다고 보고 판정해요. 마을 안에 병의원이 있거나, 정류장까지 걸어가 버스로 갈 수 있으면 갈 수 있음이에요. 가장 가까운 병의원이 자가용으로도 기준 시간보다 멀면 버스가 있어도 ‘너무 멀어 못 감’이에요.'],
+    ['정밀 판정과 간이 판정은 기준이 달라요', '간이 판정 지역은 버스 운행 자료가 없어 정류장 거리만 봐서, 실제보다 ‘갈 수 있음’이 많게 나올 수 있어요. 군끼리 비교할 때는 판정 등급이 같은지 먼저 확인해 주세요.'],
+    ['첫차 시각은 일부 추정값이에요', '정밀 지역에서도 많은 마을의 첫차가 버스 정보 시스템(TS-BIS)에서 추정한 값이에요. 마을 카드에 ‘(추정)’이 붙은 곳은 판정이 실제와 다를 수 있어요.'],
+    ['진단 화면의 필터 · 자가용 탭은 살펴보기용이에요', '병원급 · 의원 · 보건기관 · 응급의료센터 필터와 자가용 시간은 진단 화면에서만 보는 값이에요. 대안 · 결과 · 레포트는 늘 서버 기준(모든 병의원 · 대중교통)으로 계산해요.'],
+  ] },
+  { group: '지표와 점수', items: [
+    ['취약도는 50점이 정부 기준선이에요', '0점이 가장 좋고 100점이 가장 취약해요. 50점을 넘으면 기준 미달이에요.'],
+    ['일부 기준과 가중치는 확정 전 예시값이에요', `정류장까지 걷는 시간 ${STD.walkStd}분과 지표별 가중치가 그래요. 교통사고 사망률은 자료가 없어 빠져 있어요.`],
+    ['응급실 30분 밖 인구는 두 가지예요', '지표 E30은 전체 주민 기준(정부 응급의료 취약지 정의와 같음)이고, 진단 화면 카드는 고른 나이대 기준이라 두 숫자가 다를 수 있어요.'],
+    ['‘응급의료 취약지’ 표시는 지금 지표로 다시 잰 거예요', '2021년 정부 지정 목록과 다를 수 있어요. 지정됐지만 지금 기준 아래인 곳은 ‘(2021 지정)’으로 따로 표시해요.'],
+  ] },
+  { group: '지도', items: [
+    ['지도의 칸은 실제 격자 측정값이 아니에요', '마을의 값을 주변으로 이어 칠한 그림이에요. 옅은 칸은 근처에 마을이 없거나 그 나이대 주민이 없는 곳이에요.'],
+    ['순회 진료 버스 노선은 실제 도로가 아니에요', '보건소에서 출발해 정류장(마을)을 돌아오는 순서만 보여 주고, 정류장 사이는 곧은 선이에요.'],
+  ] },
+  { group: '대안과 비용', items: [
+    ['단가와 효과는 가정값이고 바꿀 수 있어요', '공급수단 설치비 · 연 운영비 · 수명, 원격진료 효과, 순회 진료 주당 횟수는 가정값이에요. ‘가정과 출처’에서 고치면 다시 계산되고, 결과 화면에서 단가가 20% 달라져도 추천이 그대로인지 확인할 수 있어요.'],
+    ['‘새로 닿는 마을’은 절반 넘게 닿는 마을만 세요', '지도와 범례의 개수가 레포트 비교표의 서버 숫자와 조금 다를 수 있어요.'],
+    ['공유 링크는 조건만 담아요', '직접 고친 레포트 문단은 담지 않고, 서버 자료가 바뀌면 같은 링크라도 결과가 달라질 수 있어요.'],
+  ] },
 ]
 
 // 데이터 활용 현황. 서버가 지역 자료(GET /api/regions/{code})의 sources와 레포트 각주(출처 · 기관 · 주소)로 밝힌 자료만 적고,
@@ -82,6 +111,9 @@ const CREDITS: [string, string, string, string, string][] = [
   ["인구·생명표 (인구 피라미드)", "South Korea population pyramid (2018)", "CIA Factbook", "Public domain", "https://commons.wikimedia.org/wiki/File:South_Korea_population_pyramid_(2018).jpg"],
   ['지도 배경 (OpenStreetMap 도로망)', '우리 앱의 지도 화면', 'OpenFreeMap · OpenMapTiles', '© OpenStreetMap contributors (ODbL)', 'https://www.openstreetmap.org/copyright'],
 ]
+
+// 분수: 위에 분자, 아래에 분모
+const Frac = ({ num, den }: { num: string; den: string }) => <span className="frac" role="math" aria-label={`${num} 나누기 ${den}`}><span>{num}</span><span>{den}</span></span>
 
 // 바깥 링크: 새 창으로 열고, 스크린리더에도 새 창이라고 알린다. 화살표만 다음 줄로 떨어지지 않게 마지막 낱말과 붙여 둔다
 const Ext = ({ href, children }: { href: string; children: string }) => {
@@ -152,6 +184,102 @@ export function About() {
                 <li>첫 화면 지도의 칸은 실제 500m 격자가 아니라, 마을을 일정한 크기의 칸으로 묶어 집계한 그림이에요.</li>
               </ul>
               <p className="about-note"><b>참고용 분석이에요.</b> 분석 결과는 참고용이며 공식 행정 평가를 대체하지 않습니다.</p>
+            </section>
+
+            <section id="read" className="about-sec" aria-labelledby="read-title">
+              <h2 id="read-title">결과를 읽기 전에</h2>
+              <p>같은 숫자라도 기준을 알고 보면 다르게 읽혀요. 판단에 앞서 꼭 알아 두면 좋은 것만 모았어요.</p>
+              {READ.map(({ group, items }) => (
+                <div key={group}>
+                  <h3>{group}</h3>
+                  <dl className="read-list">
+                    {items.map(([t, d]) => <div key={t}><dt>{t}</dt><dd>{d}</dd></div>)}
+                  </dl>
+                </div>
+              ))}
+            </section>
+
+            <section id="formulas" className="about-sec" aria-labelledby="formulas-title">
+              <h2 id="formulas-title">계산식과 도출 기준</h2>
+              <p>판정 · 대안 · 레포트의 숫자는 서버가 계산해요. 여기서는 그 숫자가 어떤 규칙과 식에서 나오는지, 그리고 화면이 서버 자료로 직접 계산하는 값(취약도 · 지도 색)을 어떻게 구하는지 풀어서 설명해요. 식에 나오는 기준값은 서비스가 실제로 쓰는 값이에요.</p>
+
+              <h3>1. 마을을 판정하는 방법</h3>
+              <p className="about-p">모든 마을은 ‘갈 수 있음’, ‘버스가 없어 못 감’, ‘병원이 너무 멀어 못 감’ 중 하나로 판정해요. 차가 없는 주민을 기준으로 아래 순서대로 따져요.</p>
+              <ol className="about-steps">
+                <li><b>마을 안에 병의원이 있으면</b> 거리와 상관없이 갈 수 있음이에요.</li>
+                <li><b>가장 가까운 병의원이 자가용으로 30분보다 멀면</b> 버스가 있어도 병원이 너무 멀어 못 감이에요. 시간은 도로를 따라 잰 값이에요.</li>
+                <li><b>그 밖에는 버스로 갈 수 있는지</b>를 봐요. 2km 안에 정류장이 있고, 걸어서 15분 안이면 갈 수 있음이에요. 정밀 판정 지역은 여기에 더해 버스가 하루 3번 이상 다니고 읍내행 첫차가 낮 {FIRST_BUS_LIMIT / 60}시 전이어야 해요.</li>
+              </ol>
+              <p className="about-p">괄호 안의 30분 · 15분 · 3번은 기본값이고, 현황 진단 화면에서 바꿀 수 있어요. 판정이 끝나면 못 가는 마을의 주민을 모아 공백과 달성률을 구해요.</p>
+              <div className="fx-group">
+                <div className="fx"><span className="fx-name">공백 비율</span><span className="fx-eq">=</span><Frac num="못 가는 마을의 주민 수" den="전체 주민 수" /></div>
+                <div className="fx"><span className="fx-name">달성률</span><span className="fx-eq">=</span><span>1 − 공백 비율</span></div>
+              </div>
+              <p className="fx-note">주민 수는 고른 나이대(80세 이상 · 65세 이상 · 전체)로 세요.</p>
+              <p className="about-p"><b>첫차 {FIRST_BUS_LIMIT / 60}시 기준은 어떻게 정했나요?</b> 판정 규칙이 공개 문서에 없어서 서버 판정 결과에서 알아냈어요. 첫차가 오전 11시 28분인 마을은 통과하고 12시 12분인 마을은 탈락해서, 그 사이인 정오를 기준으로 잡았어요. 정각 12시는 ‘전’이 아니라 탈락이에요.</p>
+
+              <h3>2. 의료 · 교통 취약도</h3>
+              <p className="about-p">취약도는 군이 의료와 교통 면에서 얼마나 취약한지를 0~100점으로 나타내요. 0점이 가장 좋고 100점이 가장 취약해요. 지표마다 정부 기준선을 <b>50점</b>에 맞췄기 때문에, 50점을 넘으면 기준에 못 미친다는 뜻이에요.</p>
+              <p className="about-p">비율로 나오는 지표(응급실 밖 주민 비율 등)는 기준선을 경계로 두 구간으로 나눠 점수를 매겨요. 기준을 크게 넘는 군도 100점에 몰리지 않고 차이가 보이게 하려는 거예요.</p>
+              <div className="fx">
+                <span className="fx-name">지표 점수</span><span className="fx-eq">=</span>
+                <span className="cases">
+                  <span><span className="frac-inline">0.5 × <Frac num="v" den="기준" /></span><small>v가 기준 이하일 때</small></span>
+                  <span><span className="frac-inline">0.5 + 0.5 × <Frac num="v − 기준" den="1 − 기준" /></span><small>v가 기준을 넘을 때</small></span>
+                </span>
+              </div>
+              <p className="fx-note">v는 지표 값(0~1)이에요. v가 0이면 0점, 기준이면 50점, 100%면 100점이에요.</p>
+
+              <table className="fx-table">
+                <thead><tr><th scope="col">지표</th><th scope="col">점수를 매기는 방법</th><th scope="col">50점이 되는 값</th></tr></thead>
+                <tbody>
+                  <tr><th scope="row">응급실 30분 밖 주민(E30)</th><td>지역응급의료센터까지 30분 넘게 걸리는 주민 비율을 위 식에 넣어요</td><td>{pct0(STD.theta)}</td></tr>
+                  <tr><th scope="row">권역센터 60분 밖 주민(E60)</th><td>권역응급의료센터까지 60분 넘게 걸리는 주민 비율을 위 식에 넣어요</td><td>{pct0(STD.theta)}</td></tr>
+                  <tr><th scope="row">인구 1천명당 의사 수</th><td>1 − 의사 수 ÷ {2 * STD.avgD} (의사가 0명이면 100점, 평균의 2배면 0점)</td><td>{STD.avgD}명</td></tr>
+                  <tr><th scope="row">대중교통 최소서비스(MS)</th><td>서비스를 받지 못하는 주민 비율(1 − MS)을 위 식에 넣어요</td><td>미확보 {pct0(1 - STD.msTarget)}</td></tr>
+                  <tr><th scope="row">정류장까지 걷는 시간</th><td>걷는 분 ÷ {2 * STD.walkStd} (30분이면 100점)</td><td>{STD.walkStd}분</td></tr>
+                </tbody>
+              </table>
+              <p className="fx-note">대중교통 최소서비스는 정밀 지역이면 정류장에 걸어서 닿는 주민 비율(공간)과 버스 운행 기준을 채우는 주민 비율(시간)의 평균이고, 간이 지역은 시간 자료가 없어 공간 비율만 써요.</p>
+
+              <p className="about-p">지표 점수에 가중치를 곱해 더하면 취약도가 나와요.</p>
+              <div className="fx-group">
+                <div className="fx"><span className="fx-name">의료 취약도</span><span className="fx-eq">=</span><span>100 × ({W.med.e30} × E30 점수 + {W.med.e60} × E60 점수 + {W.med.d} × 의사 수 점수)</span></div>
+                <div className="fx"><span className="fx-name">교통 취약도</span><span className="fx-eq">=</span><span>100 × ({W.tra.ms} × 최소서비스 점수 + {W.tra.walk} × 걷는 시간 점수)</span></div>
+              </div>
+              <p className="fx-note">자료가 없는 지표가 있으면 그 지표를 빼고, 남은 가중치의 합으로 다시 나눠요.</p>
+              <p className="about-p">진단 화면의 <b>‘응급의료 취약지’</b> 표시는 E30이나 E60 중 하나라도 {pct0(STD.theta)} 이상이면 붙어요.</p>
+
+              <h4>기준값은 어디서 왔나요</h4>
+              <dl className="kv">
+                <dt>응급 기준 {pct0(STD.theta)}</dt><dd>보건복지부 응급의료 취약지 정의예요. 지역응급의료센터에 30분, 권역응급의료센터에 60분 안에 닿지 못하는 주민이 30% 이상이면 취약지로 봐요.</dd>
+                <dt>대중교통 {pct0(STD.msTarget)}</dt><dd>정부의 대중교통 최소서비스 확보 기준이에요.</dd>
+                <dt>의사 수 {STD.avgD}명</dt><dd>도시가 섞인 전국 평균 대신, 서비스 대상인 72개 군의 인구 1천명당 의사 수 평균을 썼어요(2026년 10월 24일 계산).</dd>
+                <dt>걷는 시간 {STD.walkStd}분 · 가중치</dt><dd>팀이 정한 예시값이에요. 교통 가중치는 원래 최소서비스 0.4 · 교통사고 0.3 · 시간 0.3인데, 교통사고 사망률 자료가 없어 빼고 남은 비율대로 나눴어요.</dd>
+              </dl>
+
+              <h3>3. 응급실 30분 밖 주민</h3>
+              <p className="about-p">마을마다 지역응급의료센터 이상까지 자가용으로 걸리는 시간(도로 기준)을 보고, 30분을 넘거나 갈 수 있는 길이 없는 마을의 주민을 모두 더해요. 군 평균 시간은 마을 시간을 주민 수만큼 가중해 평균을 내요. 길이 없는 마을은 시간을 알 수 없어서 평균에서 빼요.</p>
+              <div className="fx"><span className="fx-name">군 평균 시간</span><span className="fx-eq">=</span><Frac num="Σ (마을 시간 × 마을 주민 수)" den="Σ 마을 주민 수" /></div>
+              <p className="fx-note">진단 화면 카드는 고른 나이대로 세고, 지표 E30은 전체 주민으로 세요. 그래서 두 숫자가 다를 수 있어요.</p>
+
+              <h3>4. 지도 바탕색(걸리는 시간)</h3>
+              <p className="about-p">지도 바탕은 군을 약 600m 크기의 칸(군 경계의 긴 변을 60칸으로 나눈 크기)으로 나누고, 칸마다 고른 시설까지 자가용으로 걸리는 시간을 색으로 칠한 거예요. 칸 단위로 시간을 잰 자료는 없어서, 가까운 마을 6곳의 시간을 가까운 마을일수록 더 크게 반영해 이어 칠해요.</p>
+              <div className="fx">
+                <span className="fx-name">칸 시간</span><span className="fx-eq">=</span><Frac num="Σ (마을 시간 ÷ 거리²)" den="Σ (1 ÷ 거리²)" />
+              </div>
+              <p className="fx-note">외딴 마을의 아주 긴 시간이 주변까지 끌고 가지 않게 마을 시간은 180분에서 잘라요. 마을 안에 그 시설이 있으면 그 마을은 0분이에요.</p>
+              <p className="about-p">색은 모든 군에 같은 눈금을 써서 지역끼리 비교할 수 있어요. 10분 이하는 진한 초록, 20분은 연두, 30분은 노랑, 45분 이상은 주황이에요. 근처 1.2km 안에 마을이 없거나 칸 안 주민이 0명인 곳은 옅게 칠해요.</p>
+              <i className="fx-scale" aria-hidden />
+              <p className="muted time-scale fx-scale-labels"><span>10분 이하</span><span>20분</span><span>30분</span><span>45분 이상</span></p>
+
+              <h3>5. 대안 결과</h3>
+              <dl className="kv">
+                <dt>새로 닿는 마을</dt><dd>못 가던 마을 가운데, 그 안의 공급수단으로 닿는 정도(서버가 0~1로 계산)가 절반을 넘는 마을이에요.</dd>
+                <dt>10년 뒤 달성률</dt><dd>지금 70세 이상 주민에 통계청 생명표의 나이별 생존율을 곱해 10년 뒤 80세 이상 주민을 어림하고, 그 주민으로 달성률을 다시 구해요. 80세 이상 기준일 때만 계산해요.</dd>
+                <dt>단가 민감도</dt><dd>공급수단 단가를 모두 20% 낮추고 높여서 다시 계산했을 때 추천 안이 바뀌는지 봐요.</dd>
+              </dl>
+              <p className="about-note"><b>참고용 분석이에요.</b> 지도의 칸과 순회 진료 노선은 마을 단위 자료를 보기 쉽게 옮긴 그림이고, 실제 측정값이나 도로 경로가 아니에요.</p>
             </section>
 
             <section id="sources" className="about-sec" aria-labelledby="sources-title">

@@ -821,6 +821,34 @@ button.badge:hover { background: var(--gray-2); }
 .credit-table tbody th { font-weight: 500; width: 30%; }
 .credit-table td:last-child { padding-right: 0; white-space: nowrap; }
 .lic { display: inline-block; font-size: 12px; background: var(--gray); border-radius: 6px; padding: 2px 8px; white-space: normal; }
+.read-list { margin: 0; display: grid; gap: 8px; }
+.read-list > div { background: var(--gray); border-radius: var(--r-card); padding: 14px 18px; }
+.read-list dt { font-weight: 600; margin: 0 0 4px; }
+.read-list dd { margin: 0; color: var(--muted); line-height: 1.7; font-size: 15px; }
+.about-p { color: var(--muted); line-height: 1.8; margin: 0 0 12px; }
+.about-p b { color: var(--ink); font-weight: 600; }
+.about-steps { margin: 0 0 14px; padding-left: 22px; display: grid; gap: 8px; color: var(--muted); line-height: 1.75; }
+.about-steps b { color: var(--ink); font-weight: 600; }
+/* 식: 연한 바탕 위에 이름 = 식, 분수는 위아래로 */
+.fx-group { display: grid; gap: 8px; }
+.fx { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 12px; background: var(--gray); border-radius: var(--r-card); padding: 16px 20px; font-size: 16px; line-height: 1.5; }
+.fx-name { font-weight: 600; }
+.fx-eq { color: var(--muted); }
+.frac { display: inline-flex; flex-direction: column; align-items: center; vertical-align: middle; text-align: center; }
+.frac > span:first-child { padding: 0 6px 3px; border-bottom: 1.5px solid currentColor; }
+.frac > span:last-child { padding: 3px 6px 0; }
+.frac-inline { display: inline-flex; align-items: center; gap: 6px; }
+.cases { display: grid; gap: 10px; padding-left: 14px; border-left: 2px solid var(--ink); }
+.cases > span { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.cases small { color: var(--muted); font-size: 13px; }
+.fx-note { margin: 8px 0 18px !important; color: var(--muted); font-size: 14px; line-height: 1.65; }
+.fx-table { width: 100%; border-collapse: collapse; margin: 6px 0 0; font-size: 14.5px; }
+.fx-table th, .fx-table td { text-align: left; padding: 12px 10px; border-bottom: 1px solid var(--line); vertical-align: top; line-height: 1.6; }
+.fx-table thead th { font-size: 13px; color: var(--muted); font-weight: 500; }
+.fx-table tbody th { font-weight: 600; white-space: nowrap; }
+.fx-table td:last-child { white-space: nowrap; font-weight: 600; }
+.fx-scale { display: block; height: 10px; border-radius: 5px; margin: 4px 0 4px; background: linear-gradient(90deg, rgb(86,172,100) 0%, rgb(86,172,100) 22%, rgb(158,207,112) 44%, rgb(246,214,120) 67%, rgb(242,138,78) 100%); }
+.fx-scale-labels { margin: 0 0 8px; font-size: 13px; }
 .about-sec h4 { font-size: 14px; font-weight: 500; color: var(--muted); margin: 24px 0 10px; }
 .about-sec h3 + h4 { margin-top: 0; }
 /* 데이터 활용 현황 표: 데이터 이름 · 출처(기관은 옅게, 그 아래 원본 데이터) · 쓰는 곳. 묶음 이름 줄로 나누고, 좁으면 행마다 세로로 쌓는다 */
