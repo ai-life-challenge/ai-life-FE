@@ -50,8 +50,8 @@ export function WhatIf() {
       for (const b of CURVE_BUDGETS) {
         try {
           const p = await ask(b, ac.signal)
-          const best = p.plans[p.plans.length - 1]
-          if (!ac.signal.aborted) setCurve((c) => [...c, { b, rate: best.rate }])
+          const best = p.plans.find((x) => x.k === 2)
+          if (best && !ac.signal.aborted) setCurve((c) => [...c, { b, rate: best.rate }])
         } catch { if (ac.signal.aborted) return }
       }
     })()
@@ -60,7 +60,7 @@ export function WhatIf() {
 
   const cur = alt && alt.b === next ? alt : null
   const altPlans = cur && 'plans' in cur ? cur.plans.plans : null
-  const best = base?.[base.length - 1], altBest = altPlans?.[altPlans.length - 1]
+  const best = base?.find((x) => x.k === 2), altBest = altPlans?.find((x) => x.k === 2) // k: 0 비용 절감 · 1 균형 · 2 적극 투자
 
   // 곡선 SVG
   const W = 460, H = 220, pad = 40, TOP = 36 // TOP: 맨 위 점 위에 달성률 글자(보라)가 잘리지 않고 들어갈 자리
