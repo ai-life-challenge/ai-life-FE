@@ -101,7 +101,10 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
               <button key={x.id} role="radio" aria-checked={carTarget === x.id} className={`chip ${carTarget === x.id ? 'on' : ''}`} onClick={() => set({ carTarget: x.id })}>{carTarget === x.id && <span aria-hidden>✓ </span>}{x.name}</button>
             ))}
           </div></div>
-        <p className="muted small" style={{ margin: '6px 0 0' }}>{travel === 'transit' ? (carTarget === 'er' ? '응급의료센터는 버스를 보지 않고, 지역응급의료센터 이상까지 자가용 시간만 봐요.' : `차가 없는 주민 기준이에요. 마을 안에 ${targetName}${josa(targetName, '이', '가')} 있거나, 정류장까지 걸어가 버스로 ${targetName}에 갈 수 있는지 봐요.`) : TRAVEL.find((x) => x.id === travel)!.desc}</p>
+        <p className="muted small" style={{ margin: '6px 0 0' }}>{travel === 'transit' ? (carTarget === 'er' ? '응급의료센터는 버스를 보지 않고, 지역응급의료센터 이상까지 자가용 시간만 봐요.' : `차가 없는 주민 기준이에요. 마을 안에 ${targetName}${josa(targetName, '이', '가')} 있거나, ${precise
+            // 서버는 시설까지 가는 노선을 보지 않는다: 정밀 지역은 정류장 거리 · 하루 운행 · 읍내행 첫차, 간이 지역은 정류장 거리만 본다
+            ? '정류장까지 걸어갈 수 있고 읍내 가는 버스가 있는지 봐요. 정밀 판정 지역은 하루 운행 횟수와 낮 12시 전 첫차도 확인해요.'
+            : '정류장까지 걸어갈 수 있는지 봐요. 간이 판정 지역이라 버스 운행은 보지 않아요.'}`): TRAVEL.find((x) => x.id === travel)!.desc}</p>
         {travel === 'car' ? (
           <>
             <p className="muted small" style={{ margin: '6px 0 0' }}>{carTarget === 'er' ? (T === 30 && st.age === 'all' ? '지역응급의료센터 이상(권역센터 포함)까지예요. 30분 · 전체 주민일 때 지표 E30과 같은 기준이에요.' : `지역응급의료센터 이상(권역센터 포함)까지예요. 여기 숫자는 ${T}분 · ${ageName} 기준이고, 지표 E30${e30All}은 30분 · 전체 주민 기준이라 서로 달라요.`) : `마을 안에 ${targetName}${josa(targetName, '이', '가')} 있으면 갈 수 있는 마을로 봐요.`}</p>
