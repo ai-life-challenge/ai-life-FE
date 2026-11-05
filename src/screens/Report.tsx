@@ -18,6 +18,7 @@ import { Seg } from '../ui/Seg'
 import { linkNotes } from '../ui/mdText'
 import type { Autosave, SaveStatus } from './report/autosave'
 import { restoreReport, saverFor } from './report/reportSaver'
+import { EstimatedSummary } from './report/EstimatedSummary'
 
 const today = new Date().toLocaleDateString('sv-SE')
 // 편집기(TipTap)는 레포트 화면에서만 쓰므로 따로 받는다. 받는 동안은 같은 모양의 읽기 전용 글을 보여 준다
@@ -26,6 +27,24 @@ const RichText = lazy(() => import('../ui/RichText').then((m) => ({ default: m.R
 export function Report() {
   const { code } = useParams()
   const [q] = useSearchParams()
+  const st = useStore((s) => s.state)!
+  const plans = useStore((s) => s.plans)
+  const patch = useStore((s) => s.patch)
+  // 공유 링크로 들어오면 그 조건(기준 · 공급수단 · 단가 · 예산 · 목표 · 안)을 먼저 적용한다. 서버 계산은 바뀐 조건으로 다시 부른다(useAutoFetch)
+  const applied = useRef(false)
+  useEffect(() => {
+    if (applied.current) return
+    applied.current = true
+    patch((x) => readShare(q, x))
+  }, [q, patch])
+  useAutoFetch('fetchPlans')
+  // 대안이 추정이면 서버 레포트를 만들지 않는다: 문단 · 각주 없이 계산 결과만 추정임을 밝혀 정리한다
+  if (plans.source === 'estimated' && plans.data && plans.key === calcKey(code!, st)) return <EstimatedSummary plans={plans.data} />
+  return <ServerReport />
+}
+
+function ServerReport() {
+  const { code } = useParams()
   const { state, regions, plans, report, patch, fetchReport, fetchPlans } = useStore()
   const st = state!
   const r = regions.find((x) => x.code === code)!
@@ -50,16 +69,7 @@ export function Report() {
     }
   }, [saver])
 
-  // 공유 링크로 들어오면 그 조건(기준 · 공급수단 · 단가 · 예산 · 목표 · 안)을 먼저 적용한다. 서버 계산은 바뀐 조건으로 다시 부른다(useAutoFetch)
-  const applied = useRef(false)
-  useEffect(() => {
-    if (applied.current) return
-    applied.current = true
-    patch((x) => readShare(q, x))
-  }, [q, patch])
-
   useEffect(() => { if (st.report.form !== 'official') patch((s) => ({ ...s, report: { ...s.report, form: 'official' } })) }, [st.report.form, patch]) // 주민 안내문은 없앴다: 공문만
-  useAutoFetch('fetchPlans')
   useAutoFetch('fetchReport', true, 200)
 
   const rep = report.data

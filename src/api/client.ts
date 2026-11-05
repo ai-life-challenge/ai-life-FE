@@ -21,9 +21,22 @@ export class ApiError extends Error {
 // 질문(ask)은 서버가 40초에 끊으니 60초로 api/ask.ts에서 따로 잡는다
 const FAST = 20_000, SLOW = 30_000
 
+// 페이지를 떠나면(주소 입력 · 링크) 가는 중인 요청을 끊는다. 브라우저가 페이지를 뒤로 가기 캐시에 얼리면 답 없는 요청이 살아남아,
+// 서버가 돌아와도 같은 주소의 새 요청이 약 20초 막힌다(HTTP 캐시 잠금, HTTP/1.1이면 연결 한도까지). 끊긴 채로 되돌아온 페이지는 답을 기다릴 수 없어 새로 불러온다
+const live = new Set<AbortController>()
+let cutOnLeave = false
+if (typeof window !== 'undefined') {
+  window.addEventListener('pagehide', () => {
+    if (live.size) cutOnLeave = true
+    for (const a of live) a.abort()
+  })
+  window.addEventListener('pageshow', (e) => { if (e.persisted && cutOnLeave) location.reload() })
+}
+
 async function call<T>(path: string, init?: RequestInit, signal?: AbortSignal, timeoutMs = FAST): Promise<T> {
   // 부른 쪽이 멈추면 AbortError 그대로, 시간이 넘으면 화면에 보일 수 있는 오류로 바꾼다
   const ac = new AbortController()
+  live.add(ac)
   let timedOut = false
   const timer = setTimeout(() => { timedOut = true; ac.abort() }, timeoutMs)
   const onAbort = () => ac.abort()
@@ -41,8 +54,15 @@ async function call<T>(path: string, init?: RequestInit, signal?: AbortSignal, t
       const b = (await res.json().catch(() => null)) as Partial<ApiErrorBody> | null
       throw new ApiError(res.status, b?.error ?? 'unknown', b?.message ?? '요청을 처리하지 못했어요.', b?.detail)
     }
-    return (await res.json()) as T
+    try {
+      return (await res.json()) as T
+    } catch (e) {
+      if (timedOut) throw new ApiError(0, 'timeout', '서버가 늦게 답하고 있어요. 잠시 뒤 다시 시도해 주세요.')
+      if ((e as Error).name === 'AbortError') throw e
+      throw new ApiError(res.status, 'bad_response', '서버 응답을 읽지 못했어요. 잠시 뒤 다시 시도해 주세요.')
+    }
   } finally {
+    live.delete(ac)
     clearTimeout(timer)
     signal?.removeEventListener('abort', onAbort)
   }

@@ -11,7 +11,7 @@ import { useTierCounts } from '../hooks'
 const KOREA_BOX: [number, number, number, number] = [125.6, 34.2, 129.6, 38.4]
 
 export function Select({ mapRef, blocked, pick, picked }: { mapRef: React.RefObject<MapRef | null>; blocked: string | null; pick: (code: string) => void; picked: string | null }) {
-  const { regions, listError, hoverRegion, mapReady, loadList, set } = useStore()
+  const { regions, listError, listSource, snapshot, hoverRegion, mapReady, loadList, retryServer, set } = useStore()
   const [q, setQ] = useState('')
   useEffect(() => { void loadList() }, [loadList])
   useEffect(() => {
@@ -35,16 +35,23 @@ export function Select({ mapRef, blocked, pick, picked }: { mapRef: React.RefObj
     <motion.aside className="panel" initial={{ x: -40, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -40, opacity: 0 }} transition={{ type: 'spring', stiffness: 260, damping: 28 }}>
       <p className="eyebrow">1단계 · 지역 선택</p>
       <h1>어느 군을 살펴볼까요?</h1>
-      <p className="muted">지도에서 파랗게 빛나는 {regions.length || 72}곳 중에 골라 보세요. [정밀 판정]은 버스 하루 운행 횟수와 읍내행 첫차까지 본 {precise != null ? `${precise}곳` : '지역'}이고, [간이 판정]은 정류장까지 걷는 거리만 봐요.</p>
+      {!listError && <p className="muted">지도에서 파랗게 빛나는 {regions.length || 72}곳 중에 골라 보세요. [정밀 판정]은 버스 하루 운행 횟수와 읍내행 첫차까지 본 {precise != null ? `${precise}곳` : '지역'}이고, [간이 판정]은 정류장까지 걷는 거리만 봐요.</p>}
 
       <input className="search" type="search" placeholder="군 이름이나 시도로 찾기" value={q} onChange={(e) => setQ(e.target.value)} aria-label="지역 찾기" />
 
       {listError && (
         <div className="toast-inline">
-          {listError} <button className="link" onClick={() => void loadList()}>다시 불러오기</button>
+          <b>지역 목록을 불러오지 못했어요</b><br />{listError} <button className="link" onClick={() => void loadList()}>다시 불러오기</button>
         </div>
       )}
       {!listError && !regions.length && <p className="muted" role="status">지역 목록을 불러오는 중이에요…</p>}
+      {listSource === 'snapshot' && snapshot && (
+        <div className="estimate-note" role="status">
+          <b>서버에 연결되지 않아요</b>
+          <p>{snapshot.capturedAt}에 저장한 실제 자료가 있는 {regions.length}개 지역만 볼 수 있어요. 나머지 {snapshot.totalRegions - regions.length}개 지역은 서버가 돌아오면 다시 볼 수 있어요. 대안은 서버 최적화가 아니라 추정으로 계산해요.</p>
+          <button className="link" onClick={() => void retryServer()}>서버 다시 확인</button>
+        </div>
+      )}
 
       <div className="region-list">
         {list.map((r) => (

@@ -1,12 +1,13 @@
 // S4 예산안 만들기: 서버에 판정과 대안 계산을 부르는 동안 AI가 일하는 모습을 보여 주고, 끝나면 결과로 넘어간다.
 // 순서: 판정 → 공급수단 확인 → 대안 계산 → 세 안 비교. 서버가 빨라도(같은 조건이면 캐시라 0.1초) 단계가 눈에 보이도록 STEP만큼은 머문다.
-// 단계 표시는 연출이고, 숫자(공백 인구 · 안 개수 · 추천)는 서버가 준 것만 나온다. 움직임 줄이기 설정이면 바로 넘어간다.
+// 단계 표시는 연출이고, 숫자(공백 인구 · 안 개수 · 추천)는 서버가 준 값이나, 서버 장애 때 브라우저가 실제로 계산을 마친 추정값만 나온다. 움직임 줄이기 설정이면 바로 넘어간다.
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { motion, useReducedMotion } from 'motion/react'
 import { calcKey, judgeKey, useStore } from '../store'
 import { SUPPLY, SUPPLY_IDS, eok, fmt, pct } from '../api/meta'
 import { Tools, type ToolCall } from '../ui/Tools'
+import { EstimateNotice } from '../ui/EstimateNotice'
 
 // 각 단계가 보이기 시작하는(run) · 끝나는(done) 시각(ms)
 const STEP = { judgeDone: 1000, supplyRun: 400, supplyDone: 1300, plansRun: 900, plansDone: 2400, compareDone: 3500 }
@@ -56,10 +57,11 @@ export function Simulate() {
   }, [allDone, code, nav])
 
   const allowed = SUPPLY_IDS.filter((k) => st.allowedSupply[k])
+  const estimated = pFresh && plans.source === 'estimated'
   const calls: ToolCall[] = [
-    { id: 'judge', label: `judge(${r.name})`, state: judgeState, result: judge.data ? `공백 ${fmt(judge.data.summary.gap)}명 (${pct(judge.data.summary.rate)})` : undefined },
+    { id: 'judge', label: `judge(${r.name})`, state: judgeState, result: judge.data ? `공백 ${fmt(judge.data.summary.gap)}명 (${pct(judge.data.summary.rate)})${judge.source === 'estimated' ? ' · 브라우저 판정' : ''}` : undefined },
     { id: 'supply', label: `공급수단 ${allowed.length}종 확인`, state: supplyState, result: allowed.map((k) => SUPPLY[k].name).join(' · ') || '없음' },
-    { id: 'plans', label: `plans(목표 ${Math.round(st.target * 100)}%, 연 ${eok(st.budget)})`, state: plansState, result: plans.data ? `안 ${plans.data.plans.length}개 만듦` : undefined },
+    { id: 'plans', label: `plans(목표 ${Math.round(st.target * 100)}%, 연 ${eok(st.budget)})`, state: plansState, result: plans.data ? `안 ${plans.data.plans.length}개 ${plans.source === 'estimated' ? '추정' : '만듦'}` : undefined },
     { id: 'compare', label: '세 안 비교 (비용 절감 · 균형 · 적극 투자)', state: compareState, result: `추천 ${plans.data?.plans.find((p) => p.recommended)?.name ?? ''}` },
   ]
 
@@ -75,7 +77,9 @@ export function Simulate() {
       <p className="eyebrow">4단계 · 예산안 만들기</p>
       <div className="ai-orb" aria-hidden><span className="core">✦</span><i /><i /></div>
       <h1 className={allDone || failed ? '' : 'shimmer-text'}>{r.name}의 예산안을 {allDone ? '만들었어요' : '만들고 있어요'}</h1>
-      <p className="muted small">계산은 모두 서버가 해요. 화면은 받은 결과만 그려요.</p>
+      {estimated
+        ? <EstimateNotice />
+        : <p className="muted small">계산은 모두 서버가 해요. 화면은 받은 결과만 그려요.</p>}
 
       <div className={`sim-progress ${allDone || failed ? '' : 'run'}`} role="progressbar" aria-valuenow={prog} aria-valuemin={0} aria-valuemax={100} aria-label="예산안 만드는 중"><i style={{ width: `${prog}%` }} /></div>
       <Tools calls={calls} />
@@ -89,7 +93,7 @@ export function Simulate() {
         <div className="toast-inline" role="alert">
           {plans.error ?? judge.error}
           <div className="row" style={{ marginTop: 8 }}>
-            <button className="primary" onClick={() => { void fetchJudge(); void fetchPlans() }}>다시 시도</button>
+            <button className="primary" onClick={() => { void fetchJudge({ force: true }); void fetchPlans({ force: true }) }}>다시 시도</button>
             <button className="ghost" onClick={() => nav(`/r/${code}/goal`)}>← 조건 바꾸기</button>
           </div>
         </div>

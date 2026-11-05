@@ -16,7 +16,7 @@ export function useLocalJudge() {
 export function useFreshServerJudge() {
   const judge = useStore((s) => s.judge)
   const now = useStore((s) => judgeKey(s.code, s.state))
-  return judge.data && judge.key === now ? judge.data : null
+  return judge.data && judge.key === now && judge.source !== 'estimated' ? judge.data : null // 브라우저가 대신 계산한 판정은 서버 판정이 아니다: 대조하지 않는다
 }
 export function useJudgeCompare() {
   const local = useLocalJudge()

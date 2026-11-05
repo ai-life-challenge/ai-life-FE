@@ -1,3 +1,5 @@
+import type { RegionData } from '../api/types'
+
 export const KOREA_VIEW = { longitude: 127.9, latitude: 35.95, zoom: 6.2, pitch: 0, bearing: 0 }
 
 let sigunguCache: Promise<any> | null = null
@@ -47,6 +49,12 @@ export function fitCounty(map: CamMap | undefined | null, bbox: Box, opts: { dur
 // bottom · right: 지도 위 범례가 차지한 만큼 비워 둘 때
 export function flyToArea(map: CamMap | undefined | null, area: Box, opts: { duration?: number; bottom?: number; right?: number } = {}) {
   flyToBox(map, area, opts.duration ?? 1200, { ...(opts.bottom ? { bottom: opts.bottom } : {}), ...(opts.right ? { right: opts.right } : {}) })
+}
+
+// 읍면 이름(대안의 pick.myeon · 지도 경계 이름)으로 그 읍면 마을 id를 찾는다. 마을 원자료의 myeon은 읍면 id라 이름과 바로 비교할 수 없다
+export function villagesOfMyeon(data: Pick<RegionData, 'myeons' | 'villages'>, name: string | null | undefined) {
+  const id = data.myeons.find((m) => m.name === name)?.id
+  return id == null ? [] : data.villages.filter((v) => v.myeon === id).map((v) => v.id)
 }
 
 // 점들을 모두 담는 상자 [서, 남, 동, 북]
