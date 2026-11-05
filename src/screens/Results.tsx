@@ -1,7 +1,7 @@
 // S5 결과: 서버가 만든 대안 3개를 카드로 비교하고, 고른 안이 닿는 마을과 공급수단을 지도에 그린다.
 // 카드 순서는 서버가 준 대로 비용 절감안 · 균형안 · 적극 투자안이고, 추천은 서버가 정한다.
 // 서버 장애로 추정한 대안(plans.source === 'estimated')도 같은 카드로 그리되, 맨 위 안내 · 카드 표시 · 추천 문구로 추정임을 알린다.
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import type { MapRef } from 'react-map-gl/maplibre'
@@ -33,14 +33,20 @@ export function Results({ mapRef }: { mapRef: React.RefObject<MapRef | null> }) 
   const estimated = plans.source === 'estimated' && !!plans.data
   const [open, setOpen] = useState<number | null>(null)
   // 안을 바꾸면 그 안이 놓는 곳(정류장 · 구역 · 거점)이 다 보이게 다가간다. 놓는 게 없으면 군 전체
+  // 같은 안 번호에서 추정 ↔ 서버로 결과가 바뀌면(서버 복구 등) 배치가 달라졌을 때만 다시 맞춘다. 같은 출처 안에서 내용만 바뀔 때는 지도를 그대로 둔다
+  const fitted = useRef<{ k: number; data: unknown; placement: string } | null>(null)
   useEffect(() => {
     if (!mapReady || !data || !shown) return
+    const placement = JSON.stringify(shown.picks.map((p) => [p.type, p.myeon, p.villages]))
+    const last = fitted.current
+    if (last && last.k === shown.k && last.data === data && last.placement === placement) return
+    fitted.current = { k: shown.k, data, placement }
     const ids = new Set(shown.picks.flatMap((p) => [...p.villages, ...(p.type === 'tour' ? [data.depot] : []), ...villagesOfMyeon(data, p.myeon)]))
     const pts = data.villages.filter((v) => ids.has(v.id))
     if (!pts.length) { fitCounty(mapRef.current, boxOf(data.villages), { duration: 900 }); return }
     const b = boxOf(pts), pad = 0.06
     flyToArea(mapRef.current, [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad], { duration: 1100, right: LEGEND_W })
-  }, [shown?.k, mapReady, data]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [shown?.k, mapReady, data, plans.source]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <>

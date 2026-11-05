@@ -49,10 +49,10 @@ const padded = (want: string[], pad: number) => { const b = boxOf(ids(want)); re
 const expected = (want: string[], pad: number) => cameraFor(padded(want, pad), W, H, { ...panelPadding(W, H), right: LEGEND_W })
 const last = () => flyTo.mock.calls.at(-1)![0] as { center: [number, number]; zoom: number; duration: number }
 
-async function show(ps: Plan[]) {
+async function show(ps: Plan[], source?: 'server' | 'estimated') {
   const body = plansOf(ps)
   vi.stubGlobal('fetch', vi.fn(async (url: string) => new Response(JSON.stringify(String(url).includes('/api/judge') ? judge : String(url).includes('/api/plans') ? body : { base: { k: 1, name: 'x', rate: 1, year: 1, summary: '' }, lo: { k: 1, name: 'x', rate: 1, year: 1, summary: '' }, hi: { k: 1, name: 'x', rate: 1, year: 1, summary: '' }, same: true }))))
-  useStore.setState({ code: '99999', data, state, regions: [item], map: { type: 'FeatureCollection', features: [] }, mapReady: true, plans: { status: 'ok', data: body, error: null }, judge: { status: 'ok', data: judge, error: null } })
+  useStore.setState({ code: '99999', data, state, regions: [item], map: { type: 'FeatureCollection', features: [] }, mapReady: true, plans: { status: 'ok', data: body, error: null, source }, judge: { status: 'ok', data: judge, error: null } })
   box = document.createElement('div'); document.body.appendChild(box); root = createRoot(box)
   await act(async () => {
     root!.render(createElement(MemoryRouter, { initialEntries: ['/r/99999/result'] }, createElement(Routes, null, createElement(Route, { path: '/r/:code/result', element: createElement(Results, { mapRef: mapRef as never }) }))))
@@ -128,5 +128,64 @@ describe('대안 전환', () => {
     await pickPlan(0)
     const whole = boxOf(villages)
     expect(last()).toMatchObject({ ...cameraFor(whole, W, H, panelPadding(W, H)), duration: 900 })
+  })
+})
+
+describe('추정 ↔ 서버 전환', () => {
+  const three = (picks: Pick[]) => [plan(0, '안0', picks), plan(1, '안1', [fix]), plan(2, '안2', [tour])]
+  // 같은 안 번호(k 0) 그대로 결과만 바꾼다. 응답은 매번 새 객체다
+  const swap = async (picks: Pick[], source: 'server' | 'estimated') => {
+    flyTo.mockClear()
+    await act(async () => { useStore.setState({ plans: { status: 'ok', data: plansOf(JSON.parse(JSON.stringify(three(picks)))), error: null, source } }) })
+  }
+  test('서버로 복구되어 배치가 달라지면 새 배치 범위로 한 번 옮긴다', async () => {
+    await show(three([drtA]), 'estimated')
+    await swap([drtB, tele], 'server')
+    expect(flyTo).toHaveBeenCalledTimes(1)
+    expect(last()).toMatchObject({ ...expected(['b1', 'b2', 'a2'], 0.06), duration: 1100 })
+  })
+  test('서버로 복구되어도 배치가 같으면 지도를 그대로 둔다', async () => {
+    await show(three([drtA, tele]), 'estimated')
+    await swap([drtA, tele], 'server')
+    expect(flyTo).not.toHaveBeenCalled()
+  })
+  test('같은 마을을 다른 노선으로 돌면 배치가 다르다', async () => {
+    await show(three([pick('tour', '순회', ['t1'], null)]), 'estimated')
+    await swap([pick('tour', '순회', ['t1', 'a1'], null)], 'server')
+    expect(flyTo).toHaveBeenCalledTimes(1)
+  })
+  test('서버에서 추정으로 바뀌어 배치가 달라져도 한 번 옮긴다', async () => {
+    await show(three([drtA]), 'server')
+    await swap([drtB], 'estimated')
+    expect(flyTo).toHaveBeenCalledTimes(1)
+    expect(last()).toMatchObject(expected(['b1', 'b2'], 0.06))
+  })
+  test('같은 출처 안에서 내용만 바뀌면 예전처럼 움직이지 않는다', async () => {
+    await show(three([drtA]), 'server')
+    await swap([drtB], 'server')
+    expect(flyTo).not.toHaveBeenCalled()
+  })
+  test('화면이 다시 그려져도 다시 옮기지 않는다', async () => {
+    await show(three([drtA]), 'estimated')
+    await swap([drtB], 'server')
+    flyTo.mockClear()
+    for (const hoverSupply of ['drt', 'tour', null] as const) await act(async () => { useStore.setState({ hoverSupply }) })
+    await act(async () => { useStore.setState({ hoverVillage: 'a1' }) })
+    await swap([drtB], 'server') // 같은 서버 결과를 다시 받아도
+    expect(flyTo).not.toHaveBeenCalled()
+  })
+  test('옮기지 않은 배치로 복구되면 지도가 맞춰 둔 배치와 비교한다', async () => {
+    await show(three([drtA]), 'estimated')
+    await swap([drtB], 'estimated') // 같은 출처: 지도는 가면에 그대로
+    await swap([drtA], 'server')
+    expect(flyTo).not.toHaveBeenCalled() // 지도는 이미 가면을 보고 있다
+  })
+  test('복구한 뒤에도 안을 바꾸면 늘 옮긴다(배치가 같은 안이어도)', async () => {
+    await show([plan(0, '안0', [drtA]), plan(1, '안1', [drtA]), plan(2, '안2', [])], 'estimated')
+    flyTo.mockClear()
+    await act(async () => { useStore.setState({ plans: { status: 'ok', data: plansOf([plan(0, '안0', [drtA]), plan(1, '안1', [drtA]), plan(2, '안2', [])]), error: null, source: 'server' } }) })
+    expect(flyTo).not.toHaveBeenCalled()
+    await pickPlan(1)
+    expect(flyTo).toHaveBeenCalledTimes(1)
   })
 })
