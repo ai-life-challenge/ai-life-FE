@@ -6,6 +6,7 @@
 import fs from 'node:fs'
 import { test } from 'vitest'
 import { coverageById, estimatePlans } from '../src/api/estimatePlans'
+import { validPlans } from '../src/api/fallback'
 import { compare, judgeLocal } from '../src/api/judge'
 import type { Judge, Plans, RegionData, RegionList, State } from '../src/api/types'
 
@@ -46,6 +47,7 @@ test.skipIf(!process.env.COMPARE_SERVER)('서버 대 추정 비교', async () =>
     )
   }
   const every = Number(process.env.COMPARE_EVERY ?? 1)
+  let checked = 0, invalid = 0 // 응답 검사가 정상 서버 응답을 거부하면 운영에서 추정 모드로 잘못 넘어간다
   const pick = process.env.COMPARE_COND // 조건 하나만 돌릴 때
   const stat: Record<string, { n: number; judgeSame: number; rate: number[]; year: number[]; rec: number; future: number[]; timeMax: number; over: number; cov: number[]; maxStops: number; sameBase: number; meetSame: number; order: number; picks: number[]; sameCombo: number[]; absRate: number[]; maxRate: number[]; absYear: number[]; maxYear: number[] }> = {}
   for (const r of list.regions.filter((_, i) => i % every === 0).slice(0, LIMIT)) {
@@ -58,6 +60,8 @@ test.skipIf(!process.env.COMPARE_SERVER)('서버 대 추정 비교', async () =>
       if (pick && pick !== name) continue
       const st = { ...S, ...patch } as State
       const server = await post<Plans>('/api/plans', { region: r.code, state: st })
+      if (!validPlans(server, data.villages.length)) { invalid++; console.log('서버 응답 검증 실패', r.code, name) }
+      checked++
       const t0 = performance.now()
       const est = estimatePlans(data, st)
       const ms = performance.now() - t0
@@ -93,6 +97,7 @@ test.skipIf(!process.env.COMPARE_SERVER)('서버 대 추정 비교', async () =>
       }
     }
   }
+  console.log(`응답 검사: 서버 응답 ${checked}건 중 거부 ${invalid}건`)
   for (const [name, s] of Object.entries(stat)) {
     const f = (a: number[]) => a.map((x) => (x / s.n).toFixed(4)).join(' / ')
     console.log(`${name}: 지역 ${s.n} · 판정 일치 ${s.judgeSame} · 마을 순서 일치 ${s.order} · 기본 달성률 일치 ${s.sameBase} · 추천 일치 ${s.rec} · 목표여부 일치 ${s.meetSame}/${s.n * 3} · 평균 달성률 차(추정−서버) ${f(s.rate)} · 평균 |달성률 차| ${f(s.absRate)} · 최대 |달성률 차| ${s.maxRate.map((x) => x.toFixed(4)).join(' / ')} · 평균 연비용 차 ${f(s.year)} · 평균 |연비용 차| ${f(s.absYear)} · 최대 |연비용 차| ${s.maxYear.map((x) => x.toFixed(2)).join(' / ')} · 10년뒤 평균 |차| ${f(s.future)} · 평균 coverage 인원 차 ${f(s.cov)} · 평균 |배치 수 차| ${f(s.picks)} · 수단 구성 일치 ${s.sameCombo.join(' / ')} · 예산초과 ${s.over} · 서버 최대 정차 ${s.maxStops} · 최장 ${s.timeMax.toFixed(0)}ms`)

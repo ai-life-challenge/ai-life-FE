@@ -35,6 +35,8 @@ describe('응답 검사', () => {
   test('빠지거나 잘못된 값은 통과하지 못한다', () => {
     const bad = (f: (p: Plans) => void) => { const c = JSON.parse(JSON.stringify(plans)) as Plans; f(c); return validPlans(c, 6) }
     expect(validPlans(null)).toBe(false)
+    expect(bad((p) => { p.plans[1].k = 0 })).toBe(false) // 적극 투자안(k 2)을 찾을 수 없다
+    expect(bad((p) => { (p.plans[0] as unknown as { gapBefore: unknown }).gapBefore = null })).toBe(false)
     expect(bad((p) => { p.plans.pop() })).toBe(false)
     expect(bad((p) => { p.plans[0].rate = 1.2 })).toBe(false)
     expect(bad((p) => { (p.plans[0] as unknown as { year: unknown }).year = null })).toBe(false)
@@ -42,6 +44,41 @@ describe('응답 검사', () => {
     expect(validJudge({ ...judge, villages: judge.villages.slice(1) }, 6)).toBe(false)
     expect(validJudge({ ...judge, summary: undefined as never })).toBe(false)
     expect(validSens({ same: true } as never)).toBe(false)
+  })
+})
+
+describe('배치 · coverage 검사', () => {
+  const plans = estimatePlans(region(), state({ budget: 30, target: 1 }))
+  const withPick = (pick: unknown) => { const c = JSON.parse(JSON.stringify(plans)) as Plans; (c.plans[2].picks as unknown[]) = [pick]; return validPlans(c, 6) }
+  const good = { type: 'tele', typeName: '경로당 원격진료', label: '경로당 원격진료 (가면)', year: 0.056, install: 0.03, villages: ['v1'], myeon: null }
+  test('추정 결과와 서버 모양의 정상 배치는 통과한다', () => {
+    expect(validPlans(plans, 6)).toBe(true)
+    expect(plans.plans[2].picks.length).toBeGreaterThan(0)
+    expect(withPick(good)).toBe(true)
+    expect(withPick({ ...good, type: 'drt', villages: [], myeon: '가면' })).toBe(true)
+    expect(withPick({ ...good, type: 'fix', year: 0, install: 0 })).toBe(true) // 단가 0원은 올바른 값이다
+  })
+  test.each([
+    ['배치가 null', null],
+    ['모르는 공급수단', { ...good, type: 'boat' }],
+    ['villages 없음', { ...good, villages: undefined }],
+    ['villages 안이 문자열이 아님', { ...good, villages: [1] }],
+    ['label 없음', { ...good, label: undefined }],
+    ['year 없음', { ...good, year: undefined }],
+    ['year 음수', { ...good, year: -1 }],
+    ['install 없음', { ...good, install: null }],
+    ['수요응답형인데 읍면 없음', { ...good, type: 'drt', villages: [], myeon: null }],
+    ['읍면이 문자열이 아님', { ...good, myeon: 3 }],
+  ])('%s면 통과하지 못한다', (_name, pick) => { expect(withPick(pick)).toBe(false) })
+  test.each([[null], ['1'], [-0.1], [1.01], [7]])('coverage 값이 %s면 통과하지 못한다', (v) => {
+    const c = JSON.parse(JSON.stringify(plans)) as Plans
+    ;(c.plans[1].coverage as unknown[])[0] = v
+    expect(validPlans(c, 6)).toBe(false)
+  })
+  test('coverage는 0과 1, 원격진료 효과 같은 소수를 받는다', () => {
+    const c = JSON.parse(JSON.stringify(plans)) as Plans
+    c.plans[1].coverage = [1, 0, 0.5, 0.3, 0.1, 1]
+    expect(validPlans(c, 6)).toBe(true)
   })
 })
 

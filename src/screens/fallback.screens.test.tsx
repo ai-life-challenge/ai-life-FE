@@ -124,6 +124,30 @@ describe('예산안 만들기', () => {
   })
 })
 
+describe('잘못된 서버 응답', () => {
+  // 지도가 준비된 상태까지 만든다: 배치를 읽는 지도 이동 코드가 충돌하지 않는지 함께 본다
+  const flyTo = vi.fn()
+  const map = { current: { flyTo, getContainer: () => ({ clientWidth: 1440, clientHeight: 900 }) } }
+  test.each([
+    ['villages 없음', (p: Plans) => { (p.plans[1].picks as unknown[]) = [{ type: 'drt', label: 'x', year: 1, install: 1, myeon: '가면' }] }],
+    ['배치가 null', (p: Plans) => { (p.plans[1].picks as unknown[]) = [null] }],
+    ['모르는 공급수단', (p: Plans) => { (p.plans[1].picks as unknown[]) = [{ type: 'boat', label: 'x', year: 1, install: 1, villages: [], myeon: null }] }],
+    ['coverage 범위 밖', (p: Plans) => { p.plans[1].coverage = p.plans[1].coverage.map(() => 7) }],
+  ])('%s: 결과 화면이 깨지지 않고 추정으로 표시한다', async (_name, breakIt) => {
+    const st = state({ planShow: 1 })
+    setup(st); useStore.setState({ mapReady: true })
+    const broken = serverPlans(st); breakIt(broken)
+    respond({ '/api/plans': () => json(broken) })
+    await act(async () => { await useStore.getState().fetchPlans() })
+    await render('/r/99999/result', createElement(Results, { mapRef: map as never }))
+    await wait(30)
+    expect(useStore.getState().plans.source).toBe('estimated')
+    expect(text()).toContain('추정 시뮬레이션')
+    expect(box.querySelector('.plan-legend')).not.toBeNull()
+    expect(flyTo).toHaveBeenCalled()
+  })
+})
+
 describe('결과', () => {
   const estimatedSetup = async (st = state({ budget: 30, target: 1 })) => {
     setup(st); down()

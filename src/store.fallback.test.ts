@@ -103,6 +103,22 @@ describe('서버 장애 → 추정', () => {
     await s().fetchPlans()
     expect(s().plans.source).toBe('estimated')
   })
+  test('배치 칸이 빠진 응답은 받지 않고 추정으로 넘어간다', async () => {
+    ready()
+    const broken = serverPlans(); (broken.plans[1].picks as unknown[]) = [{ type: 'drt', label: 'x' }]
+    server({ '/api/plans': () => json(broken) })
+    await s().fetchPlans()
+    expect(s().plans).toMatchObject({ status: 'ok', source: 'estimated', reason: '서버 응답 형식이 올바르지 않아요.' })
+    expect(s().plans.data).not.toBe(broken)
+  })
+  test('coverage가 범위를 벗어난 응답은 받지 않고 추정으로 넘어간다', async () => {
+    ready()
+    const broken = serverPlans(); broken.plans[0].coverage = broken.plans[0].coverage.map(() => 7)
+    server({ '/api/plans': () => json(broken) })
+    await s().fetchPlans()
+    expect(s().plans.source).toBe('estimated')
+    expect(s().plans.data!.plans[0].coverage.every((c) => c <= 1)).toBe(true)
+  })
   test('판정 API만 실패하면 판정만 브라우저 값으로, 대안은 서버 값 그대로', async () => {
     ready()
     server({ '/api/judge': err500, '/api/plans': () => json(serverPlans()) })

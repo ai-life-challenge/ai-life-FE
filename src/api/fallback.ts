@@ -1,6 +1,7 @@
 // 서버 장애 판단: 어떤 실패를 추정 계산으로 넘길지(입력 오류는 넘기지 않는다), 응답이 쓸 수 있는 모양인지, 언제 서버를 다시 물어볼지.
 import { ApiError } from './client'
-import type { Judge, Plans, RegionData, RegionList, Sensitivity } from './types'
+import { SUPPLY_IDS } from './meta'
+import type { Judge, Pick, Plans, RegionData, RegionList, Sensitivity } from './types'
 
 // 추정으로 넘겨도 되는 실패: 연결 실패 · 시간 초과 · 서버 오류(5xx) · 읽을 수 없는 응답. 400 같은 입력 오류와 429, 부른 쪽이 멈춘 요청은 넘기지 않는다
 export function isRecoverable(e: unknown) {
@@ -16,9 +17,14 @@ export function validJudge(j: Judge | null | undefined, n?: number) {
   return !!j && !!j.summary && isNum(j.summary.total) && isNum(j.summary.gap) && Array.isArray(j.villages) && (n == null || j.villages.length === n)
     && j.villages.every((v) => v && typeof v.id === 'string' && (v.state === 0 || v.state === 1 || v.state === 2))
 }
+// 배치 한 건: 결과 카드 · 범례 · 지도가 읽는 칸만 본다. 수요응답형은 읍면 이름이 있어야 지도에 구역을 그린다
+const validPick = (x: Pick | null | undefined) => !!x && SUPPLY_IDS.includes(x.type) && typeof x.label === 'string' && isNum(x.year) && x.year >= 0 && isNum(x.install) && x.install >= 0
+  && Array.isArray(x.villages) && x.villages.every((id) => typeof id === 'string') && (x.type === 'drt' ? !!x.myeon && typeof x.myeon === 'string' : x.myeon == null || typeof x.myeon === 'string')
 export function validPlans(p: Plans | null | undefined, n?: number) {
-  return !!p && Array.isArray(p.plans) && p.plans.length === 3 && p.plans.every((x) => x && isNum(x.rate) && x.rate >= 0 && x.rate <= 1 && isNum(x.baseRate) && isNum(x.year) && x.year >= 0
-    && isNum(x.install) && isNum(x.gapAfter) && x.gapAfter >= 0 && Array.isArray(x.picks) && Array.isArray(x.coverage) && (n == null || x.coverage.length === n))
+  return !!p && Array.isArray(p.plans) && p.plans.length === 3 && [0, 1, 2].every((k) => p.plans.some((x) => x?.k === k))
+    && p.plans.every((x) => x && isNum(x.rate) && x.rate >= 0 && x.rate <= 1 && isNum(x.baseRate) && isNum(x.year) && x.year >= 0
+    && isNum(x.install) && isNum(x.gapBefore) && isNum(x.gapAfter) && x.gapAfter >= 0 && Array.isArray(x.picks) && x.picks.every(validPick)
+    && Array.isArray(x.coverage) && (n == null || x.coverage.length === n) && x.coverage.every((c) => isNum(c) && c >= 0 && c <= 1))
 }
 export function validSens(s: Sensitivity | null | undefined) {
   return !!s && [s.base, s.lo, s.hi].every((x) => x && isNum(x.year) && isNum(x.rate)) && typeof s.same === 'boolean'
