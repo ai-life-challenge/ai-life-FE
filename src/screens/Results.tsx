@@ -11,7 +11,7 @@ import { MINUTE_STOPS, minuteRgb } from '../api/cells'
 import { coverageById } from '../api/estimatePlans'
 import type { Plan } from '../api/types'
 import { useStore } from '../store'
-import { boxOf, fitCounty, flyToArea } from '../map/geo'
+import { boxOf, fitCounty, flyToArea, villagesOfMyeon } from '../map/geo'
 import { Count } from '../ui/Count'
 import { AiBadge, SrcBadge } from '../ui/Badges'
 import { Basis } from '../ui/Basis'
@@ -35,7 +35,7 @@ export function Results({ mapRef }: { mapRef: React.RefObject<MapRef | null> }) 
   // 안을 바꾸면 그 안이 놓는 곳(정류장 · 구역 · 거점)이 다 보이게 다가간다. 놓는 게 없으면 군 전체
   useEffect(() => {
     if (!mapReady || !data || !shown) return
-    const ids = new Set(shown.picks.flatMap((p) => [...p.villages, ...(p.type === 'tour' ? [data.depot] : []), ...(p.myeon ? data.villages.filter((v) => v.myeon === p.myeon).map((v) => v.id) : [])]))
+    const ids = new Set(shown.picks.flatMap((p) => [...p.villages, ...(p.type === 'tour' ? [data.depot] : []), ...villagesOfMyeon(data, p.myeon)]))
     const pts = data.villages.filter((v) => ids.has(v.id))
     if (!pts.length) { fitCounty(mapRef.current, boxOf(data.villages), { duration: 900 }); return }
     const b = boxOf(pts), pad = 0.06
@@ -125,7 +125,7 @@ function PlanLegend({ plan, mapRef }: { plan: Plan | null; mapRef: React.RefObje
   }
   const rows = types.map((t) => {
     const picks = plan.picks.filter((x) => x.type === t)
-    const ids = [...new Set(picks.flatMap((x) => (t === 'tour' ? [data.depot, ...x.villages] : t === 'drt' ? data.villages.filter((v) => x.myeon && v.myeon === x.myeon).map((v) => v.id) : x.villages)))]
+    const ids = [...new Set(picks.flatMap((x) => (t === 'tour' ? [data.depot, ...x.villages] : t === 'drt' ? villagesOfMyeon(data, x.myeon) : x.villages)))]
     const stops = new Set(picks.flatMap((x) => x.villages)).size
     const sub = t === 'tour' ? `${picks.length}대 · ${stops}곳 정차 · 주 ${state!.assumptions.tourWeekly}회 · 보건소 출발`
       : t === 'drt' ? `${picks.map((x) => x.myeon).filter(Boolean).join(', ')} 안에서 부르면 와요`
