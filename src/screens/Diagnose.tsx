@@ -29,7 +29,7 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
   const { code } = useParams()
   const nav = useNavigate()
   const reduce = useReducedMotion()
-  const { regions, data, state, judge, mapReady, sweep, travel, carTarget, carView, set, patch } = useStore()
+  const { regions, data, state, judge, mapReady, sweep, travel, carTarget, carView, dataSource, snapshot, set, patch } = useStore()
   const r = regions.find((x) => x.code === code)!
   const st = state!
   const shown = useShownJudge()
@@ -175,7 +175,8 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
         <button className="primary big-btn" onClick={() => nav(`/r/${code}/goal`)}>목표 정하기 →</button>
       </div>
       <p className="source">마을 원자료: {data!.sources.join(' · ')}</p>
-      {judge.status === 'error' && !cmp && <p className="source">서버 판정을 받지 못했어요({judge.error}). 화면 판정만 보여 드려요.</p>}
+      {(judge.status === 'error' || judge.source === 'estimated') && !cmp && <p className="source">서버 판정을 받지 못했어요({judge.error ?? judge.reason}). 화면 판정만 보여 드려요.</p>}
+      {dataSource === 'snapshot' && snapshot && <p className="source">서버에 연결되지 않아 {snapshot.capturedAt}에 저장한 실제 지역 자료로 보여 드려요. 최신 자료와 다를 수 있어요.</p>}
     </motion.aside>
     </>
   )
@@ -300,7 +301,7 @@ function ServerCheck() {
       </p>
     )
   }
-  if (judge.status === 'error') return null
+  if (judge.status === 'error' || judge.source === 'estimated') return null
   return <p className="small muted" role="status">서버 판정 확인 중…</p>
 }
 

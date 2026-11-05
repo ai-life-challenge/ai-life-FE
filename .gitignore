@@ -29,3 +29,7 @@ dist-ssr
 !.dev.vars.example
 .env*
 !.env.example
+
+# 서버 전체 장애용 스냅샷: 자료별 이용 조건을 확인하기 전에는 커밋 · 배포하지 않는다(docs/estimated-simulation.md)
+public/data/snapshot/
+snapshot.local/

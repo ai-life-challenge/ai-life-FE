@@ -454,6 +454,13 @@ button.badge:hover { background: var(--gray-2); }
 .region h2 { font-size: 22px; }
 .region .stats { gap: 6px 12px; margin-top: 6px; }
 .region .stats dd { font-size: 18px; }
+/* 추정 시뮬레이션 안내: 서버 계산이 아닌 값이라는 표시 */
+.estimate-note { margin: 12px 0 0; padding: 12px 14px; border-radius: var(--r-btn); background: var(--warn-soft); color: var(--warn); font-size: 14px; }
+.estimate-note p { margin: 4px 0 0; }
+.estimate-note details { margin-top: 6px; }
+.estimate-note summary { cursor: pointer; }
+.estimate-note ul { margin: 4px 0 0; padding-left: 18px; }
+.estimate-note .link { display: inline-block; margin-top: 6px; }
 .toast-inline { margin-top: 12px; padding: 12px 14px; border-radius: var(--r-btn); background: var(--bad-soft); color: #7a2323; font-size: 14px; }
 .panel .budget-line { margin-top: 14px; font-size: 14px; }
 

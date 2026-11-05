@@ -41,7 +41,13 @@ async function call<T>(path: string, init?: RequestInit, signal?: AbortSignal, t
       const b = (await res.json().catch(() => null)) as Partial<ApiErrorBody> | null
       throw new ApiError(res.status, b?.error ?? 'unknown', b?.message ?? '요청을 처리하지 못했어요.', b?.detail)
     }
-    return (await res.json()) as T
+    try {
+      return (await res.json()) as T
+    } catch (e) {
+      if (timedOut) throw new ApiError(0, 'timeout', '서버가 늦게 답하고 있어요. 잠시 뒤 다시 시도해 주세요.')
+      if ((e as Error).name === 'AbortError') throw e
+      throw new ApiError(res.status, 'bad_response', '서버 응답을 읽지 못했어요. 잠시 뒤 다시 시도해 주세요.')
+    }
   } finally {
     clearTimeout(timer)
     signal?.removeEventListener('abort', onAbort)

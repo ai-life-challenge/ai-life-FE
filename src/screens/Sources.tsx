@@ -8,7 +8,8 @@ import type { Cost, SupplyId } from '../api/types'
 import { useStore } from '../store'
 
 export function Sources() {
-  const { sources, state, defaults, data, patch, set } = useStore()
+  const { sources, state, defaults, data, plans, patch, set } = useStore()
+  const estimated = plans.source === 'estimated'
   const ref = useRef<HTMLDivElement>(null)
   const close = () => set({ sources: { ...sources, open: false } })
 
@@ -43,7 +44,7 @@ export function Sources() {
           <motion.aside ref={ref} className="sheet" role="dialog" aria-modal="true" aria-label="가정과 출처" initial={{ x: '100%' }} animate={{ x: 0 }} exit={{ x: '100%' }} transition={{ type: 'spring', stiffness: 300, damping: 34 }}>
             <button className="close" onClick={close} aria-label="닫기">×</button>
             <h2>이 시뮬레이션이 사용한 데이터와 가정</h2>
-            <p className="muted small">데이터와 가정을 나눠서 공개해요. 계산은 모두 서버가 해요.</p>
+            <p className="muted small">데이터와 가정을 나눠서 공개해요. {estimated ? '지금은 서버 계산을 쓸 수 없어 이 브라우저가 추정해요.' : '계산은 모두 서버가 해요.'}</p>
 
             <h3><span className="badge public">공공데이터</span> {data ? `${data.name} 자료` : '지역 자료'}</h3>
             <table className="stable" data-src="public">

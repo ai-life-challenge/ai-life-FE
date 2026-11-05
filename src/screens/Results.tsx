@@ -1,5 +1,6 @@
 // S5 결과: 서버가 만든 대안 3개를 카드로 비교하고, 고른 안이 닿는 마을과 공급수단을 지도에 그린다.
 // 카드 순서는 서버가 준 대로 비용 절감안 · 균형안 · 적극 투자안이고, 추천은 서버가 정한다.
+// 서버 장애로 추정한 대안(plans.source === 'estimated')도 같은 카드로 그리되, 맨 위 안내 · 카드 표시 · 추천 문구로 추정임을 알린다.
 import { useEffect, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
@@ -7,12 +8,14 @@ import type { MapRef } from 'react-map-gl/maplibre'
 import { useAutoFetch, useShownJudge } from '../hooks'
 import { AGES, STATE_CSS, SUPPLY, eok, fmt, pct, pct1 } from '../api/meta'
 import { MINUTE_STOPS, minuteRgb } from '../api/cells'
+import { coverageById } from '../api/estimatePlans'
 import type { Plan } from '../api/types'
 import { useStore } from '../store'
 import { boxOf, fitCounty, flyToArea } from '../map/geo'
 import { Count } from '../ui/Count'
 import { AiBadge, SrcBadge } from '../ui/Badges'
 import { Basis } from '../ui/Basis'
+import { EstimateNotice } from '../ui/EstimateNotice'
 
 export function Results({ mapRef }: { mapRef: React.RefObject<MapRef | null> }) {
   const { code } = useParams()
@@ -27,6 +30,7 @@ export function Results({ mapRef }: { mapRef: React.RefObject<MapRef | null> }) 
   const list = plans.data?.plans ?? []
   const rec = list.find((p) => p.recommended)
   const shown = list[st.planShow] ?? rec
+  const estimated = plans.source === 'estimated' && !!plans.data
   const [open, setOpen] = useState<number | null>(null)
   // 안을 바꾸면 그 안이 놓는 곳(정류장 · 구역 · 거점)이 다 보이게 다가간다. 놓는 게 없으면 군 전체
   useEffect(() => {
@@ -46,6 +50,7 @@ export function Results({ mapRef }: { mapRef: React.RefObject<MapRef | null> }) 
         <h1 style={{ fontSize: 26 }}>{r.name} · 연 {eok(st.budget)} · 대안 {list.length || 3}개</h1>
         <p className="muted small">카드를 누르면 그 안이 지도에 그려져요. 달성률은 이 기준에서 갈 수 있는 {st.age === 'all' ? '주민' : st.age === 'a65' ? '65세 이상' : '80세 이상'}의 비율이에요.</p>
         <Basis />
+        {estimated && <EstimateNotice />}
 
         {plans.status === 'error' && (
           <div className="toast-inline" role="alert">{plans.error} <button className="link" onClick={() => void fetchPlans()}>다시 계산</button></div>
@@ -54,7 +59,7 @@ export function Results({ mapRef }: { mapRef: React.RefObject<MapRef | null> }) 
 
         <div className="plans-col">
           {list.map((p, k) => (
-            <PlanCard key={p.k} p={p} k={k} on={shown?.k === p.k} budget={st.budget} target={st.target} open={open === p.k}
+            <PlanCard key={p.k} p={p} k={k} on={shown?.k === p.k} budget={st.budget} target={st.target} open={open === p.k} estimated={estimated}
               onClick={() => { patch((s) => ({ ...s, planShow: p.k })); setOpen(open === p.k ? null : p.k) }} />
           ))}
         </div>
@@ -63,7 +68,7 @@ export function Results({ mapRef }: { mapRef: React.RefObject<MapRef | null> }) 
           <div className="rec-why">
             <div className="row"><AiBadge>추천 이유</AiBadge></div>
             <p>
-              서버가 <b>{rec.name}</b>을 추천했어요. 목표 {pct(st.target)}를 <b>{rec.meetsTarget ? '채우고' : '채우지 못하고'}</b>, 연 비용 <b>{eok(rec.year)}</b>으로 예산 {eok(st.budget)}을 <b>{rec.withinBudget ? '넘지 않아요' : '넘어요'}</b>.
+              {estimated ? <>추정 계산에서는 <b>{rec.name}</b>이 추천 기준에 가장 잘 맞아요. 서버 결과에서는 추천이 달라질 수 있어요.</> : <>서버가 <b>{rec.name}</b>을 추천했어요.</>} 목표 {pct(st.target)}를 <b>{rec.meetsTarget ? '채우고' : '채우지 못하고'}</b>, 연 비용 <b>{eok(rec.year)}</b>으로 예산 {eok(st.budget)}을 <b>{rec.withinBudget ? '넘지 않아요' : '넘어요'}</b>.
               {' '}공백 <b>{fmt(rec.gapBefore)}명</b>이 <b>{fmt(rec.gapAfter)}명</b>으로 줄어요.
             </p>
           </div>
@@ -79,6 +84,7 @@ export function Results({ mapRef }: { mapRef: React.RefObject<MapRef | null> }) 
                 추천은 <b>{sens.data.same ? '그대로예요' : '바뀔 수 있어요'}</b>. 연 비용은 <b className="num">{eok(sens.data.lo.year)}</b>(단가 −20%) ~ <b className="num">{eok(sens.data.hi.year)}</b>(+20%)예요.
               </p>
               {!sens.data.same && <p className="small muted" style={{ margin: 0 }}>단가 −20%에서는 {sens.data.lo.name}, +20%에서는 {sens.data.hi.name}을 추천해요.</p>}
+              {sens.source === 'estimated' && <p className="small muted" style={{ margin: 0 }}>추정 계산이에요. 단가를 바꿔 같은 방식으로 대안을 다시 만들어 비교했어요.</p>}
             </>
           )}
           <SrcBadge kind="assume" id="costs" note="단가" />
@@ -86,7 +92,7 @@ export function Results({ mapRef }: { mapRef: React.RefObject<MapRef | null> }) 
 
         <div className="next-row">
           <button className="ghost" onClick={() => nav(`/r/${r.code}/whatif`)}>What-if 해보기</button>
-          <button className="primary" onClick={() => nav(`/r/${r.code}/report`)}>✦ 레포트 만들기 →</button>
+          <button className="primary" onClick={() => nav(`/r/${r.code}/report`)}>{estimated ? '추정 요약 보기 →' : '✦ 레포트 만들기 →'}</button>
         </div>
       </motion.aside>
     </>
@@ -98,13 +104,14 @@ const LEGEND_W = 370 // 오른쪽 위 범례(폭 330 + 여백): 지도를 맞출
 
 // 지도 위 범례(오른쪽 위): 고른 안이 새로 놓는 공급수단(손을 올리면 지도에서 그것만 또렷하게, 누르면 그곳으로 다가간다)과 마을 판정 개수
 function PlanLegend({ plan, mapRef }: { plan: Plan | null; mapRef: React.RefObject<MapRef | null> }) {
-  const { data, state, judge, gridTarget, set } = useStore()
+  const { data, state, judge, plans, map, gridTarget, set } = useStore()
   const shown = useShownJudge()
   if (!plan || !data) return null
   const byId = new Map(data.villages.map((v) => [v.id, v]))
   // 마을 판정 개수: 원래 갈 수 있음 · 이 안으로 새로 닿음(절반 넘게) · 여전히 못 감(버스 없음 · 너무 멂)
-  const cov = new Map((judge.data?.villages ?? []).map((v, i) => [v.id, plan.coverage[i] ?? 0]))
-  const vs = shown?.villages ?? []
+  // 추정 대안은 그 추정의 판정으로 센다(서버 판정이 없어도, 진단 화면 필터가 섞이지 않게). 지도도 같은 값을 쓴다
+  const cov = coverageById(plans.data, plan, judge.data?.villages) ?? new Map<string, number>()
+  const vs = plans.data?.estimate?.basis ?? shown?.villages ?? []
   const ok = vs.filter((v) => v.state === 0).length
   const reached = vs.filter((v) => v.state !== 0 && (cov.get(v.id) ?? 0) > 0.5).length
   const still = vs.filter((v) => v.state !== 0 && (cov.get(v.id) ?? 0) <= 0.5)
@@ -151,6 +158,7 @@ function PlanLegend({ plan, mapRef }: { plan: Plan | null; mapRef: React.RefObje
         <span className="muted">원래 갈 수 있는 마을 {ok}곳은 지도에서 뺐어요</span>
       </div>
       {plan.gapAfter > 0 && <p className="muted" style={{ marginTop: 6 }}>남는 공백 {fmt(plan.gapAfter)}명</p>}
+      {!map && plan.picks.some((x) => x.type === 'drt') && <p className="muted" style={{ marginTop: 6 }}>읍면 경계를 받지 못해 수요응답형 버스 구역은 지도에 그리지 못했어요.</p>}
       {/* 진단에서 고르고 넘어온 기준: 바탕 격자가 같은 기준으로 칠해진다 */}
       <p className="pl-sec">바탕색 · 진단에서 고른 기준</p>
       <p className="pl-basis"><b>{TARGET_NAME[gridTarget]}</b>까지 걸리는 시간 · {AGES.find((a) => a.id === state!.age)!.name}</p>
@@ -160,13 +168,14 @@ function PlanLegend({ plan, mapRef }: { plan: Plan | null; mapRef: React.RefObje
   )
 }
 
-function PlanCard({ p, k, on, open, budget, target, onClick }: { p: Plan; k: number; on: boolean; open: boolean; budget: number; target: number; onClick: () => void }) {
+function PlanCard({ p, k, on, open, budget, target, estimated, onClick }: { p: Plan; k: number; on: boolean; open: boolean; budget: number; target: number; estimated: boolean; onClick: () => void }) {
   return (
     <motion.div className={`plan ${on ? 'on' : ''}`} initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }} transition={{ delay: k * 0.08 }}>
       <button className="plan-hit" onClick={onClick} aria-expanded={open}>
         <div className="plan-head">
           <b>{p.name}</b>
           <span className="spacer" />
+          {estimated && <span className="badge warnb">추정</span>}
           {p.recommended && <motion.span layoutId="rec-badge" className="badge rec" transition={{ type: 'spring', stiffness: 300, damping: 26 }}>⭐ 추천</motion.span>}
         </div>
         <p className="muted small" style={{ margin: 0 }}>{p.summary}</p>
@@ -181,7 +190,7 @@ function PlanCard({ p, k, on, open, budget, target, onClick }: { p: Plan; k: num
           {p.future != null && <span className="badge">10년 뒤 {pct1(p.future)}</span>}
         </div>
         <div className="row">
-          <span className={`badge ${p.meetsTarget ? 'green' : 'warnb'}`}>{p.meetsTarget ? `목표 ${pct(target)} 달성` : `목표 ${pct(target)} 미달`}</span>
+          <span className={`badge ${p.meetsTarget ? 'green' : 'warnb'}`}>{p.meetsTarget ? `목표 ${pct(target)} 달성` : `목표 ${pct(target)} 미달`}{estimated ? ' (추정)' : ''}</span>
           <span className={`badge ${p.withinBudget ? '' : 'warnb'}`}>{p.withinBudget ? `예산 ${eok(budget)} 안` : `예산 ${eok(budget)} 초과`}</span>
           {p.sameAs != null && <span className="badge">{p.sameAs + 1}번 안과 같은 조합</span>}
           {p.timedOut && <span className="badge warnb" title="계산 시간 안에 찾은 가장 좋은 조합이에요">시간 제한 내 최선</span>}

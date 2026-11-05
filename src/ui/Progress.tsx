@@ -42,9 +42,10 @@ export function Progress({ code, at }: { code: string | null; at: number }) {
     if (i === 0) return r.name
     if (i === 1) return judge.data ? `공백 ${pct(judge.data.summary.rate)}` : ''
     if (i === 2) return state ? `${SERVICES.find((x) => x.id === state.service)!.name} · 연 ${eok(state.budget)}` : ''
-    if (i === 3) return plans.data ? `대안 ${plans.data.plans.length}개` : ''
-    if (i === 4) return plans.data ? `추천 ${plans.data.plans.find((p) => p.recommended)?.name ?? ''}` : ''
-    if (i === 5) return '초안'
+    const est = plans.source === 'estimated' // 추정 값은 단계 메뉴에서도 추정이라고 적는다
+    if (i === 3) return plans.data ? `대안 ${plans.data.plans.length}개${est ? ' (추정)' : ''}` : ''
+    if (i === 4) return plans.data ? `추천 ${plans.data.plans.find((p) => p.recommended)?.name ?? ''}${est ? ' (추정)' : ''}` : ''
+    if (i === 5) return est ? '추정 요약' : '초안'
     return ''
   }
   const go = (i: number) => { setOpen(false); nav(i === 0 ? '/start' : `/r/${code}${STEPS[i].path}`) }

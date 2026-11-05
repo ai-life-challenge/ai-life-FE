@@ -10,6 +10,7 @@ import { PathStyleExtension } from '@deck.gl/extensions'
 import { TripsLayer } from '@deck.gl/geo-layers'
 import { useReducedMotion } from 'motion/react'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import { coverageById } from '../api/estimatePlans'
 import { setWorkerUrl } from 'maplibre-gl'
 // maplibre-gl v6은 워커 경로를 런타임 문자열로 만들어 Vite가 빌드에 넣지 못한다 → 직접 번들해서 알려 준다
 import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
@@ -105,14 +106,10 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
     return out
   }, [candidateGeo])
 
-  // 결과 화면: 고른 안이 닿는 정도. 서버가 주는 coverage는 서버 판정 마을과 같은 순서다
+  // 결과 화면: 고른 안이 닿는 정도. 서버가 주는 coverage는 서버 판정 마을과 같은 순서고, 추정 대안은 그 추정의 판정과 같은 순서다
   const shown = plans.data?.plans[state?.planShow ?? 0] ?? plans.data?.plans.find((p) => p.recommended) ?? null
   const byId = useMemo(() => new globalThis.Map((data?.villages ?? []).map((v) => [v.id, v])), [data])
-  const cover = useMemo(() => {
-    const sv = judge.data?.villages
-    if (!shown || !sv || sv.length !== shown.coverage.length) return null
-    return new globalThis.Map(sv.map((v, i) => [v.id, shown.coverage[i]]))
-  }, [shown, judge.data])
+  const cover = useMemo(() => coverageById(plans.data, shown, judge.data?.villages), [plans.data, shown, judge.data])
   // 순회 진료 버스 노선: 보건소(depot)에서 출발해 고른 마을을 돌고 보건소로 돌아온다. 도로 경로 자료가 없어 정류장 사이를 곧게 잇는다
   // ponytail: 정류장 사이 직선, 실제 도로를 따라가려면 경로 탐색(OSRM 등) 자료가 있어야 한다
   const routes = useMemo(() => {
@@ -158,7 +155,9 @@ export function MapView({ screen, onPickRegion, onBlocked, mapRef }: {
   } as any)
 
   // 레이어 data는 참조가 바뀌면 deck.gl이 GPU 버퍼를 통째로 다시 만든다. 연출 중 매 프레임 다시 그려도 새 배열이 생기지 않게 미리 만들어 둔다
-  const badVillages = useMemo(() => local?.villages.filter((v) => v.state !== 0) ?? [], [local])
+  // 결과 화면의 추정 대안은 그 추정의 판정으로 칠한다(카드 · 범례와 같은 값)
+  const judgedHere = (screen === 'result' ? plans.data?.estimate?.basis : null) ?? local?.villages
+  const badVillages = useMemo(() => judgedHere?.filter((v) => v.state !== 0) ?? [], [judgedHere])
   const newVillages = useMemo(() => badVillages.filter((v) => (cover?.get(v.id) ?? 0) > 0.5), [badVillages, cover])
   const routeStops = useMemo(() => routes.flatMap((r) => r.stops), [routes])
   const routeArrows = useMemo(() => routes.flatMap((r) => r.arrows), [routes])

@@ -1,13 +1,17 @@
 // S6 What-if: 연 예산을 바꿔 보면 대안 3개의 달성률과 비용이 어떻게 달라지는지. 바꿔 본 값은 서버에 물어서 받고, 확정하기 전까지는 기준 조건을 건드리지 않는다.
 // 곡선은 예산별로 서버가 찾은 '예산 안에서 달성률이 가장 높은 조합'(적극 투자안)의 달성률이다.
-import { useEffect, useRef, useState } from 'react'
+// 추정 모드(대안이 추정이거나 여기서 서버 연결이 끊긴 경우)에는 기준 안 · 바꿔 본 예산 · 곡선을 모두 브라우저 추정으로 계산한다. 서버 값과 추정 값을 한 표에 섞지 않는다.
+import { useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate, useParams } from 'react-router'
 import { motion } from 'motion/react'
 import { api } from '../api/client'
+import { estimatePlans } from '../api/estimatePlans'
+import { badResponse, isRecoverable, validPlans } from '../api/fallback'
 import type { Plans } from '../api/types'
 import { eok, fmt, pct } from '../api/meta'
 import { errText, useStore } from '../store'
 import { useAutoFetch } from '../hooks'
+import { EstimateNotice } from '../ui/EstimateNotice'
 
 const CURVE_BUDGETS = [0.5, 1, 2, 3, 4, 6, 10, 20, 30]
 const TICKS = [1, 3, 6, 12, 30]
@@ -15,11 +19,17 @@ const TICKS = [1, 3, 6, 12, 30]
 export function WhatIf() {
   const { code } = useParams()
   const nav = useNavigate()
-  const { state, plans, regions, patch } = useStore()
+  const { state, plans, regions, data, patch } = useStore()
   const st = state!
   const r = regions.find((x) => x.code === code)!
   useAutoFetch('fetchPlans')
-  const base = plans.data?.plans ?? null
+  const [serverLost, setServerLost] = useState(false) // 대안은 서버 값인데 여기서 서버 연결이 끊겼다
+  const estimated = plans.source === 'estimated' || serverLost
+  const estBase = useMemo(() => {
+    if (!estimated || !data) return null
+    try { return estimatePlans(data, st) } catch { return null }
+  }, [estimated, data, st.service, st.age, st.criteria, st.assumptions, st.allowedSupply, st.target, st.budget]) // eslint-disable-line react-hooks/exhaustive-deps
+  const base = (estimated ? estBase?.plans : plans.data?.plans) ?? null
 
   // 기준보다 줄여 봐야 달라지는 게 보이는 경우가 많아서, 처음에는 기준의 절반에서 시작한다
   const [raw, setRaw] = useState(Math.max(0.5, Math.round(st.budget)  / 2))
@@ -29,17 +39,32 @@ export function WhatIf() {
   // 바꿔 본 예산의 대안 (같은 예산을 다시 묻지 않게 기억해 둔다)
   const memo = useRef(new Map<string, Plans>())
   const cond = (b: number) => JSON.stringify([code, st.service, st.age, st.criteria, st.assumptions, st.allowedSupply, st.target, b])
-  const ask = (b: number, signal: AbortSignal) => {
-    const hit = memo.current.get(cond(b))
-    if (hit) return Promise.resolve(hit)
-    return api.plans({ region: code!, state: { ...st, budget: b } }, signal).then((p) => { memo.current.set(cond(b), p); return p })
+  const ask = async (b: number, signal: AbortSignal) => {
+    const k = `${estimated ? 'estimated' : 'server'}:${cond(b)}` // 서버 값과 추정 값을 같은 칸에 기억하지 않는다
+    const hit = memo.current.get(k)
+    if (hit) return hit
+    let p: Plans
+    if (estimated) {
+      await new Promise((go) => setTimeout(go)) // 화면이 멈추지 않게 한 점씩 나눠서 계산한다
+      if (signal.aborted) throw new DOMException('aborted', 'AbortError')
+      p = estimatePlans(data!, { ...st, budget: b })
+    } else {
+      p = await api.plans({ region: code!, state: { ...st, budget: b } }, signal)
+      if (!validPlans(p, data?.villages.length)) throw badResponse()
+    }
+    memo.current.set(k, p)
+    return p
   }
   const [alt, setAlt] = useState<{ b: number; plans: Plans } | { b: number; error: string } | null>(null)
   useEffect(() => {
     const ac = new AbortController()
-    ask(next, ac.signal).then((p) => setAlt({ b: next, plans: p }), (e) => { if (!ac.signal.aborted) setAlt({ b: next, error: errText(e) }) })
+    ask(next, ac.signal).then((p) => { if (!ac.signal.aborted) setAlt({ b: next, plans: p }) }, (e) => {
+      if (ac.signal.aborted) return
+      if (!estimated && isRecoverable(e)) { setServerLost(true); return } // 표 전체를 추정으로 바꾼다
+      setAlt({ b: next, error: errText(e) })
+    })
     return () => ac.abort()
-  }, [next, code, st.service, st.age, st.criteria, st.assumptions, st.allowedSupply, st.target]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [next, code, estimated, st.service, st.age, st.criteria, st.assumptions, st.allowedSupply, st.target]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // 곡선: 예산별 적극 투자안 달성률. 서버가 한 번에 하나씩 계산하므로 하나씩 도착하는 대로 그린다
   const [curve, setCurve] = useState<{ b: number; rate: number }[]>([])
@@ -52,11 +77,14 @@ export function WhatIf() {
           const p = await ask(b, ac.signal)
           const best = p.plans.find((x) => x.k === 2)
           if (best && !ac.signal.aborted) setCurve((c) => [...c, { b, rate: best.rate }])
-        } catch { if (ac.signal.aborted) return }
+        } catch (e) {
+          if (ac.signal.aborted) return
+          if (!estimated && isRecoverable(e)) { setServerLost(true); return }
+        }
       }
     })()
     return () => ac.abort()
-  }, [code, st.service, st.age, st.criteria, st.assumptions, st.allowedSupply, st.target]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [code, estimated, st.service, st.age, st.criteria, st.assumptions, st.allowedSupply, st.target]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const cur = alt && alt.b === next ? alt : null
   const altPlans = cur && 'plans' in cur ? cur.plans.plans : null
@@ -74,6 +102,7 @@ export function WhatIf() {
     <motion.main className="page" initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }}>
       <p className="eyebrow">5단계 · 결과 · What-if</p>
       <h1>{r.name}, 예산이 바뀌면 어떻게 될까요?</h1>
+      {estimated && <EstimateNotice notes={estBase?.estimate?.notes} onRetried={() => setServerLost(false)} />}
 
       <div className="slider-box">
         <div className="row">
@@ -131,8 +160,8 @@ export function WhatIf() {
             {here && <text x={X(next)} y={Y(here.rate) - 14} fontSize="13" fontWeight="600" textAnchor="middle" fill="#6c22b0">{pct(here.rate)}</text>}
           </svg>
           <p className="muted small card-note">
-            {curve.length < CURVE_BUDGETS.length ? `서버에 물어 점을 찍는 중이에요 (${curve.length}/${CURVE_BUDGETS.length}). ` : ''}
-            흰 점 = 기준 예산, 보라 점 = 바꿔 본 예산. 점은 서버가 예산별로 계산한 값이에요.
+            {curve.length < CURVE_BUDGETS.length ? `${estimated ? '이 브라우저에서 계산해' : '서버에 물어'} 점을 찍는 중이에요 (${curve.length}/${CURVE_BUDGETS.length}). ` : ''}
+            흰 점 = 기준 예산, 보라 점 = 바꿔 본 예산. 점은 {estimated ? '예산마다 조합을 다시 찾은 추정값이에요.' : '서버가 예산별로 계산한 값이에요.'}
           </p>
         </section>
       </div>
@@ -141,7 +170,7 @@ export function WhatIf() {
         <button className="ghost" onClick={() => nav(`/r/${r.code}/result`)}>← 대안 3개</button>
         <div className="row">
           <button className="ghost" onClick={() => { patch((s) => ({ ...s, budget: next })); nav(`/r/${r.code}/result`) }}>이 예산({eok(next)})으로 다시 비교</button>
-          <button className="primary" onClick={() => nav(`/r/${r.code}/report`)}>✦ 레포트 만들기 →</button>
+          <button className="primary" onClick={() => nav(`/r/${r.code}/report`)}>{plans.source === 'estimated' ? '추정 요약 보기 →' : '✦ 레포트 만들기 →'}</button>
         </div>
       </div>
     </motion.main>

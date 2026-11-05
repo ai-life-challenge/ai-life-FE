@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { motion, useInView } from 'motion/react'
 import type { RegionItem } from '../api/types'
 import { regionData } from '../api/client'
+import { snapshotRegion } from '../api/snapshot'
 import { fmt, pct } from '../api/meta'
 import { STD, vulnOf } from '../api/vuln'
 import { Count } from './Count'
@@ -16,7 +17,8 @@ function useSummary(code: string, enabled: boolean) {
   useEffect(() => {
     if (!enabled) return
     let alive = true
-    regionData(code).then((d) => {
+    // 서버 자료를 못 받으면 저장해 둔 실제 자료로 보여 준다. 저장한 자료도 없으면 값을 채우지 않는다
+    regionData(code).catch(() => snapshotRegion(code).then((x) => x?.data ?? Promise.reject())).then((d) => {
       const v = vulnOf(d)
       if (alive) setS({ pop: d.indicators.pop ?? 0, elderly: d.indicators.elderly ?? 0, e30: v.e30, vulnerable: v.vulnerable, mvi: v.mvi, tvi: v.tvi })
     }, () => {})

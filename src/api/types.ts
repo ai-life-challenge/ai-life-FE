@@ -102,7 +102,12 @@ export interface Plan {
   sameAs: number | null; recommended: boolean
   coverage: number[] // judge.villages와 같은 순서, 0~1
 }
-export interface Plans { service: Service; age: AgeId; target: number; budget: number; recommended: number; plans: Plan[] }
+// 서버 없이 브라우저에서 추정한 대안에만 붙는 값(서버 응답에는 없다). 서버 대안과 섞이지 않게 출처 표시 · 지도 연결에 쓴다
+export interface EstimateInfo {
+  basis: JudgedVillage[] // 이 추정의 출발 판정(모든 병의원 · 대중교통). coverage와 같은 순서라 서버 판정 없이도 지도를 칠한다
+  notes: string[] // 이 계산에서 뺀 것 · 한계를 화면에 그대로 보여 줄 문장
+}
+export interface Plans { service: Service; age: AgeId; target: number; budget: number; recommended: number; plans: Plan[]; estimate?: EstimateInfo }
 export interface PlanLite { k: number; name: string; rate: number; year: number; summary: string }
 export interface Sensitivity { base: PlanLite; lo: PlanLite; hi: PlanLite; same: boolean }
 
