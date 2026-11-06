@@ -1,11 +1,14 @@
 // 오른쪽 아래 'AI에게 물어보기' 버튼과 질문 창. 질문은 서버 에이전트(POST /api/ask)가 SSE로 답한다(api/ask.ts).
 // 도구 호출 · 글(마크다운, 표와 각주 포함) · 되묻기 버튼이 오는 대로 말풍선에 이어 붙이고, 도구가 화면 값을 바꾸면(state 이벤트) 지금 화면이 그 state로 다시 그려진다.
 // 에이전트를 쓸 수 없거나(키 없음 · 하루 비용 상한 · 동시 실행 상한) 횟수를 다 쓰면 서버가 준 안내 문구를 그대로 보여 주고, 계산 화면은 그대로 쓸 수 있다.
+// 서버에 아예 닿지 못하면 AI 대신 저장된 자료와 화면 계산 값을 찾아 주는 자료 조회로 바뀐다(chat/localAnswer.ts). AI라고 부르지 않고, 못 하는 질문은 못 한다고 답한다.
 import { useEffect, useRef, useState } from 'react'
 import { useLocation } from 'react-router'
 import { AnimatePresence, motion, useReducedMotion } from 'motion/react'
 import { api, cached } from '../api/client'
 import { askServer, buildAskBody, stageOf, STAGE_NAME } from '../api/ask'
+import { LOCAL_EXAMPLES, localAnswer } from './localAnswer'
+import { isHung } from '../api/fallback'
 import { historyOf, useStore, type ChatMsg, type ToolCallMsg } from '../store'
 import { Tools, type ToolCall } from '../ui/Tools'
 import { Md } from '../ui/Md'
@@ -21,17 +24,21 @@ export function ChatDock({ code }: { code: string }) {
   const [busy, setBusy] = useState(false)
   const [agent, setAgent] = useState<boolean | null>(null) // null = 아직 모름
   const [examples, setExamples] = useState<string[]>([])
+  // 서버 연결 실패를 직접 겪었는지(대안은 서버 값인데 질문만 끊긴 경우). 복구는 retry가 아니라 창을 다시 열 때 health로 확인한다
+  const [lost, setLost] = useState(false)
+  const local = lost || s.dataSource === 'snapshot' || isHung()
   const listRef = useRef<HTMLDivElement>(null)
   const abort = useRef<AbortController | null>(null)
 
   // 열 때: 에이전트를 쓸 수 있는지(health)와 이 단계의 예시 질문(서버가 주고, 모델을 부르지 않는다)
   useEffect(() => {
     if (!s.chatOpen) return
+    if (local) { api.ping().then(() => setLost(false), () => {}); return } // 서버 장애 중에는 예시 질문을 묻지 않는다(자료 조회 예시를 쓴다)
     let live = true
     cached('health', () => api.health()).then((h) => live && setAgent(h.agent), () => live && setAgent(null))
     cached(`examples:${code}`, () => api.examples(code)).then((e) => live && setExamples(e.examples[stage] ?? []), () => live && setExamples([]))
     return () => { live = false }
-  }, [s.chatOpen, code, stage])
+  }, [s.chatOpen, code, stage, local])
   useEffect(() => { listRef.current?.scrollTo({ top: listRef.current.scrollHeight, behavior: 'smooth' }) }, [s.chat])
   useEffect(() => () => abort.current?.abort(), [])
 
@@ -44,6 +51,11 @@ export function ChatDock({ code }: { code: string }) {
       return
     }
     setInput('')
+    if (local) {
+      const a = localAnswer(q, { data: st.data, state: st.state, judge: st.judge.data, plans: st.plans.data, snapshot: st.snapshot, dataSource: st.dataSource })
+      st.set({ chat: [...st.chat, { role: 'user', text: q }, { role: 'ai', text: a.text, tools: [] }] })
+      return
+    }
     setBusy(true)
     const sent = st.state
     const body = buildAskBody({ code, state: sent, stage, question: q, history: historyOf(st.chat) })
@@ -70,6 +82,7 @@ export function ChatDock({ code }: { code: string }) {
       } else if (ev.type === 'error') {
         edit((m) => ({ ...m, error: true, text: m.text ? `${m.text}\n\n${ev.message}` : ev.message }))
         if (ev.error === 'agent_unavailable') setAgent(false)
+        if (ev.error === 'network' || ev.error === 'timeout') setLost(true) // 다음 질문부터는 저장된 자료로 답한다
       }
     }
     // 끝 이벤트 없이 멈췄는데 말풍선이 비어 있으면(창을 닫아 멈춘 경우) 치운다
@@ -78,13 +91,14 @@ export function ChatDock({ code }: { code: string }) {
     setBusy(false)
   }
 
-  const off = agent === false
+  const off = agent === false && !local
+  const shownExamples = local ? LOCAL_EXAMPLES : examples
   return (
     <>
       <AnimatePresence>
         {!s.chatOpen && (
           <motion.button className="ai-fab no-print" onClick={() => s.set({ chatOpen: true })} initial={{ scale: 0.6, opacity: 0 }} animate={{ scale: 1, opacity: 1 }} exit={{ scale: 0.6, opacity: 0 }} whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.96 }}>
-            <span className="spark">✦</span> AI에게 물어보기
+            <span className="spark">✦</span> {local ? '자료 찾아보기' : 'AI에게 물어보기'}
           </motion.button>
         )}
       </AnimatePresence>
@@ -92,28 +106,29 @@ export function ChatDock({ code }: { code: string }) {
         {s.chatOpen && (
           <motion.section className="dock no-print" initial={{ y: 40, opacity: 0, scale: 0.97 }} animate={{ y: 0, opacity: 1, scale: 1 }} exit={{ y: 30, opacity: 0, scale: 0.97 }} transition={{ type: 'spring', stiffness: 300, damping: 30 }}>
             <header>
-              <b><span className="spark">✦</span> 예산 질의 AI</b>
-              <span className="muted small">{STAGE_NAME[stage]} 단계{s.remainingToday != null ? ` · 오늘 ${s.remainingToday}번 더 물어볼 수 있어요` : ''}</span>
+              <b><span className="spark">✦</span> {local ? '자료 조회' : '예산 질의 AI'}</b>
+              <span className="muted small">{local ? 'AI 아님 · 저장된 자료와 계산 값만 찾아요' : `${STAGE_NAME[stage]} 단계`}{!local && s.remainingToday != null ? ` · 오늘 ${s.remainingToday}번 더 물어볼 수 있어요` : ''}</span>
               <button className="close" onClick={() => s.set({ chatOpen: false })} aria-label="닫기">×</button>
             </header>
             <Basis className="basis" style={{ margin: 0, padding: '6px 16px', borderTop: 0, borderBottom: '1px solid var(--gray-2)' }} />
             <div className="msgs" ref={listRef}>
               {off && <p className="check bad" role="status">지금은 에이전트를 쓸 수 없어요. 계산 화면은 그대로 쓸 수 있어요.</p>}
-              {!s.chat.length && !off && <p className="muted small">숫자는 서버가 계산한 결과만 써서 답해요. 답에 따라 예산이나 기준이 바뀌면 화면이 바로 다시 그려져요.</p>}
+              {!s.chat.length && local && <p className="muted small">서버에 연결되지 않아 AI 답변은 쓸 수 없어요. 정해진 항목만, 지금 화면의 값 그대로 찾아 드려요. 값을 바꾸지는 않아요.</p>}
+              {!s.chat.length && !off && !local && <p className="muted small">숫자는 서버가 계산한 결과만 써서 답해요. 답에 따라 예산이나 기준이 바뀌면 화면이 바로 다시 그려져요.</p>}
               {s.chat.map((msg, i) => msg.role === 'user'
                 ? <motion.p key={i} className="me" initial={{ opacity: 0, y: 6 }} animate={{ opacity: 1, y: 0 }}>{msg.text}</motion.p>
                 : <AiMsg key={i} id={`chat${i}`} msg={msg} last={i === s.chat.length - 1} busy={busy} onPick={(t) => void send(t)} />)}
             </div>
-            {!!examples.length && !off && (
+            {!!shownExamples.length && !off && (
               <div className="suggest">
                 <span className="muted small">이렇게 물어볼 수 있어요</span>
                 <div className="sugg-list">
-                  {examples.map((q) => <button key={q} disabled={busy} onClick={() => send(q)}>{q}</button>)}
+                  {shownExamples.map((q) => <button key={q} disabled={busy} onClick={() => send(q)}>{q}</button>)}
                 </div>
               </div>
             )}
             <form onSubmit={(e) => { e.preventDefault(); void send(input) }}>
-              <input value={input} onChange={(e) => setInput(e.target.value)} maxLength={300} placeholder={off ? '지금은 질문할 수 없어요' : '말로 물어보세요'} disabled={busy || off} aria-label="AI에게 질문" />
+              <input value={input} onChange={(e) => setInput(e.target.value)} maxLength={300} placeholder={off ? '지금은 질문할 수 없어요' : local ? '달성률, 예산, 마을 이름 등으로 찾아보세요' : '말로 물어보세요'} disabled={busy || off} aria-label={local ? '자료 조회' : 'AI에게 질문'} />
               <button className="primary" disabled={busy || off || !input.trim()}>보내기</button>
             </form>
           </motion.section>

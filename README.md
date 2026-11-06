@@ -15,6 +15,8 @@ npm run dev      # http://localhost:5173 (운영 API를 바로 부른다)
 npm test         # 브라우저 판정 규칙 · 서버 판정 대조 · 추정 계산 · 장애 대응
 npm run build
 npm run deploy   # 빌드 + wrangler deploy
+npm run snapshot         # 정적 스냅샷 수집(비공개 폴더 snapshot.local/)
+npm run snapshot:verify  # 스냅샷 검사 + 서버와 값 대조
 ```
 
 API 주소는 `src/api/client.ts`의 기본값(운영 서버)이고, 다른 서버를 쓰려면 빌드할 때 `VITE_API_URL`을 넣어요. 값은 빌드 시점에 코드에 박히므로 바꾸면 다시 빌드·배포해야 해요.
@@ -54,19 +56,23 @@ LocalLens는 2026년 프로젝트에서 공공데이터를 중심으로 구축�
 - **예산별 What-if**: 예산을 바꾸면 공급수단 조합을 다시 찾아 달성률 곡선을 그려요.
 - **정식 계산으로 전환**: 서버가 복구되면 서버가 계산한 결과로 바뀌어요.
 
-자료의 기준 시점은 데이터마다 달라요. 처음 방문할 때 서버 전체가 장애이거나 지역 자료를 받지 못하면 계산할 수 없어요.
+자료의 기준 시점은 데이터마다 달라요. 2026년은 프로젝트와 수집 시점이고, 원본 자료의 시점은 자료별로 따로 있어요.
 
-규칙과 서버 비교 결과는 [docs/estimated-simulation.md](docs/estimated-simulation.md)에 있어요.
+규칙과 서버 비교 결과는 [docs/estimated-simulation.md](docs/estimated-simulation.md)에, 백엔드 전체 장애 대응은 [docs/offline-snapshot.md](docs/offline-snapshot.md)에 있어요.
+
+> **지금 배포의 상태**: 백엔드 전체 장애 때 쓰는 코드는 들어 있지만, 72개 지역 정적 자료는 아직 저장소와 배포에 없어요. 자료별 이용 조건을 확인하지 못한 항목이 있어서예요(`docs/offline-snapshot.md` 5절). 지금 배포에서 처음 방문할 때 서버 전체가 장애면 오류 안내를 보여 줘요. 비공개 자료로 넣어 검증한 동작은 아래 표의 '정적 자료를 넣었을 때'예요.
 
 | 상황 | 동작 |
 | ---- | ---- |
 | 지역 자료를 받은 뒤 계산 API 실패(연결 실패, 시간 초과, 5xx, 잘못된 응답) | 브라우저가 판정 · 대안 3개 · 단가 민감도 · What-if를 추정하고, 레포트 대신 추정 요약을 보여 줘요 |
 | 입력 오류(400 등) | 추정으로 숨기지 않고 오류를 보여 줘요 |
-| 서버 전체 장애(지역 자료를 받을 수 없음) | 진단과 계산을 할 수 없다고 안내하고 다시 시도를 줘요. 숫자를 만들어 채우지 않아요 |
-| 서버 복구 | ‘서버로 다시 계산’을 누르거나 60초 뒤 화면을 다시 열면 서버 값으로 바뀌어요 |
+| 일부 API만 실패(지역 목록 · 지역 자료 · 경계) | 그 자료만 저장본을 쓰고 나머지는 서버 값을 써요(정적 자료를 넣었을 때) |
+| 서버 전체 장애 · 정적 자료 없음 | 진단과 계산을 할 수 없다고 안내하고 다시 시도를 줘요. 숫자를 만들어 채우지 않아요(지금 배포) |
+| 서버 전체 장애 · 정적 자료를 넣었을 때 | 처음 방문이나 새로 고침이어도 72개 지역의 진단 · 대안 · What-if · 추정 요약 · PDF를 쓸 수 있어요. 서버가 답 없이 멈춰 있어도 4초 안에 넘어가요 |
+| 서버 복구 | ‘서버로 다시 계산’을 누르거나 60초마다 하는 확인에서 돌아온 것을 알면, 입력값을 유지한 채 서버 자료와 정식 계산으로 바뀌어요 |
 
 - **추정은 실제 최적화 결과가 아니에요.** 달성률이 서버보다 높거나 낮게 나올 수 있고, 목표 달성 여부도 다를 수 있어요.
-- **정적 스냅샷은 저장소와 배포에 없어요.** 코드는 있지만 자료별 이용 조건을 확인하기 전까지 넣지 않아요.
+- **AI 질문과 공문 초안은 서버가 있어야 해요.** 장애 중 질문 창은 AI가 아닌 자료 조회로 바뀌고, 레포트는 추정 요약으로 대신해요.
 
 ## 폴더 구조
 
@@ -78,11 +84,13 @@ src/
   api/meta.ts         이름·색·숫자 표기
   api/estimatePlans.ts 서버 장애 때 쓰는 추정 계산 (estimatePlans.test.ts)
   api/fallback.ts     장애 판단 · 응답 검사 · 재시도 대기
+  api/snapshot.ts     정적 스냅샷 읽기 · 검증 (manifest + 지역별 파일)
+  api/villageLocal.ts 마을 카드를 원자료로 계산 (서버 대조: scripts/compare-village.test.ts)
   api/cells.ts        마을을 칸으로 묶어 집계 (랜딩 그림용, cells.test.ts)
   store.ts            zustand 전역 상태 (state · 지역 자료 · 서버 계산 결과와 로딩·오류)
   hooks.ts            useShownJudge · useAutoFetch (조건이 바뀌면 서버 계산을 다시 부름)
   map/                MapView(MapLibre + deck.gl) · geo
-  chat/ChatDock.tsx   AI에게 물어보기
+  chat/ChatDock.tsx   AI에게 물어보기 · 서버 장애 때 자료 조회(chat/localAnswer.ts)
   screens/            Landing · Intro · Select · Diagnose · Goal · Simulate · Results · WhatIf · Report · Sources
   ui/                 단계 메뉴 · 배지 · 지역 카드 · 도구 칩 · 카운트업
 ```

@@ -6,7 +6,7 @@ import { useNavigate, useParams } from 'react-router'
 import { motion } from 'motion/react'
 import { api } from '../api/client'
 import { estimatePlans } from '../api/estimatePlans'
-import { badResponse, isRecoverable, validPlans } from '../api/fallback'
+import { RETRY_AFTER_MS, badResponse, isRecoverable, validPlans } from '../api/fallback'
 import type { Plans } from '../api/types'
 import { eok, fmt, pct } from '../api/meta'
 import { errText, useStore } from '../store'
@@ -25,6 +25,12 @@ export function WhatIf() {
   useAutoFetch('fetchPlans')
   const [serverLost, setServerLost] = useState(false) // 대안은 서버 값인데 여기서 서버 연결이 끊겼다
   const estimated = plans.source === 'estimated' || serverLost
+  // 여기서 끊긴 경우에만 쓰는 표시라 store의 복구 확인에 걸리지 않는다: 서버가 돌아오면 표 전체를 서버 값으로 되돌린다
+  useEffect(() => {
+    if (!serverLost) return
+    const id = setInterval(() => { api.ping().then(() => setServerLost(false), () => {}) }, RETRY_AFTER_MS)
+    return () => clearInterval(id)
+  }, [serverLost])
   const estBase = useMemo(() => {
     if (!estimated || !data) return null
     try { return estimatePlans(data, st) } catch { return null }

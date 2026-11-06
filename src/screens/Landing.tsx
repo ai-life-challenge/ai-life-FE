@@ -1,12 +1,15 @@
 // 첫 화면(랜딩). 스크롤은 막지 않고, 스크롤한 만큼 장면이 움직인다(GSAP ScrollTrigger + Lenis, landing/useLandingScroll.ts). 3D 막대 장면은 react-three-fiber: 히어로 → 선언문 → 쇼케이스(회색/검정 번갈아) → 데이터 출처 마키 → FAQ → 검정 CTA · 푸터(ui/SiteFooter.tsx).
 // 그림은 서버가 실제로 계산한 창녕군 결과로 그린다. 서버에는 칸 단위 자료가 없어서, 마을을 칸으로 묶어 집계한 '마을 집계 격자'다(src/api/cells.ts).
-// 서버에 닿지 못하면 그림 자리는 비워 둔다. 글 · 카드 · 3D 장면은 스크롤 위치에 따라 움직이고, 지도 그림의 펼침 같은 장면은 화면에 들어올 때 한 번 재생한다.
+// 서버에 닿지 못하면 저장한 실제 자료로 브라우저가 추정한 값을 추정이라고 밝혀 그리고, 저장한 자료도 없으면 그림 자리를 비워 둔다. 글 · 카드 · 3D 장면은 스크롤 위치에 따라 움직이고, 지도 그림의 펼침 같은 장면은 화면에 들어올 때 한 번 재생한다.
 import { Component, lazy, Suspense, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import { useNavigate } from 'react-router'
 import { AnimatePresence, motion } from 'motion/react'
 import { api, cached, regionData, regionMap } from '../api/client'
 import { cellRate, gridOf, rateColor, type CellGrid } from '../api/cells'
+import { estimateJudge, estimatePlans, estimateSensitivity } from '../api/estimatePlans'
+import { GRACE_MS } from '../api/fallback'
 import { judgeLocal, type LocalJudge } from '../api/judge'
+import { loadSnapshotManifest, snapshotRegion } from '../api/snapshot'
 import type { Judge, Plans, RegionData, Report, Sensitivity, State } from '../api/types'
 import { STATE_CSS, SUPPLY, eok, fmt, pct } from '../api/meta'
 import { AiBadge } from '../ui/Badges'
@@ -57,16 +60,28 @@ const SHOWCASES = [
 
 // 랜딩에 보여 줄 창녕군(정밀 지역) 실제 계산 결과. 서버에 한 번만 묻는다
 const DEMO = '48740'
-interface Demo { data: RegionData; map: GeoJSON.FeatureCollection; state: State; judge: Judge; plans: Plans; sens: Sensitivity; report: Report }
+// capturedAt이 있으면 서버 대신 저장한 자료로 브라우저에서 추정한 값이다. 공문 초안(report)은 서버만 만들 수 있어 비운다
+interface Demo { data: RegionData; map: GeoJSON.FeatureCollection; state: State; judge: Judge; plans: Plans; sens: Sensitivity; report: Report | null; capturedAt?: string }
 const loadDemo = () => cached('landing-demo', async (): Promise<Demo> => {
   const { defaultState: state } = await api.regions()
   const body = { region: DEMO, state }
   const [data, map, judge, plans, sens, report] = await Promise.all([regionData(DEMO), regionMap(DEMO), api.judge(body), api.plans(body), api.sensitivity(body), api.report(body)])
   return { data, map, state, judge, plans, sens, report }
 })
+const loadSavedDemo = () => cached('landing-demo-saved', async (): Promise<Demo> => {
+  const [m, s] = await Promise.all([loadSnapshotManifest(), snapshotRegion(DEMO)])
+  if (!m || !s?.map) throw new Error('저장한 자료가 없어요')
+  return { data: s.data, map: s.map, state: m.defaultState, judge: estimateJudge(s.data, m.defaultState), plans: estimatePlans(s.data, m.defaultState), sens: estimateSensitivity(s.data, m.defaultState), report: null, capturedAt: m.capturedAt }
+})
 function useDemo() {
   const [d, setD] = useState<Demo | null>(null)
-  useEffect(() => { let live = true; loadDemo().then((x) => live && setD(x), () => {}); return () => { live = false } }, [])
+  useEffect(() => {
+    let live = true, real = false
+    const saved = () => { loadSavedDemo().then((x) => { if (live && !real) setD(x) }, () => {}) } // 저장한 자료도 없으면 숫자 없이 빈 그림으로 둔다
+    const t = setTimeout(saved, GRACE_MS) // 서버가 멈춰 있으면 시간 초과까지 기다리지 않는다. 늦게라도 답하면 서버 값으로 바꾼다
+    loadDemo().then((x) => { real = true; clearTimeout(t); if (live) setD(x) }, () => { clearTimeout(t); saved() })
+    return () => { live = false; clearTimeout(t) }
+  }, [])
   return d
 }
 
@@ -119,7 +134,7 @@ export function Landing() {
             <button className="primary big-btn" onClick={start}>서비스 시작하기</button>
             <a className="ghost big-btn" href="#diag">기능 둘러보기</a>
           </div>
-          <p className="muted small hero-note">시제품 · {tiers ? `전국 ${tiers.total}개 시군구 · ${tiers.precise}곳은 정밀 판정, 나머지는 간이 판정` : '정밀 판정과 간이 판정'} · 지도의 칸은 마을을 묶어 집계한 거예요</p>
+          <p className="muted small hero-note">시제품 · {tiers ? `전국 ${tiers.total}개 시군구 · ${tiers.precise}곳은 정밀 판정, 나머지는 간이 판정` : '정밀 판정과 간이 판정'} · 지도의 칸은 마을을 묶어 집계한 거예요{demo?.capturedAt && ` · 지금은 서버에 연결되지 않아 그림과 숫자는 ${demo.capturedAt}에 수집한 자료로 브라우저에서 추정한 값이에요`}</p>
         </div>
         <div className="hero-tilt"><UnfoldMap demo={demo} g={g} /></div>
       </section>
@@ -408,8 +423,9 @@ function SensDemo({ demo }: { demo: Demo | null }) {
 }
 
 function ReportDemo({ demo }: { demo: Demo | null }) {
-  const sec = demo?.report.sections.find((s) => s.key === '권고') ?? demo?.report.sections[0]
-  if (!demo || !sec) return <div className="hero-ph" />
+  if (demo && !demo.report) return <div className="memo-demo"><p className="muted small" style={{ margin: 0 }}>공문 초안은 서버가 만들어요</p><p style={{ margin: '6px 0 12px' }}>지금은 서버에 연결되지 않아 초안 대신 계산 결과를 정리한 추정 요약을 볼 수 있어요.</p></div>
+  const sec = demo?.report?.sections.find((s) => s.key === '권고') ?? demo?.report?.sections[0]
+  if (!demo?.report || !sec) return <div className="hero-ph" />
   return (
     <div className="memo-demo">
       <p className="muted small" style={{ margin: 0 }}>{noRegion(demo.report.title, demo.data.name)} · {sec.title}</p>
