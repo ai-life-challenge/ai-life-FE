@@ -1,10 +1,12 @@
 // 추정 결과 요약: 서버 레포트를 만들 수 없을 때(대안이 추정일 때) 보여 주는 제한된 문서. 계산한 숫자와 그 식만 적는다.
 // 문단 생성 · 출처 각주 · 편집기는 서버 레포트 전용이라 쓰지 않고, 출처는 이 지역 자료에 담긴 목록만 그대로 옮긴다(날짜 · 링크를 지어내지 않는다).
-import { useMemo } from 'react'
+// 같은 조건은 링크로 다시 열 수 있다(서버 레포트와 같은 공유 링크). 서버가 돌아와 정식 대안을 받으면 이 문서 대신 서버 레포트가 열린다.
+import { useMemo, useState } from 'react'
 import { useParams } from 'react-router'
 import { motion } from 'motion/react'
 import { TYPE_NAME as COST_NAME, yearCost } from '../../api/estimatePlans'
-import { SUPPLY_IDS, eok, fmt, pct1 } from '../../api/meta'
+import { AGES, SUPPLY_IDS, eok, fmt, pct1 } from '../../api/meta'
+import { shareQuery } from '../../api/share'
 import type { Plan, Plans } from '../../api/types'
 import { useStore } from '../../store'
 import { AiBadge, LevelBadge } from '../../ui/Badges'
@@ -29,7 +31,14 @@ function villageCounts(plans: Plans, plan: Plan) {
 
 export function EstimatedSummary({ plans }: { plans: Plans }) {
   const { code } = useParams()
-  const { state, regions, data, patch } = useStore()
+  const { state, regions, data, dataSource, snapshot, snapshotNotes, patch } = useStore()
+  const [toast, setToast] = useState<string | null>(null)
+  const copyLink = async () => {
+    const u = new URL(window.location.href)
+    u.search = shareQuery(state!, u.searchParams).toString()
+    try { await navigator.clipboard.writeText(u.toString()); setToast('같은 조건을 다시 여는 링크를 복사했어요') } catch { setToast('복사하지 못했어요. 주소창의 링크를 써 주세요') }
+    setTimeout(() => setToast(null), 1800)
+  }
   const st = state!
   const r = regions.find((x) => x.code === code)!
   const plan = plans.plans[st.planShow] ?? plans.plans[plans.recommended]
@@ -42,6 +51,7 @@ export function EstimatedSummary({ plans }: { plans: Plans }) {
       <div className="report-bar no-print">
         <span />
         <div className="report-actions">
+          <button className="ghost" onClick={() => void copyLink()}>링크 복사</button>
           <button className="primary" onClick={() => window.print()}>PDF로 저장</button>
         </div>
       </div>
@@ -51,6 +61,13 @@ export function EstimatedSummary({ plans }: { plans: Plans }) {
         <Basis />
         <EstimateNotice />
         <p>서버 레포트를 만들 수 없어 공문 초안 대신 계산 결과만 정리했어요. 공문 문단과 출처 각주는 서버가 돌아오면 다시 만들 수 있어요. 이 문서는 공식 검토 자료로 쓰지 말아 주세요.</p>
+
+        <h2>계산 조건</h2>
+        <ul>
+          <li>연 예산 {eok(st.budget)} · 목표 달성률 {pct1(st.target)} · {AGES.find((a) => a.id === st.age)!.name} 기준</li>
+          <li>자가용 {st.criteria.carMinutes}분 · 정류장까지 걸어서 {st.criteria.stopWalkMinutes}분{r.tier === 'precise' ? ` · 버스 하루 ${st.criteria.dailyRuns}번 이상 · 낮 12시 전 읍내행 첫차` : ' · 간이 판정 지역이라 버스 운행은 보지 않아요'}</li>
+          <li>쓸 수 있는 공급수단: {SUPPLY_IDS.filter((t) => st.allowedSupply[t]).map((t) => COST_NAME[t]).join(', ') || '없음'} · 순회 진료 주 {st.assumptions.tourWeekly}회</li>
+        </ul>
 
         <h2>대안 비교</h2>
         <table className="ltable">
@@ -94,8 +111,18 @@ export function EstimatedSummary({ plans }: { plans: Plans }) {
         </ul>
 
         <h2>쓴 자료</h2>
+        {dataSource === 'snapshot' && snapshot
+          ? <p className="muted small">자료: {snapshot.capturedAt}에 수집해 저장한 값(서버 최신 자료가 아니에요) · 계산: 브라우저 추정. 수집일은 저장한 날짜이고 원본 통계의 기준 시점은 출처마다 달라요.</p>
+          : <p className="muted small">자료: 서버에서 받은 지역 자료 · 계산: 브라우저 추정</p>}
+        {dataSource === 'snapshot' && !!snapshotNotes?.length && (
+          <table className="ltable">
+            <thead><tr><th>원자료</th><th className="r">자료 기준 시점</th></tr></thead>
+            <tbody>{snapshotNotes.map((n) => <tr key={`${n.org}-${n.title}`}><td>{n.org} · {n.title}</td><td className="r">{n.date ?? '표시 없음'}</td></tr>)}</tbody>
+          </table>
+        )}
         <p className="muted small">이 지역 마을 자료에 담긴 출처 목록이에요: {data?.sources.join(' · ')}</p>
       </article>
+      {toast && <div className="toast no-print" role="status">{toast}</div>}
     </motion.div>
   )
 }

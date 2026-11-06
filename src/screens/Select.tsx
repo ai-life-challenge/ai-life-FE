@@ -48,7 +48,7 @@ export function Select({ mapRef, blocked, pick, picked }: { mapRef: React.RefObj
       {listSource === 'snapshot' && snapshot && (
         <div className="estimate-note" role="status">
           <b>서버에 연결되지 않아요</b>
-          <p>{snapshot.capturedAt}에 저장한 실제 자료가 있는 {regions.length}개 지역만 볼 수 있어요. 나머지 {snapshot.totalRegions - regions.length}개 지역은 서버가 돌아오면 다시 볼 수 있어요. 대안은 서버 최적화가 아니라 추정으로 계산해요.</p>
+          <p>{snapshot.capturedAt}에 수집해 저장한 실제 자료로 {snapshot.complete === false || regions.length < snapshot.totalRegions ? `저장한 ${regions.length}개 지역만 볼 수 있어요. 나머지 ${snapshot.totalRegions - regions.length}개 지역은 서버가 돌아오면 다시 볼 수 있어요.` : `${regions.length}개 지역을 모두 볼 수 있어요.`} 대안은 서버 최적화 결과가 아니라 브라우저 추정이에요. 수집일은 원본 통계의 기준 시점이 아니고, 자료마다 기준 시점이 달라요.</p>
           <button className="link" onClick={() => void retryServer()}>서버 다시 확인</button>
         </div>
       )}

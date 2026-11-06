@@ -6,6 +6,8 @@ import { useNavigate, useParams } from 'react-router'
 import { AnimatePresence, animate, motion, useReducedMotion } from 'motion/react'
 import type { MapRef } from 'react-map-gl/maplibre'
 import { api } from '../api/client'
+import { GRACE_MS, isHung, isRecoverable } from '../api/fallback'
+import { localVillageDetail } from '../api/villageLocal'
 import type { Indicators as Ind, NearestEr, NearestMed, VillageDetail, VillageState } from '../api/types'
 import { AGES, CAR_TARGETS, STATE_CSS, fmt, josa, pct, stateName, viewName } from '../api/meta'
 import { useAutoFetch, useJudgeCompare, useShownJudge } from '../hooks'
@@ -367,16 +369,20 @@ function VillageCard() {
   const { code, state, data, travel, carTarget, set, patch } = useStore()
   const id = state?.selectedVillage ?? null
   const shown = useShownJudge()
-  const [d, setD] = useState<{ id: string; detail: VillageDetail } | { id: string; error: string } | null>(null)
+  const [d, setD] = useState<{ id: string; detail: VillageDetail; local?: boolean } | { id: string; error: string } | null>(null)
   const key = calcKey(code, state)
   useEffect(() => {
     if (!id || !code || !state) return
+    // 서버 장애면 판정 이유를 마을 원자료로 계산해 보여 준다. 서버가 멈춰 답이 늦으면 먼저 보여 주고, 늦게라도 답하면 서버 값으로 바꾼다
+    const local = () => { const detail = data && data.code === code ? localVillageDetail(data, state, id) : null; if (detail) setD({ id, detail, local: true }); return !!detail }
+    if ((useStore.getState().dataSource === 'snapshot' || isHung()) && local()) return
     const ac = new AbortController()
+    const grace = setTimeout(local, GRACE_MS)
     api.village({ region: code, state, villageId: id }, ac.signal).then(
-      (detail) => setD({ id, detail }),
-      (e) => { if (!ac.signal.aborted) setD({ id, error: errText(e) }) },
+      (detail) => { clearTimeout(grace); setD({ id, detail }) },
+      (e) => { clearTimeout(grace); if (ac.signal.aborted) return; if (!(isRecoverable(e) && local())) setD({ id, error: errText(e) }) },
     )
-    return () => ac.abort()
+    return () => { clearTimeout(grace); ac.abort() }
   }, [id, key]) // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => () => patch((s) => ({ ...s, selectedVillage: null })), [patch])
   const cur = d && d.id === id ? d : null
@@ -387,6 +393,7 @@ function VillageCard() {
           <button className="close" onClick={() => { patch((s) => ({ ...s, selectedVillage: null })); set({ hoverVillage: null }) }} aria-label="닫기">×</button>
           {!cur && <p className="muted" role="status">불러오는 중…</p>}
           {cur && 'error' in cur && <p className="bad">{cur.error}</p>}
+          {cur && 'detail' in cur && cur.local && <p className="muted small" style={{ margin: '0 0 4px' }}>서버에 연결되지 않아 마을 원자료로 이 브라우저가 판정했어요</p>}
           {cur && 'detail' in cur && <Detail firstEstimated={!!data?.villages.find((x) => x.id === id)?.bus.firstEstimated} inTown={data?.villages.find((x) => x.id === id)?.bus.firstToTownMin === 0} v={cur.detail} service={state!.service} target={carTarget} byKind={carTarget !== 'med' && carTarget !== 'er' ? { name: targetOf(carTarget), hit: data?.villages.find((x) => x.id === id)?.nearest.byKind?.[carTarget] ?? null } : null} shown={shown?.villages.find((x) => x.id === id)?.state ?? null} filter={travel === 'car' ? '자가용 · ' + targetOf(carTarget) : carTarget !== 'med' ? targetOf(carTarget) : null} er={data?.villages.find((x) => x.id === id)?.nearest.er ?? null} />}
         </motion.div>
       )}
