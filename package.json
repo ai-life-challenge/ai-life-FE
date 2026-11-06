@@ -9,6 +9,8 @@
     "lint": "oxlint",
     "preview": "npm run build && wrangler dev",
     "test": "vitest run",
+    "snapshot": "node scripts/make-snapshot.mjs",
+    "snapshot:verify": "node scripts/verify-snapshot.mjs --live",
     "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {
