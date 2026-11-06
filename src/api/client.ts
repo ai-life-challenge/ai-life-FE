@@ -68,14 +68,21 @@ async function call<T>(path: string, init?: RequestInit, signal?: AbortSignal, t
   }
 }
 
+// 복구 확인용 요청: 멈춘 요청이 쥔 HTTP 캐시 잠금을 비켜 가고(8절) 캐시된 옛 응답을 '서버가 살아났다'로 착각하지 않게 캐시를 쓰지 않는다. 멈춘 서버를 오래 기다리지 않게 짧게 끊는다
+export const QUICK = 8_000
+const FRESH: RequestInit = { cache: 'no-store' }
+export type GetOpt = { signal?: AbortSignal; fresh?: boolean }
+const get = <T>(path: string, o?: GetOpt) => call<T>(path, o?.fresh ? FRESH : undefined, o?.signal, o?.fresh ? QUICK : FAST)
+
 const post = <T>(path: string, body: unknown, signal?: AbortSignal, timeoutMs?: number) => call<T>(path, { method: 'POST', body: JSON.stringify(body) }, signal, timeoutMs)
 type Calc = { region: string; state: State }
 
 export const api = {
   health: () => call<Health>('/api/health'),
-  regions: () => call<RegionList>('/api/regions'),
-  region: (code: string) => call<RegionData>(`/api/regions/${code}`),
-  map: (code: string) => call<GeoJSON.FeatureCollection>(`/api/regions/${code}/map`),
+  ping: () => call<Health>('/api/health', FRESH, undefined, 4_000), // 서버가 돌아왔는지 가볍게 묻는다
+  regions: (o?: GetOpt) => get<RegionList>('/api/regions', o),
+  region: (code: string, o?: GetOpt) => get<RegionData>(`/api/regions/${code}`, o),
+  map: (code: string, o?: GetOpt) => get<GeoJSON.FeatureCollection>(`/api/regions/${code}/map`, o),
   examples: (region: string) => call<Examples>(`/api/examples?region=${encodeURIComponent(region)}`),
   judge: (b: Calc, signal?: AbortSignal) => post<Judge>('/api/judge', b, signal),
   village: (b: Calc & { villageId: string }, signal?: AbortSignal) => post<VillageDetail>('/api/village', b, signal),
@@ -94,5 +101,7 @@ export function cached<T>(key: string, load: () => Promise<T>): Promise<T> {
   }
   return p
 }
+export const forgetAll = () => { cache.clear() } // 테스트용
+export const remember = <T>(key: string, value: T) => { cache.set(key, Promise.resolve(value)) } // 복구 때 새로 받은 값을 기억해 둔다
 export const regionData = (code: string) => cached(`region:${code}`, () => api.region(code))
 export const regionMap = (code: string) => cached(`map:${code}`, () => api.map(code))

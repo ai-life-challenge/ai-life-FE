@@ -50,7 +50,7 @@ export function overLimit(times: VillageTime[], T: number) {
   return { total, gap, rate: total ? gap / total : 0, avg }
 }
 
-export function vulnOf(data: RegionData): Vuln {
+export function vulnOf(data: Pick<RegionData, 'indicators'>): Vuln {
   const ind = data.indicators
   const e30 = ind.e30 ?? null, e60 = ind.e60 ?? null
   const doctors = ind.doctorsPer1k ?? (ind.pop ? (ind.doctors / ind.pop) * 1000 : 0)

@@ -45,7 +45,7 @@ export interface RawVillage {
   a80In10y: number
   seniorCenter: boolean
   bus: { stopWalkMin: number; noStop: boolean; dailyRuns: number; firstToTownMin: number | null; firstEstimated: boolean; dailyRunsBis?: number } // dailyRunsBis: TS-BIS 41곳만, 참고용(판정에 안 씀)
-  nearest: { med: NearestMed | null; school: number | null; library: number | null; er: NearestEr | null; byKind?: NearestByKind }
+  nearest: { med: NearestMed | null; school?: number | null; library?: number | null; er: NearestEr | null; byKind?: NearestByKind } // school · library는 앱이 읽지 않아 스냅샷에 없다
 }
 export interface RawFacility { id: string; name: string; kind: string; village: string | null; lon: number; lat: number; doctors: number }
 // 군 지표(서버가 기본 기준으로 한 번 계산). 비율은 0~1, 인구 가중. 기준을 바꾼 값은 마을 원자료로 화면이 다시 계산한다
@@ -65,7 +65,7 @@ export interface RegionData {
   code: string; name: string; sido: string; tier: Tier; town: string; depot: string
   shrinkingArea: boolean; erVulnerable: boolean
   sources: string[]
-  myeons: { id: string; name: string; pharmacy: boolean }[]
+  myeons: { id: string; name: string; pharmacy?: boolean }[] // pharmacy는 앱이 읽지 않아 스냅샷에 없다
   villages: RawVillage[]
   facilities: RawFacility[]
   indicators: Indicators
