@@ -1,9 +1,9 @@
 import { create } from 'zustand'
-import { api, ApiError, regionData, regionMap } from './api/client'
+import { api, ApiError, regionData, regionMap, remember } from './api/client'
 import { EstimateError, estimateJudge, estimatePlans, estimateSensitivity } from './api/estimatePlans'
-import { badResponse, canProbe, isDown, isRecoverable, markDown, markUp, resetDown, validJudge, validPlans, validRegionData, validRegionList, validSens, type DownSlot } from './api/fallback'
+import { GRACE_MS, badResponse, canProbe, isDown, isHung, isRecoverable, markDown, markHung, markUp, resetDown, validJudge, validMap, validPlans, validRegionData, validRegionList, validSens, type DownSlot } from './api/fallback'
 import type { CarTarget } from './api/judge'
-import { loadSnapshotManifest, snapshotRegion, type SnapshotManifest } from './api/snapshot'
+import { loadSnapshotManifest, snapshotRegion, type SnapshotManifest, type SnapshotNote } from './api/snapshot'
 import type { Judge, Plans, RegionData, RegionItem, Report, SectionKey, Sensitivity, State, SupplyId, Turn } from './api/types'
 
 export type ToolCallMsg = { id: string; label: string; result?: string }
@@ -31,6 +31,7 @@ interface Store {
   listSource: 'server' | 'snapshot' // 지역 목록 · 기본 상태를 어디서 받았는지
   dataSource: 'server' | 'snapshot' // 지금 지역의 마을 자료를 어디서 받았는지. snapshot이면 서버 장애로 미리 저장한 실제 자료를 쓰는 중이다
   snapshot: SnapshotManifest | null // 스냅샷을 쓰는 동안 그 수집 정보
+  snapshotNotes: SnapshotNote[] | null // 저장한 지역 자료의 원자료 출처와 기준 시점
   judge: Load<Judge>
   plans: Load<Plans>
   sens: Load<Sensitivity>
@@ -62,6 +63,7 @@ interface Store {
   fetchSens: (o?: FetchOpt) => Promise<void>
   fetchReport: () => Promise<void>
   retryServer: () => Promise<void> // 추정 · 스냅샷을 쓰는 중에 서버를 지금 다시 물어본다. 되면 정식 결과로 바꾸고, 안 되면 지금 값을 그대로 둔다
+  recheckServer: () => Promise<void> // 장애 중에 주기적으로 부른다: 가벼운 요청으로 서버가 돌아왔는지 보고, 돌아왔을 때만 retryServer를 부른다
   saveSections: (code: string, changes: Partial<Record<SectionKey, string | null>>) => Promise<void>
   openSources: (focus?: string) => void
 }
@@ -136,11 +138,47 @@ function run<T>(slot: Slot, stamp: string | null, call: (signal: AbortSignal) =>
   return promise
 }
 
-let listRequest: Promise<void> | null = null
+let listRequest: { promise: Promise<void>; ac: AbortController } | null = null
+let recheck: Promise<void> | null = null
+let lastRecheck = 0
+const RETRY_WAIT_MS = 8_000 // '서버로 다시 계산'이 답을 기다려 주는 시간. 넘으면 버튼을 돌려주고 답이 오면 그때 바꾼다
+
+export const resetRequests = () => { listRequest?.ac.abort(); listRequest = null; recheck = null; lastRecheck = 0 } // 테스트용
+// 지금 보는 값 중에 서버가 만든 것이 아닌 값이 있는지
+export const isDegraded = (s: Pick<Store, 'listSource' | 'dataSource' | 'judge' | 'plans'>) =>
+  s.listSource === 'snapshot' || s.dataSource === 'snapshot' || s.judge.source === 'estimated' || s.plans.source === 'estimated'
+
+// 앱이 읽는 칸만 모아 비교한다. 스냅샷에는 앱이 읽지 않는 칸(학교 · 도서관 · 약국 · TS-BIS 참고값)이 없어서 응답 전체를 비교하면 늘 달라 보인다
+const readFields = (d: RegionData) => JSON.stringify([
+  d.villages.map((v) => [v.id, v.name, v.myeon, v.lon, v.lat, v.pop, v.a80In10y, v.seniorCenter, v.bus.stopWalkMin, v.bus.noStop, v.bus.dailyRuns, v.bus.firstToTownMin, v.bus.firstEstimated, v.nearest.med, v.nearest.er, v.nearest.byKind]),
+  d.facilities, d.myeons.map((m) => [m.id, m.name]), d.town, d.depot,
+])
+// 서버 자료로 바꾼다. 내용이 같으면 객체를 그대로 둬 지도와 계산이 움직이지 않게 하고, 다르면 옛 자료로 계산한 값을 버린다(섞이지 않게)
+function applyServerRegion(set: (p: Partial<Store>) => void, get: () => Store, d: RegionData, m: GeoJSON.FeatureCollection | null) {
+  const before = get().data
+  const same = !!before && readFields(before) === readFields(d)
+  set({
+    data: same ? before : d, map: m ?? get().map, dataSource: 'server', snapshot: get().listSource === 'snapshot' ? get().snapshot : null,
+    ...(same ? {} : { judge: idle<Judge>(), plans: idle<Plans>(), sens: idle<Sensitivity>(), report: idle<Report>() }),
+  })
+}
+// 스냅샷으로 보던 지역을 서버 자료로 바꾼다. 받기 전까지 화면을 비우지 않고, 못 받으면 그대로 둔다(이 지역 화면에서 고친 값과 입력을 지키려고)
+async function refreshRegion(set: (p: Partial<Store>) => void, get: () => Store, code: string) {
+  try {
+    const [d, m] = await Promise.all([api.region(code, { fresh: true }), api.map(code, { fresh: true }).catch((e) => { if (isRecoverable(e)) return null; throw e })])
+    if (get().code !== code) return
+    if (!validRegionData(d)) throw badResponse()
+    const map = validMap(m) ? m : null
+    markUp('data')
+    remember(`region:${code}`, d)
+    if (map) remember(`map:${code}`, map)
+    applyServerRegion(set, get, d, map)
+  } catch (e) { if (isRecoverable(e)) markDown('data') }
+}
 
 export const useStore = create<Store>((set, get) => ({
   regions: [], state: null, defaults: null, listError: null,
-  code: null, data: null, map: null, regionError: null, listSource: 'server', dataSource: 'server', snapshot: null,
+  code: null, data: null, map: null, regionError: null, listSource: 'server', dataSource: 'server', snapshot: null, snapshotNotes: null,
   judge: idle(), plans: idle(), sens: idle(), report: idle(),
   mapReady: false, hoverRegion: null, hoverVillage: null, hoverSupply: null, showDots: true, showFacilities: true, travel: 'transit', carView: null, diagPick: null, carTarget: 'med', gridTarget: 'med', thinking: false, sweep: null,
   reached: { code: null, max: 0 },
@@ -152,30 +190,48 @@ export const useStore = create<Store>((set, get) => ({
     const now = get()
     if (now.regions.length && now.listSource === 'server') return Promise.resolve()
     if (now.regions.length && !force && !canProbe('data')) return Promise.resolve() // 스냅샷을 쓰는 중: 잠시 뒤에 다시 묻는다
-    if (listRequest) return listRequest
+    if (listRequest) {
+      if (!force) return listRequest.promise
+      listRequest.ac.abort() // 멈춘 요청을 기다리지 않고 새로 묻는다
+    }
     if (!now.regions.length) set({ listError: null }) // 다시 시도하는 동안은 불러오는 중으로 보여 준다
-    listRequest = (async () => {
+    const ac = new AbortController()
+    const applySavedList = async () => {
+      const m = await loadSnapshotManifest()
+      if (!m || get().regions.length) return !!m
+      set({ regions: m.regions, defaults: m.defaultState, state: get().state ?? m.defaultState, listError: null, listSource: 'snapshot', snapshot: m })
+      return true
+    }
+    // 첫 방문에 서버가 답 없이 멈춰 있으면 시간 초과까지 기다리지 않고 저장한 목록을 먼저 보여 준다. 요청은 그대로 두어 늦게라도 답하면 서버 값으로 바꾼다
+    const grace = setTimeout(() => { if (!get().regions.length && !ac.signal.aborted) { markHung(); void applySavedList() } }, GRACE_MS)
+    const promise = (async () => {
       try {
-        const l = await api.regions()
+        const l = await api.regions({ signal: ac.signal, fresh: now.regions.length > 0 })
         if (!validRegionList(l)) throw badResponse()
         markUp('data')
         const wasSnapshot = get().listSource === 'snapshot'
-        set({ regions: l.regions, defaults: l.defaultState, state: get().state ?? l.defaultState, listError: null, listSource: 'server', snapshot: null })
-        // 서버가 돌아왔다: 스냅샷으로 보던 지역을 서버 자료로 다시 받는다(계산도 조건이 같으면 서버로 다시 묻는다)
-        const { code, dataSource } = get()
-        if (wasSnapshot && code && dataSource === 'snapshot') await get().loadRegion(code, true)
+        set({ regions: l.regions, defaults: l.defaultState, state: get().state ?? l.defaultState, listError: null, listSource: 'server', snapshot: get().dataSource === 'snapshot' ? get().snapshot : null })
+        // 서버가 돌아왔다: 스냅샷으로 보던 지역을 서버 자료로 다시 받고, 추정 값은 서버로 다시 묻는다(이미 서버 값이면 부르지 않는다)
+        if (wasSnapshot) {
+          resetDown()
+          const { code, dataSource, data } = get()
+          if (code && data && dataSource === 'snapshot') await refreshRegion(set, get, code)
+          if (get().code && get().data) await Promise.all([get().fetchJudge(), get().fetchPlans()])
+        }
       } catch (e) {
+        if (ac.signal.aborted) return
         if (isRecoverable(e)) {
           markDown('data')
-          if (!get().regions.length) {
-            const m = await loadSnapshotManifest()
-            if (m) { set({ regions: m.regions, defaults: m.defaultState, state: get().state ?? m.defaultState, listError: null, listSource: 'snapshot', snapshot: m }); return }
-          }
+          if (await applySavedList()) return
         }
         if (!get().regions.length) set({ listError: isRecoverable(e) ? `${errText(e)} 지역 자료를 받지 못해 지금은 진단과 계산을 할 수 없어요. 서버가 돌아오면 다시 시도해 주세요.` : errText(e) })
-      } finally { listRequest = null }
+      } finally {
+        clearTimeout(grace)
+        if (listRequest?.ac === ac) listRequest = null
+      }
     })()
-    return listRequest
+    listRequest = { promise, ac }
+    return promise
   },
   loadRegion: async (code, force = false) => {
     if (!force && get().code === code && get().data) return
@@ -183,21 +239,30 @@ export const useStore = create<Store>((set, get) => ({
     const applySnapshot = async () => {
       const s = await snapshotRegion(code)
       if (!s || get().code !== code) return !!s
+      if (get().data) return true // 그 사이 서버 자료가 왔다
       const m = await loadSnapshotManifest()
-      set({ data: s.data, map: s.map, dataSource: 'snapshot', snapshot: m })
+      set({ data: s.data, map: s.map, dataSource: 'snapshot', snapshot: m, snapshotNotes: s.notes ?? null })
       return true
     }
-    // 스냅샷으로 도는 중이면 늦게 답하는 서버를 기다리지 않는다
-    if (get().listSource === 'snapshot' && !force && !canProbe('data') && await applySnapshot()) return
+    // 서버가 멈춘 것으로 아는 중이면 답 없는 서버를 기다리지 않는다(연결 실패 · 5xx는 바로 실패하니 아래에서 물어봐도 기다리지 않는다). 복구되면 recheckServer가 바꾼다
+    if (isHung() && !force && await applySnapshot()) return
+    // 서버가 답 없이 멈춰 있으면 시간 초과까지 기다리지 않고 저장한 자료를 먼저 보여 준다
+    const grace = setTimeout(() => { if (get().code === code && !get().data) { markHung(); void applySnapshot() } }, GRACE_MS)
     const [d, m] = await Promise.allSettled([regionData(code), regionMap(code)])
+    clearTimeout(grace)
     if (get().code !== code) return
+    const fromSnapshot = get().dataSource === 'snapshot'
     if (d.status === 'fulfilled' && validRegionData(d.value)) {
       markUp('data')
-      if (m.status === 'fulfilled') { set({ data: d.value, map: m.value }); return }
-      if (!isRecoverable(m.reason)) { set({ regionError: errText(m.reason) }); return }
-      // 경계만 못 받았다: 마을 자료로 계산은 할 수 있다. 저장해 둔 경계가 있으면 쓰고, 없으면 경계 없이 그린다
-      const s = await snapshotRegion(code)
-      if (get().code === code) set({ data: d.value, map: s?.map ?? null })
+      if (m.status === 'fulfilled' && validMap(m.value)) { applyServerRegion(set, get, d.value, m.value) } else {
+        if (m.status === 'rejected' && !isRecoverable(m.reason)) { set({ regionError: errText(m.reason) }); return }
+        // 경계만 못 받았다: 마을 자료로 계산은 할 수 있다. 저장해 둔 경계가 있으면 쓰고, 없으면 경계 없이 그린다
+        const s = await snapshotRegion(code)
+        if (get().code !== code) return
+        applyServerRegion(set, get, d.value, s?.map ?? null)
+      }
+      // 저장한 자료로 먼저 보여 주던 중에 서버가 늦게 답했다: 계산도 서버로 다시 묻는다
+      if (fromSnapshot) { resetDown(); await Promise.all([get().fetchJudge(), get().fetchPlans()]) }
       return
     }
     const e = d.status === 'fulfilled' ? badResponse() : d.reason
@@ -207,7 +272,7 @@ export const useStore = create<Store>((set, get) => ({
       if (get().code === code) set({ regionError: `${errText(e)} 이 지역 자료를 받지 못해 서버가 돌아오기 전에는 진단과 계산을 할 수 없어요.` })
       return
     }
-    set({ regionError: errText(e) })
+    if (!fromSnapshot) set({ regionError: errText(e) })
   },
   fetchJudge: (o) => {
     const { code, state } = get()
@@ -247,17 +312,40 @@ export const useStore = create<Store>((set, get) => ({
     const { code, state, report, plans } = get()
     if (!code || !state) return Promise.resolve()
     if (plans.source === 'estimated' && plans.key === calcKey(code, state)) return Promise.resolve() // 추정 대안으로는 서버 레포트를 만들지 않는다. 화면이 추정 요약을 보여 준다
+    if (isDown('plans') && plans.source !== 'server') return Promise.resolve() // 대안이 곧 추정으로 올 텐데 답 없는 서버에 레포트를 묻지 않는다
     const key = reportKey(code, state)
     if (report.status === 'ok' && report.key === key) return Promise.resolve() // 문단 저장이 방금 같은 조건의 레포트를 받아 왔다
     return run('report', key, (sg) => api.report({ region: code, state }, sg), set, get)
   },
   retryServer: async () => {
+    // 연결조차 안 되면 지금 값을 그대로 두고 끝낸다(화면을 비우지 않는다). 5xx · 404는 서버 일부가 살아 있다는 뜻이라 실제 요청으로 확인한다
+    try { await api.ping() } catch (e) {
+      if (e instanceof ApiError && (e.code === 'network' || e.code === 'timeout')) { markHung(); return }
+    }
     resetDown()
-    await get().loadList(true)
-    const { code, state, data, dataSource, listSource } = get()
-    if (!code || !state || !data) return
-    if (dataSource === 'snapshot' && listSource === 'server') await get().loadRegion(code, true) // 지역 목록은 받았는데 마을 자료만 스냅샷인 경우. 여전히 안 되면 스냅샷으로 돌아온다
-    await Promise.all([get().fetchJudge({ force: true }), get().fetchPlans({ force: true })])
+    const work = (async () => {
+      await get().loadList(true)
+      const { code, data, dataSource, state } = get()
+      if (!code || !state || !data) return
+      if (dataSource === 'snapshot') await refreshRegion(set, get, code) // 목록은 받았는데 마을 자료만 스냅샷인 경우
+      await Promise.all([get().fetchJudge(), get().fetchPlans()]) // 추정 값은 다시 묻고, 방금 받은 서버 값은 되풀이하지 않는다
+    })()
+    let timer: ReturnType<typeof setTimeout> | undefined
+    await Promise.race([work, new Promise((go) => { timer = setTimeout(go, RETRY_WAIT_MS) })])
+    clearTimeout(timer)
+  },
+  recheckServer: () => {
+    if (recheck) return recheck
+    if (!isDegraded(get()) || Date.now() - lastRecheck < 15_000) return Promise.resolve()
+    lastRecheck = Date.now()
+    recheck = (async () => {
+      try {
+        await api.ping()
+        await get().retryServer()
+      } catch { /* 아직 안 된다: 지금 값을 그대로 두고 다음에 다시 묻는다 */ }
+      finally { recheck = null }
+    })()
+    return recheck
   },
   // 고친 문단 저장: 고친 글을 넣은 state로 레포트를 다시 받아, 서버가 받아 준 뒤에만 state에 넣는다(실패하면 state와 레포트는 그대로).
   // 실패하면 오류를 던지고, 부른 쪽(자동 저장)이 고친 글을 들고 다시 보낸다

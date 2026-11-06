@@ -18,7 +18,7 @@ import { MapView, type MapScreen } from './map/MapView'
 import { ChatDock } from './chat/ChatDock'
 import { PcNotice } from './ui/PcNotice'
 import { Logo } from './ui/Logo'
-import { useTierCounts } from './hooks'
+import { useServerRecovery, useTierCounts } from './hooks'
 
 // 진행 바 칸: 지역 0 · 진단 1 · 목표 2 · 시뮬레이션 3 · 결과(+What-if) 4 · 레포트 5
 const stepOf = (path: string) =>
@@ -48,6 +48,7 @@ function RegionRoute({ children }: { children: React.ReactNode }) {
 
 function Shell() {
   const tiers = useTierCounts()
+  useServerRecovery()
   const loc = useLocation()
   const nav = useNavigate()
   const code = loc.pathname.match(/^\/r\/(\d+)/)?.[1] ?? null

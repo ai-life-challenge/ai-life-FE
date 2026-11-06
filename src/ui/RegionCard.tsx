@@ -2,9 +2,10 @@
 // 인구·고령 비율·병원 30분 밖·취약도는 지역 자료(지역마다 70KB 안팎)가 있어야 해서, 카드가 화면에 보일 때(지도 카드는 바로) 받아 온다.
 import { useEffect, useRef, useState } from 'react'
 import { motion, useInView } from 'motion/react'
-import type { RegionItem } from '../api/types'
+import type { RegionData, RegionItem } from '../api/types'
 import { regionData } from '../api/client'
-import { snapshotRegion } from '../api/snapshot'
+import { isDown } from '../api/fallback'
+import { snapshotIndicators } from '../api/snapshot'
 import { fmt, pct } from '../api/meta'
 import { STD, vulnOf } from '../api/vuln'
 import { Count } from './Count'
@@ -17,8 +18,10 @@ function useSummary(code: string, enabled: boolean) {
   useEffect(() => {
     if (!enabled) return
     let alive = true
-    // 서버 자료를 못 받으면 저장해 둔 실제 자료로 보여 준다. 저장한 자료도 없으면 값을 채우지 않는다
-    regionData(code).catch(() => snapshotRegion(code).then((x) => x?.data ?? Promise.reject())).then((d) => {
+    // 서버 자료를 못 받으면 저장해 둔 실제 지표로 보여 준다. 저장한 자료도 없으면 값을 채우지 않는다. 서버 장애를 아는 중이면 카드마다 서버를 기다리지 않는다
+    const saved = () => snapshotIndicators(code).then((x) => x ?? Promise.reject())
+    const load: Promise<Pick<RegionData, 'indicators'>> = isDown('data') ? saved() : regionData(code).catch(saved)
+    load.then((d) => {
       const v = vulnOf(d)
       if (alive) setS({ pop: d.indicators.pop ?? 0, elderly: d.indicators.elderly ?? 0, e30: v.e30, vulnerable: v.vulnerable, mvi: v.mvi, tvi: v.tvi })
     }, () => {})
