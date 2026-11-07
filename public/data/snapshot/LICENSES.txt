@@ -1,0 +1,75 @@
+LocalLens 정적 자료의 출처와 이용 조건 (수집일 2026-11-06, 표시 확인 2026-11-07)
+
+이 폴더의 파일 조건
+- osm/ : OpenStreetMap 파생 자료. ODbL 1.0. 자세한 내용은 osm/README.txt
+- manifest.json, <지역 코드>.json : 아래 공공데이터 값과 행정 경계. 값마다 원자료의 조건을 따릅니다. 파일 전체에 하나의 라이선스를 새로 붙이지 않았습니다.
+
+OpenStreetMap
+Contains information from OpenStreetMap (https://www.openstreetmap.org/copyright), which is made available here under the Open Database License (ODbL) (https://opendatacommons.org/licenses/odbl/1-0/).
+
+행정 경계
+본 데이터는 통계청 통계지리정보서비스(SGIS, https://sgis.kostat.go.kr)에서 공공누리 제1유형으로 개방한 행정동 경계를 가공한 것이며(가공: vuski/admdongkor, https://github.com/vuski/admdongkor), CC BY 4.0으로 배포됩니다.
+LocalLens는 이 경계를 읍면 단위로 묶고 단순화했습니다.
+
+공공누리 제1유형(출처 표시)
+- 건강보험심사평가원 병원정보서비스 (건강보험심사평가원): 공공누리 제1유형(출처 표시) · https://www.data.go.kr/data/15001698/openapi.do
+- 곡성군 군내버스 시간표 (곡성군): 공공누리 제1유형(출처 표시) · https://www.gokseong.go.kr/kr/subPage.do?menuNo=103003001000
+본 저작물은 건강보험심사평가원에서 2026년 작성하여 공공누리 제1유형으로 개방한 '병원정보서비스'를 이용하였으며, 해당 저작물은 공공데이터포털(https://www.data.go.kr/data/15001698/openapi.do)에서 무료로 내려받을 수 있습니다.
+본 저작물은 곡성군에서 2026년 작성하여 공공누리 제1유형으로 개방한 '군내버스 시간표'를 이용하였으며, 해당 저작물은 곡성군 누리집(https://www.gokseong.go.kr/kr/subPage.do?menuNo=103003001000)에서 무료로 볼 수 있습니다.
+
+통계청 생명표
+작성기관: 국가데이터처(옛 통계청) · 조사명: 생명표 · 작성시점: 2024 · 참조일자: 2026-10-09 · 통계표 ID: DT_1B42 · URL: https://kosis.kr/statHtml/statHtml.do?orgId=101&tblId=DT_1B42
+a80In10y는 생명표 생존율로 LocalLens가 계산한 값이며 통계표 원래 값이 아닙니다.
+
+공공데이터포털 이용허락범위 제한 없음 등
+- 국토교통부 전국 버스정류장 위치정보 (국토교통부): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15067528/fileData.do
+- 담양군 버스정보시스템 정류장 정보 (담양군): 이용허락범위 제한 없음 · http://bis.damyang.go.kr:8080/json/stationInfo
+- 행정안전부 법정동별 주민등록 인구 (행정안전부): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15099158/fileData.do
+- 전국초중등학교위치표준데이터 (한국교육시설안전원): 제공기관 파일: 이용허락범위 제한 없음. 정적 파일에는 좌표 일부의 근거로만 쓰임 · https://www.data.go.kr/data/15021148/standard.do
+- 전국마을회관및경로당표준데이터 (지방자치단체): 제공기관별 파일: 이용허락범위 제한 없음 · https://www.data.go.kr/data/15114136/standard.do
+- 창녕군 복지시설정보(경로당) (창녕군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15054782/fileData.do
+- 창녕군 농어촌버스 운행정보 (창녕군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15005337/fileData.do
+- 영양군 버스 운행시간표 (영양군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15054388/fileData.do
+- 양평군 버스정보 (양평군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/3066397/fileData.do
+- 국립중앙의료원 전국 응급의료기관 정보 (국립중앙의료원): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15000563/openapi.do
+- 한국교통안전공단 TS-BIS 버스 노선과 시간표 (한국교통안전공단): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15150451/fileData.do
+- 국토교통부 TAGO 버스노선정보(노선별 경유 정류소) (국토교통부): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15098529/openapi.do
+- 고흥군 경로당 현황 (고흥군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15134413/fileData.do
+- 군위군 경로당현황 (군위군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15033523/fileData.do
+- 달성군 경로당 현황 (달성군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15044948/fileData.do
+- 성주군 경로당 현황 (성주군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15143469/fileData.do
+- 경기도 노인여가복지시설(경로당) 현황(가평군) (경기도): 경기데이터드림: 상업적이용허용, 콘텐츠변경허용 · https://data.gg.go.kr/portal/data/service/selectServicePage.do?infId=NGS4J4YYWWRDTBH68PWM27749178&infSeq=1
+- 양평군 경로당 현황 (양평군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15166014/fileData.do
+- 경상북도 노인여가 복지시설(경로당) 현황(울릉군) (경상북도): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15052032/fileData.do
+- 경상북도 노인여가 복지시설(경로당) 현황(영양군) (경상북도): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15052032/fileData.do
+- 경상북도 노인여가 복지시설(경로당) 현황(영덕군) (경상북도): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15052032/fileData.do
+- 울진군 경로당 현황 (울진군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15103166/fileData.do
+- 의성군 경로당현황 (의성군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15032126/fileData.do
+- 진천군 마을회관 현황 (진천군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15007453/fileData.do
+- 칠곡군 경로당 현황 (칠곡군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15045246/fileData.do
+- 횡성군 경로당현황 (횡성군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15046143/fileData.do
+- 전북특별자치도 시군 경로당현황(고창군) (전북특별자치도): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15131430/fileData.do
+- 전북특별자치도 시군 경로당현황(순창군) (전북특별자치도): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15131430/fileData.do
+- 전북특별자치도 시군 경로당현황(부안군) (전북특별자치도): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15131430/fileData.do
+- 완주군 경로당 (완주군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15114740/fileData.do
+- 남해군 노인복지시설현황(경로당, 마을회관) (남해군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15013781/fileData.do
+- 의령군 마을회관정보 (의령군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15032056/fileData.do
+- 함안군 경로당 현황 (함안군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15007639/fileData.do
+- 경상남도 경로당 현황(함양군) (경상남도): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15089076/fileData.do
+- 경상남도 경로당 현황(합천군) (경상남도): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15089076/fileData.do
+- 경상남도 경로당 현황(고성군) (경상남도): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15089076/fileData.do
+- 경상남도 경로당 현황(하동군) (경상남도): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15089076/fileData.do
+- 담양군 경로당 현황 (담양군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15040054/fileData.do
+- 무안군 경로당현황 (무안군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15085801/fileData.do
+- 함평군 경로당현황 (함평군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/3068568/fileData.do
+- 완도군 노인복지시설 현황 (완도군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15008033/fileData.do
+- 서천군 경로당 정보 (서천군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15013732/fileData.do
+- 울주군 노인복지시설현황(경로당) (울주군): 이용허락범위 제한 없음 · https://www.data.go.kr/data/15054861/fileData.do
+
+고시
+- 행정안전부 인구감소지역, 보건복지부 응급의료분야 의료취약지 (행정안전부, 보건복지부): 국가 고시(저작권법 제7조 제2호) · https://www.mohw.go.kr/board.es?mid=a10107010100&bid=0043&act=view&list_no=376912
+
+이 배포에 없는 지역
+장흥군, 진도군, 강화군, 보은군, 영동군, 괴산군, 금산군, 청양군, 홍성군, 예산군, 태안군, 예천군, 양양군: 원자료 이용 조건을 확인하는 중이라 정적 자료에 넣지 않았습니다.
+
+이 문서는 공식 페이지의 표시를 옮긴 것이며 법률 자문이 아닙니다. 자료의 정확성을 보증하지 않습니다. 공공기관이 이 서비스를 후원하거나 보증하는 것은 아닙니다.
