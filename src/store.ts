@@ -3,7 +3,7 @@ import { api, ApiError, regionData, regionMap, remember } from './api/client'
 import { EstimateError, estimateJudge, estimatePlans, estimateSensitivity } from './api/estimatePlans'
 import { GRACE_MS, badResponse, canProbe, isDown, isHung, isRecoverable, markDown, markHung, markUp, resetDown, validJudge, validMap, validPlans, validRegionData, validRegionList, validSens, type DownSlot } from './api/fallback'
 import type { CarTarget } from './api/judge'
-import { loadSnapshotManifest, snapshotRegion, type SnapshotManifest, type SnapshotNote } from './api/snapshot'
+import { loadSnapshotManifest, snapshotRegion, snapshotUnsupported, type SnapshotManifest, type SnapshotNote, type UnsupportedRegion } from './api/snapshot'
 import type { Judge, Plans, RegionData, RegionItem, Report, SectionKey, Sensitivity, State, SupplyId, Turn } from './api/types'
 
 export type ToolCallMsg = { id: string; label: string; result?: string }
@@ -28,6 +28,7 @@ interface Store {
   data: RegionData | null
   map: GeoJSON.FeatureCollection | null
   regionError: string | null
+  unsupported: UnsupportedRegion | null // 지금 고른 지역이 서버 장애 때 지원하지 않는 지역이다(정적 자료에 없음). 서버가 돌아오면 비운다
   listSource: 'server' | 'snapshot' // 지역 목록 · 기본 상태를 어디서 받았는지
   dataSource: 'server' | 'snapshot' // 지금 지역의 마을 자료를 어디서 받았는지. snapshot이면 서버 장애로 미리 저장한 실제 자료를 쓰는 중이다
   snapshot: SnapshotManifest | null // 스냅샷을 쓰는 동안 그 수집 정보
@@ -145,8 +146,8 @@ const RETRY_WAIT_MS = 8_000 // '서버로 다시 계산'이 답을 기다려 주
 
 export const resetRequests = () => { listRequest?.ac.abort(); listRequest = null; recheck = null; lastRecheck = 0 } // 테스트용
 // 지금 보는 값 중에 서버가 만든 것이 아닌 값이 있는지
-export const isDegraded = (s: Pick<Store, 'listSource' | 'dataSource' | 'judge' | 'plans'>) =>
-  s.listSource === 'snapshot' || s.dataSource === 'snapshot' || s.judge.source === 'estimated' || s.plans.source === 'estimated'
+export const isDegraded = (s: Pick<Store, 'listSource' | 'dataSource' | 'judge' | 'plans' | 'unsupported'>) =>
+  s.listSource === 'snapshot' || s.dataSource === 'snapshot' || s.judge.source === 'estimated' || s.plans.source === 'estimated' || !!s.unsupported
 
 // 앱이 읽는 칸만 모아 비교한다. 스냅샷에는 앱이 읽지 않는 칸(학교 · 도서관 · 약국 · TS-BIS 참고값)이 없어서 응답 전체를 비교하면 늘 달라 보인다
 const readFields = (d: RegionData) => JSON.stringify([
@@ -178,7 +179,7 @@ async function refreshRegion(set: (p: Partial<Store>) => void, get: () => Store,
 
 export const useStore = create<Store>((set, get) => ({
   regions: [], state: null, defaults: null, listError: null,
-  code: null, data: null, map: null, regionError: null, listSource: 'server', dataSource: 'server', snapshot: null, snapshotNotes: null,
+  code: null, data: null, map: null, regionError: null, unsupported: null, listSource: 'server', dataSource: 'server', snapshot: null, snapshotNotes: null,
   judge: idle(), plans: idle(), sens: idle(), report: idle(),
   mapReady: false, hoverRegion: null, hoverVillage: null, hoverSupply: null, showDots: true, showFacilities: true, travel: 'transit', carView: null, diagPick: null, carTarget: 'med', gridTarget: 'med', thinking: false, sweep: null,
   reached: { code: null, max: 0 },
@@ -216,6 +217,7 @@ export const useStore = create<Store>((set, get) => ({
           resetDown()
           const { code, dataSource, data } = get()
           if (code && data && dataSource === 'snapshot') await refreshRegion(set, get, code)
+          if (code && !data && get().unsupported) await get().loadRegion(code, true) // 장애 중 지원하지 않던 지역을 보고 있었다
           if (get().code && get().data) await Promise.all([get().fetchJudge(), get().fetchPlans()])
         }
       } catch (e) {
@@ -235,7 +237,7 @@ export const useStore = create<Store>((set, get) => ({
   },
   loadRegion: async (code, force = false) => {
     if (!force && get().code === code && get().data) return
-    set({ code, data: null, map: null, regionError: null, dataSource: 'server', judge: idle(), plans: idle(), sens: idle(), report: idle(), chat: [], hoverVillage: null, diagPick: null })
+    set({ code, data: null, map: null, regionError: null, unsupported: null, dataSource: 'server', judge: idle(), plans: idle(), sens: idle(), report: idle(), chat: [], hoverVillage: null, diagPick: null })
     const applySnapshot = async () => {
       const s = await snapshotRegion(code)
       if (!s || get().code !== code) return !!s
@@ -244,16 +246,33 @@ export const useStore = create<Store>((set, get) => ({
       set({ data: s.data, map: s.map, dataSource: 'snapshot', snapshot: m, snapshotNotes: s.notes ?? null })
       return true
     }
+    // 정적 자료에 없는 지역이면 그렇게 알린다. 값을 만들지 않고, 서버가 돌아오면 이어진다
+    const applyUnsupported = async () => {
+      const u = await snapshotUnsupported(code)
+      if (u && get().code === code && !get().data) set({ unsupported: u })
+      return !!u
+    }
+    const applySaved = async () => (await applySnapshot()) || applyUnsupported()
     // 서버가 멈춘 것으로 아는 중이면 답 없는 서버를 기다리지 않는다(연결 실패 · 5xx는 바로 실패하니 아래에서 물어봐도 기다리지 않는다). 복구되면 recheckServer가 바꾼다
-    if (isHung() && !force && await applySnapshot()) return
+    if (isHung() && !force) {
+      if (await applySnapshot()) return
+      await applyUnsupported() // 안내를 먼저 보여 주고 아래에서 서버 답도 기다린다
+    }
     // 서버가 답 없이 멈춰 있으면 시간 초과까지 기다리지 않고 저장한 자료를 먼저 보여 준다
-    const grace = setTimeout(() => { if (get().code === code && !get().data) { markHung(); void applySnapshot() } }, GRACE_MS)
+    const grace = setTimeout(() => { if (get().code === code && !get().data) { markHung(); void applySaved() } }, GRACE_MS)
     const [d, m] = await Promise.allSettled([regionData(code), regionMap(code)])
     clearTimeout(grace)
     if (get().code !== code) return
     const fromSnapshot = get().dataSource === 'snapshot'
     if (d.status === 'fulfilled' && validRegionData(d.value)) {
       markUp('data')
+      if (get().unsupported) set({ unsupported: null })
+      // 목록만 저장 자료인데 이 지역 자료는 서버가 줬다: 저장 목록에 없는 지역이면 목록에 더해 화면이 이어지게 한다
+      if (!get().regions.some((r) => r.code === code)) {
+        const v = d.value
+        const n = v.villages.length
+        set({ regions: [...get().regions, { code, name: v.name, sido: v.sido, tier: v.tier, villages: n, center: [v.villages.reduce((a, x) => a + x.lon, 0) / n, v.villages.reduce((a, x) => a + x.lat, 0) / n], shrinkingArea: v.shrinkingArea, erVulnerable: v.erVulnerable }] })
+      }
       if (m.status === 'fulfilled' && validMap(m.value)) { applyServerRegion(set, get, d.value, m.value) } else {
         if (m.status === 'rejected' && !isRecoverable(m.reason)) { set({ regionError: errText(m.reason) }); return }
         // 경계만 못 받았다: 마을 자료로 계산은 할 수 있다. 저장해 둔 경계가 있으면 쓰고, 없으면 경계 없이 그린다
@@ -268,7 +287,7 @@ export const useStore = create<Store>((set, get) => ({
     const e = d.status === 'fulfilled' ? badResponse() : d.reason
     if (isRecoverable(e)) {
       markDown('data')
-      if (await applySnapshot()) return
+      if (await applySaved()) return
       if (get().code === code) set({ regionError: `${errText(e)} 이 지역 자료를 받지 못해 서버가 돌아오기 전에는 진단과 계산을 할 수 없어요.` })
       return
     }
@@ -325,7 +344,8 @@ export const useStore = create<Store>((set, get) => ({
     resetDown()
     const work = (async () => {
       await get().loadList(true)
-      const { code, data, dataSource, state } = get()
+      const { code, data, dataSource, state, unsupported } = get()
+      if (code && !data && unsupported) await get().loadRegion(code, true) // 장애 중 지원하지 않던 지역: 이제 서버에서 받아 온다
       if (!code || !state || !data) return
       if (dataSource === 'snapshot') await refreshRegion(set, get, code) // 목록은 받았는데 마을 자료만 스냅샷인 경우
       await Promise.all([get().fetchJudge(), get().fetchPlans()]) // 추정 값은 다시 묻고, 방금 받은 서버 값은 되풀이하지 않는다

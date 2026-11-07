@@ -16,7 +16,9 @@ npm test         # 브라우저 판정 규칙 · 서버 판정 대조 · 추정 
 npm run build
 npm run deploy   # 빌드 + wrangler deploy
 npm run snapshot         # 정적 스냅샷 수집(비공개 폴더 snapshot.local/)
-npm run snapshot:verify  # 스냅샷 검사 + 서버와 값 대조
+npm run snapshot:verify  # 비공개 수집본 검사 + 서버와 값 대조
+npm run snapshot:public  # 공개 자료 생성(public/data/snapshot/, 59개 지역)
+npm run snapshot:public:verify  # 공개 자료 검사 + 서버와 값 대조
 ```
 
 API 주소는 `src/api/client.ts`의 기본값(운영 서버)이고, 다른 서버를 쓰려면 빌드할 때 `VITE_API_URL`을 넣어요. 값은 빌드 시점에 코드에 박히므로 바꾸면 다시 빌드·배포해야 해요.
@@ -60,15 +62,16 @@ LocalLens는 2026년 프로젝트에서 공공데이터를 중심으로 구축�
 
 규칙과 서버 비교 결과는 [docs/estimated-simulation.md](docs/estimated-simulation.md)에, 백엔드 전체 장애 대응은 [docs/offline-snapshot.md](docs/offline-snapshot.md)에 있어요.
 
-> **지금 배포의 상태**: 백엔드 전체 장애 때 쓰는 코드는 들어 있지만, 72개 지역 정적 자료는 아직 저장소와 배포에 없어요. 자료별 이용 조건을 확인하지 못한 항목이 있어서예요(`docs/offline-snapshot.md` 5절). 지금 배포에서 처음 방문할 때 서버 전체가 장애면 오류 안내를 보여 줘요. 비공개 자료로 넣어 검증한 동작은 아래 표의 '정적 자료를 넣었을 때'예요.
+> **정적 자료**: 이용 조건을 확인한 59개 지역만 저장소와 배포에 있어요. 나머지 13개 지역은 서버가 정상일 때 기존대로 쓰고, 서버 전체 장애 때는 지원하지 않는 지역으로 안내해요([이용 조건](docs/data-licenses.md)).
 
 | 상황 | 동작 |
 | ---- | ---- |
 | 지역 자료를 받은 뒤 계산 API 실패(연결 실패, 시간 초과, 5xx, 잘못된 응답) | 브라우저가 판정 · 대안 3개 · 단가 민감도 · What-if를 추정하고, 레포트 대신 추정 요약을 보여 줘요 |
 | 입력 오류(400 등) | 추정으로 숨기지 않고 오류를 보여 줘요 |
-| 일부 API만 실패(지역 목록 · 지역 자료 · 경계) | 그 자료만 저장본을 쓰고 나머지는 서버 값을 써요(정적 자료를 넣었을 때) |
-| 서버 전체 장애 · 정적 자료 없음 | 진단과 계산을 할 수 없다고 안내하고 다시 시도를 줘요. 숫자를 만들어 채우지 않아요(지금 배포) |
-| 서버 전체 장애 · 정적 자료를 넣었을 때 | 처음 방문이나 새로 고침이어도 72개 지역의 진단 · 대안 · What-if · 추정 요약 · PDF를 쓸 수 있어요. 서버가 답 없이 멈춰 있어도 4초 안에 넘어가요 |
+| 일부 API만 실패(지역 목록 · 지역 자료 · 경계) | 그 자료만 저장본을 쓰고 나머지는 서버 값을 써요. 저장본이 없는 13곳은 지원하지 않는다고 알려요 |
+| 서버 전체 장애 · 저장한 59곳 | 처음 방문이나 새로 고침이어도 진단 · 대안 · What-if · 추정 요약 · PDF를 써요. 추정임을 표시해요 |
+| 서버 전체 장애 · 나머지 13곳 | 지금 지원하지 않는다고 알리고 값을 만들지 않아요. 서버가 돌아오면 이어져요 |
+| 서버 전체 장애 · 정적 파일 손상 | 진단과 계산을 할 수 없다고 안내하고 다시 시도를 줘요. 숫자를 만들어 채우지 않아요 |
 | 서버 복구 | ‘서버로 다시 계산’을 누르거나 60초마다 하는 확인에서 돌아온 것을 알면, 입력값을 유지한 채 서버 자료와 정식 계산으로 바뀌어요 |
 
 - **추정은 실제 최적화 결과가 아니에요.** 달성률이 서버보다 높거나 낮게 나올 수 있고, 목표 달성 여부도 다를 수 있어요.
@@ -85,6 +88,7 @@ src/
   api/estimatePlans.ts 서버 장애 때 쓰는 추정 계산 (estimatePlans.test.ts)
   api/fallback.ts     장애 판단 · 응답 검사 · 재시도 대기
   api/snapshot.ts     정적 스냅샷 읽기 · 검증 (manifest + 지역별 파일)
+  api/snapshotSplit.ts 공공데이터 파일과 OSM 파생 파일(ODbL) 나누기 · 합치기
   api/villageLocal.ts 마을 카드를 원자료로 계산 (서버 대조: scripts/compare-village.test.ts)
   api/cells.ts        마을을 칸으로 묶어 집계 (랜딩 그림용, cells.test.ts)
   store.ts            zustand 전역 상태 (state · 지역 자료 · 서버 계산 결과와 로딩·오류)
@@ -110,4 +114,5 @@ React 19 · TypeScript · Vite · Motion · zustand · react-router · MapLibre 
 
 - 행정 경계: [vuski/admdongkor](https://github.com/vuski/admdongkor) ver20260701 (통계청 SGIS 기반, CC BY 4.0)
 - 바탕 지도: OpenFreeMap (© OpenStreetMap 기여자)
+- 정적 자료: 공공데이터는 자료별 조건, OSM 파생 자료는 ODbL 1.0 ([docs/data-licenses.md](docs/data-licenses.md))
 - 지역별 자료 출처는 서비스 안의 ‘가정과 출처’(S7)에 지역마다 나와요

@@ -7,6 +7,7 @@ import { estimateJudge, estimatePlans, estimateSensitivity, EstimateError } from
 import { validJudge, validPlans, validRegionData, validRegionList, validSens } from '../src/api/fallback'
 import { judgeCar, judgeLocal } from '../src/api/judge'
 import { validSnapshotRegion, type SnapshotManifest, type SnapshotRegion } from '../src/api/snapshot'
+import { mergeRegion } from '../src/api/snapshotSplit'
 import type { State } from '../src/api/types'
 import { localVillageDetail } from '../src/api/villageLocal'
 import { vulnOf } from '../src/api/vuln'
@@ -14,7 +15,14 @@ import { vulnOf } from '../src/api/vuln'
 const root = path.join(import.meta.dirname, '..')
 const DIR = [process.env.SNAPSHOT_DIR, 'public/data/snapshot', 'snapshot.local'].filter(Boolean).map((d) => path.resolve(root, d!)).find((d) => fs.existsSync(path.join(d, 'manifest.json')))
 const m: SnapshotManifest | null = DIR ? JSON.parse(fs.readFileSync(path.join(DIR, 'manifest.json'), 'utf8')) : null
-const load = (code: string): SnapshotRegion => JSON.parse(fs.readFileSync(path.join(DIR!, m!.files![code].path), 'utf8'))
+// 공개 형식(schema 3)은 나눈 두 파일을 앱과 같은 함수로 합치고, 목록 중심 좌표와 카드 지표는 osm/index.json에서 채운다
+const read = (p: string) => JSON.parse(fs.readFileSync(path.join(DIR!, p), 'utf8'))
+const index = m?.osmIndex ? read(m.osmIndex.path) : null
+const load = (code: string): SnapshotRegion => {
+  const f = m!.files![code]
+  const s = read(f.path)
+  return f.osm ? { data: mergeRegion(s.data, read(f.osm.path))!, map: s.map, notes: s.notes } : s
+}
 // 숫자가 들어갈 자리에 NaN · Infinity · undefined가 있는지 찾아 경로를 돌려준다
 function badNumbers(o: unknown, at = ''): string[] {
   if (typeof o === 'number') return Number.isFinite(o) ? [] : [at]
@@ -27,18 +35,19 @@ function badNumbers(o: unknown, at = ''): string[] {
 describe.skipIf(!m)('스냅샷 전 지역', () => {
   test('manifest가 완전하다: 지역 수 · 마을 수 · 파일 수', () => {
     expect(validRegionList(m!)).toBe(true)
-    expect(m!.complete).toBe(true)
-    expect(m!.regions).toHaveLength(m!.totalRegions)
-    expect(new Set(m!.regions.map((r) => r.code)).size).toBe(m!.totalRegions)
-    expect(m!.regions.reduce((a, r) => a + r.villages, 0)).toBe(m!.totalVillages)
-    expect(fs.readdirSync(DIR!).filter((f) => f !== 'manifest.json').sort()).toEqual(m!.regions.map((r) => `${r.code}.json`).sort())
+    const held = m!.unsupported?.length ?? 0
+    expect(m!.complete).toBe(held === 0)
+    expect(m!.regions).toHaveLength(m!.totalRegions - held)
+    expect(new Set(m!.regions.map((r) => r.code)).size).toBe(m!.totalRegions - held)
+    if (!held) expect(m!.regions.reduce((a, r) => a + r.villages, 0)).toBe(m!.totalVillages)
+    expect(fs.readdirSync(DIR!).filter((f) => f.endsWith('.json') && f !== 'manifest.json').sort()).toEqual(m!.regions.map((r) => `${r.code}.json`).sort())
     expect(m!.regions.filter((r) => r.tier === 'precise')).toHaveLength(m!.tiers!.precise)
     expect(m!.capturedAt).toMatch(/^\d{4}-\d{2}-\d{2}$/)
   })
   test('어느 마을 id도 두 지역에 나오지 않는다', () => {
     const seen = new Map<string, string>()
     for (const r of m!.regions) for (const v of load(r.code).data.villages) { expect(seen.has(v.id), v.id).toBe(false); seen.set(v.id, r.code) }
-    expect(seen.size).toBe(m!.totalVillages)
+    expect(seen.size).toBe(m!.regions.reduce((a, r) => a + r.villages, 0))
   })
 
   const regions = m?.regions ?? []
@@ -46,7 +55,7 @@ describe.skipIf(!m)('스냅샷 전 지역', () => {
     const s = load(code)
     const { data } = s
     // 파일이 앱의 검증을 통과하고 지역 목록과 맞다
-    expect(validSnapshotRegion(item, s)).toBe(true)
+    expect(validSnapshotRegion(index ? { ...item, center: index.regions[code].center } : item, s)).toBe(true)
     expect(validRegionData(data)).toBe(true)
     expect(data.name).toBe(name)
     expect(data.villages.every((v) => v.id.startsWith(code))).toBe(true)

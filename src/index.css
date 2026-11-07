@@ -448,8 +448,11 @@ button.badge:hover { background: var(--gray-2); }
 .panel .std-line span { top: auto; bottom: -19px; } /* 패널에서는 기준선 라벨을 막대 아래에 둬서 값 설명과 겹치지 않게 */
 .panel .next-row { margin-top: 20px; }
 .source { color: var(--muted); font-size: 12px; margin: 16px 0 0; }
+.legend p.source { display: block; margin-top: 10px; } /* 범례의 p는 flex 줄이다. 고지 문장은 글로 흐르게 한다 */
 .region-list { display: grid; gap: 8px; margin-top: 16px; }
 .region-list .region { width: 100%; min-height: 0; padding: 16px 18px; gap: 6px; }
+.region-held { margin-top: 16px; padding-top: 12px; border-top: 1px solid var(--gray-2); }
+.region-held .muted { margin: 0 0 8px; }
 .region.on { background: var(--bg); box-shadow: inset 0 0 0 2px var(--accent); }
 .region h2 { font-size: 22px; }
 .region .stats { gap: 6px 12px; margin-top: 6px; }

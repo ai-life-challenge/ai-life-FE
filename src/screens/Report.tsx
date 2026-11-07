@@ -11,6 +11,7 @@ import { readShare, shareQuery } from '../api/share'
 import { useAutoFetch } from '../hooks'
 import { calcKey, reportKey, useStore, type Load } from '../store'
 import { AiBadge, LevelBadge } from '../ui/Badges'
+import { OsmNotice } from '../ui/OsmNotice'
 import { Basis } from '../ui/Basis'
 import { ConfirmDialog } from '../ui/ConfirmDialog'
 import { Md } from '../ui/Md'
@@ -106,6 +107,7 @@ function ServerReport() {
         {!rep && report.status !== 'error' && <p className="muted" role="status">레포트를 만드는 중이에요…</p>}
         {rep && <Body rep={rep} regionName={r.name} tier={r.tier} saver={saver} loading={report.status === 'loading'} plan={st.planShow} onPickPlan={pickPlan} originals={originals} />}
         {!plans.data && report.data && plans.status === 'error' && <p className="muted small">{plans.error} <button className="link" onClick={() => void fetchPlans()}>다시 불러오기</button></p>}
+        <OsmNotice />
       </article>
       {toast && <div className="toast" role="status">{toast}</div>}
     </motion.div>

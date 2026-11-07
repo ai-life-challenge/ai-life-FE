@@ -1,0 +1,627 @@
+{
+ "checkedAt": "2026-11-07",
+ "sources": [
+  {
+   "id": "stops",
+   "display": "국토교통부 전국 버스정류장 위치정보",
+   "org": "국토교통부",
+   "title": "전국 버스정류장 위치정보",
+   "url": "https://www.data.go.kr/data/15067528/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "stops-12710",
+   "display": "담양군 버스정보시스템 정류장 정보",
+   "org": "담양군",
+   "title": "버스정보시스템 정류장 정보(stationInfo)",
+   "url": "http://bis.damyang.go.kr:8080/json/stationInfo",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "stops-48860",
+   "display": "OpenStreetMap 버스 정류장(산청)",
+   "org": "OpenStreetMap 기여자",
+   "title": "버스 정류장(산청)",
+   "url": "https://www.openstreetmap.org/copyright",
+   "status": "odbl",
+   "license": "ODbL 1.0"
+  },
+  {
+   "id": "pop",
+   "display": "행정안전부 법정동별 주민등록 인구",
+   "org": "행정안전부",
+   "title": "법정동별 주민등록 인구",
+   "url": "https://www.data.go.kr/data/15099158/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "school",
+   "display": "전국초중등학교위치표준데이터",
+   "org": "한국교육시설안전원",
+   "title": "전국초중등학교위치표준데이터",
+   "url": "https://www.data.go.kr/data/15021148/standard.do",
+   "status": "open",
+   "license": "제공기관 파일: 이용허락범위 제한 없음. 정적 파일에는 좌표 일부의 근거로만 쓰임"
+  },
+  {
+   "id": "hospital",
+   "display": "건강보험심사평가원 병원정보서비스",
+   "org": "건강보험심사평가원",
+   "title": "병원정보서비스",
+   "url": "https://www.data.go.kr/data/15001698/openapi.do",
+   "status": "kogl1",
+   "license": "공공누리 제1유형(출처 표시)"
+  },
+  {
+   "id": "pharmacy",
+   "display": "건강보험심사평가원 약국정보서비스",
+   "org": "건강보험심사평가원",
+   "title": "약국정보서비스",
+   "url": "https://www.data.go.kr/data/15001673/openapi.do",
+   "status": "absent",
+   "license": "공공누리 제1유형. 정적 파일에 값 없음"
+  },
+  {
+   "id": "library",
+   "display": "전국도서관표준데이터",
+   "org": "지방자치단체",
+   "title": "전국도서관표준데이터",
+   "url": "https://www.data.go.kr/data/15013109/standard.do",
+   "status": "absent",
+   "license": "정적 파일에 값 없음"
+  },
+  {
+   "id": "emd",
+   "display": "통계청 SGIS 행정경계(vuski/admdongkor)",
+   "org": "통계청 SGIS(vuski/admdongkor 가공)",
+   "title": "행정동 경계",
+   "url": "https://github.com/vuski/admdongkor",
+   "status": "ccby",
+   "license": "CC BY 4.0(원자료 SGIS 공공누리 제1유형)"
+  },
+  {
+   "id": "senior",
+   "display": "전국마을회관및경로당표준데이터",
+   "org": "지방자치단체",
+   "title": "전국마을회관및경로당표준데이터",
+   "url": "https://www.data.go.kr/data/15114136/standard.do",
+   "status": "open",
+   "license": "제공기관별 파일: 이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-48740",
+   "display": "창녕군 복지시설정보(경로당)",
+   "org": "창녕군",
+   "title": "복지시설정보(경로당)",
+   "url": "https://www.data.go.kr/data/15054782/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "osm",
+   "display": "OpenStreetMap 도로망",
+   "org": "OpenStreetMap 기여자",
+   "title": "OpenStreetMap 도로망",
+   "url": "https://www.openstreetmap.org/copyright",
+   "status": "odbl",
+   "license": "ODbL 1.0"
+  },
+  {
+   "id": "lifetable",
+   "display": "통계청 생명표",
+   "org": "통계청",
+   "title": "생명표",
+   "url": "https://kosis.kr/statHtml/statHtml.do?orgId=101&tblId=DT_1B42",
+   "status": "kosis",
+   "license": "KOSIS 통계정보 이용지침(출처 표시, 임의 변경 금지)",
+   "evidence": "https://kosis.kr/serviceInfo/useGuide.do"
+  },
+  {
+   "id": "bus-48740",
+   "display": "창녕군 농어촌버스 운행정보",
+   "org": "창녕군",
+   "title": "농어촌버스 운행정보",
+   "url": "https://www.data.go.kr/data/15005337/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "bus-47760",
+   "display": "영양군 버스 운행시간표",
+   "org": "영양군",
+   "title": "버스 운행시간표",
+   "url": "https://www.data.go.kr/data/15054388/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "bus-12860",
+   "display": "진도군 군내버스 시간표",
+   "org": "진도군",
+   "title": "군내버스 시간표",
+   "url": "https://www.jindo.go.kr/tour/sub.cs?m=80",
+   "status": "hold",
+   "license": "공식 표시 충돌(제1유형/제2유형)"
+  },
+  {
+   "id": "bus-44790",
+   "display": "청양군 농어촌버스 시간표",
+   "org": "청양군",
+   "title": "농어촌버스 시간표",
+   "url": "https://www.cheongyang.go.kr/tour/sub05_12_01_01.do",
+   "status": "hold",
+   "license": "표시 없음, 군 정책은 사전 협의"
+  },
+  {
+   "id": "bus-43720",
+   "display": "보은군 농어촌버스 운행시간표",
+   "org": "보은군",
+   "title": "농어촌버스 운행시간표",
+   "url": "https://www.boeun.go.kr/www/contents.do?key=525",
+   "status": "hold",
+   "license": "표시 없음, 군 정책은 사전 협의"
+  },
+  {
+   "id": "bus-41830",
+   "display": "양평군 버스정보",
+   "org": "양평군",
+   "title": "버스정보",
+   "url": "https://www.data.go.kr/data/3066397/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "bus-44800",
+   "display": "홍성군 농어촌버스 노선별 시간표",
+   "org": "홍성군",
+   "title": "농어촌버스 노선별 시간표(홍주여객)",
+   "url": "https://www.hongseong.go.kr/kor/sub05_1204.do",
+   "status": "hold",
+   "license": "표시 없음, 군 정책은 사전 협의"
+  },
+  {
+   "id": "bus-44710",
+   "display": "금산군 농어촌버스 시간표",
+   "org": "금산군",
+   "title": "농어촌버스 시간표(2026-07-01 시행)",
+   "url": "https://www.geumsan.go.kr/kr/html/sub05/05050101.html",
+   "status": "hold",
+   "license": "표시 없음, 군 정책은 사전 협의"
+  },
+  {
+   "id": "bus-44810",
+   "display": "예산군 종합배차시간표",
+   "org": "예산군",
+   "title": "종합배차시간표(터미널, 쌍송, 예산역)",
+   "url": "https://www.yesan.go.kr/bbs/BBSMSTR_000000000079/list.do",
+   "status": "hold",
+   "license": "표시 없음, 군 정책은 사전 협의"
+  },
+  {
+   "id": "bus-12720",
+   "display": "곡성군 군내버스 시간표",
+   "org": "곡성군",
+   "title": "군내버스 시간표",
+   "url": "https://www.gokseong.go.kr/kr/subPage.do?menuNo=103003001000",
+   "status": "kogl1",
+   "license": "공공누리 제1유형(출처 표시)"
+  },
+  {
+   "id": "bus-47900",
+   "display": "예천군 농어촌버스 운행시간표",
+   "org": "예천군",
+   "title": "농어촌버스 운행시간표(예천여객)",
+   "url": "https://www.ycg.kr/open.content/ko/section/traffic/car/bus/",
+   "status": "hold",
+   "license": "표시 없음, 군 정책은 사전 협의"
+  },
+  {
+   "id": "bus-44825",
+   "display": "태안군 대중교통정보 농어촌버스 시간표",
+   "org": "태안군",
+   "title": "태안 대중교통정보 농어촌버스 시간표",
+   "url": "https://taean-pti.kr/index.php?mp=p2_4_1",
+   "status": "hold",
+   "license": "표시 없음, 민간 운영사 관리 표기"
+  },
+  {
+   "id": "bus-51830",
+   "display": "양양군 버스정보시스템 배차시간표",
+   "org": "양양군",
+   "title": "버스정보시스템 배차시간표와 노선 정보",
+   "url": "https://bis.yangyang.go.kr/schedule",
+   "status": "hold",
+   "license": "표시 없음"
+  },
+  {
+   "id": "bus-28710",
+   "display": "강화군 군내버스 노선과 시간표",
+   "org": "강화군",
+   "title": "군내버스 노선 안내와 군내버스 시간표(2025-05 기준)",
+   "url": "https://www.ganghwa.go.kr/open_content/main/part/traffic/guide.jsp",
+   "status": "hold",
+   "license": "보관본 제4유형, 현재 페이지에 시간표 없음"
+  },
+  {
+   "id": "er",
+   "display": "국립중앙의료원 전국 응급의료기관 정보",
+   "org": "국립중앙의료원",
+   "title": "전국 응급의료기관 정보",
+   "url": "https://www.data.go.kr/data/15000563/openapi.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "tsbis",
+   "display": "한국교통안전공단 TS-BIS 버스 노선과 시간표",
+   "org": "한국교통안전공단",
+   "title": "TS-BIS 버스 노선과 시간표(노선별 일일운행횟수)",
+   "url": "https://www.data.go.kr/data/15150451/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "tago",
+   "display": "국토교통부 TAGO 버스노선정보(노선별 경유 정류소)",
+   "org": "국토교통부",
+   "title": "TAGO 버스노선정보(노선별 경유 정류소)",
+   "url": "https://www.data.go.kr/data/15098529/openapi.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "designations",
+   "display": "행정안전부 인구감소지역, 보건복지부 응급의료분야 의료취약지",
+   "org": "행정안전부, 보건복지부",
+   "title": "인구감소지역, 응급의료분야 의료취약지",
+   "url": "https://www.mohw.go.kr/board.es?mid=a10107010100&bid=0043&act=view&list_no=376912",
+   "status": "notice",
+   "license": "국가 고시(저작권법 제7조 제2호)"
+  },
+  {
+   "id": "senior-12740",
+   "display": "고흥군 경로당 현황",
+   "org": "고흥군",
+   "title": "경로당 현황",
+   "url": "https://www.data.go.kr/data/15134413/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-27720",
+   "display": "군위군 경로당현황",
+   "org": "군위군",
+   "title": "경로당현황",
+   "url": "https://www.data.go.kr/data/15033523/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-27710",
+   "display": "달성군 경로당 현황",
+   "org": "달성군",
+   "title": "경로당 현황",
+   "url": "https://www.data.go.kr/data/15044948/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-47840",
+   "display": "성주군 경로당 현황",
+   "org": "성주군",
+   "title": "경로당 현황",
+   "url": "https://www.data.go.kr/data/15143469/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-41820",
+   "display": "경기도 노인여가복지시설(경로당) 현황(가평군)",
+   "org": "경기도",
+   "title": "노인여가복지시설(경로당) 현황",
+   "url": "https://data.gg.go.kr/portal/data/service/selectServicePage.do?infId=NGS4J4YYWWRDTBH68PWM27749178&infSeq=1",
+   "status": "open",
+   "license": "경기데이터드림: 상업적이용허용, 콘텐츠변경허용"
+  },
+  {
+   "id": "senior-41830",
+   "display": "양평군 경로당 현황",
+   "org": "양평군",
+   "title": "경로당 현황",
+   "url": "https://www.data.go.kr/data/15166014/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-44810",
+   "display": "충청남도 경로당 정보(예산군)",
+   "org": "충청남도",
+   "title": "경로당 정보",
+   "url": "https://www.data.go.kr/data/15032213/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-47900",
+   "display": "예천군 노인복지시설(경로당) 현황",
+   "org": "예천군",
+   "title": "노인복지시설(경로당) 현황",
+   "url": "https://www.data.go.kr/data/15040044/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-47940",
+   "display": "경상북도 노인여가 복지시설(경로당) 현황(울릉군)",
+   "org": "경상북도",
+   "title": "노인여가 복지시설(경로당) 현황",
+   "url": "https://www.data.go.kr/data/15052032/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-47760",
+   "display": "경상북도 노인여가 복지시설(경로당) 현황(영양군)",
+   "org": "경상북도",
+   "title": "노인여가 복지시설(경로당) 현황",
+   "url": "https://www.data.go.kr/data/15052032/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-47770",
+   "display": "경상북도 노인여가 복지시설(경로당) 현황(영덕군)",
+   "org": "경상북도",
+   "title": "노인여가 복지시설(경로당) 현황",
+   "url": "https://www.data.go.kr/data/15052032/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-47930",
+   "display": "울진군 경로당 현황",
+   "org": "울진군",
+   "title": "경로당 현황",
+   "url": "https://www.data.go.kr/data/15103166/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-47730",
+   "display": "의성군 경로당현황",
+   "org": "의성군",
+   "title": "경로당현황",
+   "url": "https://www.data.go.kr/data/15032126/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-43750",
+   "display": "진천군 마을회관 현황",
+   "org": "진천군",
+   "title": "마을회관 현황",
+   "url": "https://www.data.go.kr/data/15007453/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-47850",
+   "display": "칠곡군 경로당 현황",
+   "org": "칠곡군",
+   "title": "경로당 현황",
+   "url": "https://www.data.go.kr/data/15045246/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-51730",
+   "display": "횡성군 경로당현황",
+   "org": "횡성군",
+   "title": "경로당현황",
+   "url": "https://www.data.go.kr/data/15046143/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-52790",
+   "display": "전북특별자치도 시군 경로당현황(고창군)",
+   "org": "전북특별자치도",
+   "title": "시군 경로당현황",
+   "url": "https://www.data.go.kr/data/15131430/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-52770",
+   "display": "전북특별자치도 시군 경로당현황(순창군)",
+   "org": "전북특별자치도",
+   "title": "시군 경로당현황",
+   "url": "https://www.data.go.kr/data/15131430/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-52800",
+   "display": "전북특별자치도 시군 경로당현황(부안군)",
+   "org": "전북특별자치도",
+   "title": "시군 경로당현황",
+   "url": "https://www.data.go.kr/data/15131430/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-52710",
+   "display": "완주군 경로당",
+   "org": "완주군",
+   "title": "경로당",
+   "url": "https://www.data.go.kr/data/15114740/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-48840",
+   "display": "남해군 노인복지시설현황(경로당, 마을회관)",
+   "org": "남해군",
+   "title": "노인복지시설현황",
+   "url": "https://www.data.go.kr/data/15013781/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-48720",
+   "display": "의령군 마을회관정보",
+   "org": "의령군",
+   "title": "마을회관정보",
+   "url": "https://www.data.go.kr/data/15032056/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-48730",
+   "display": "함안군 경로당 현황",
+   "org": "함안군",
+   "title": "경로당 현황",
+   "url": "https://www.data.go.kr/data/15007639/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-48870",
+   "display": "경상남도 경로당 현황(함양군)",
+   "org": "경상남도",
+   "title": "경로당 현황",
+   "url": "https://www.data.go.kr/data/15089076/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-48890",
+   "display": "경상남도 경로당 현황(합천군)",
+   "org": "경상남도",
+   "title": "경로당 현황",
+   "url": "https://www.data.go.kr/data/15089076/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-48820",
+   "display": "경상남도 경로당 현황(고성군)",
+   "org": "경상남도",
+   "title": "경로당 현황",
+   "url": "https://www.data.go.kr/data/15089076/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-48850",
+   "display": "경상남도 경로당 현황(하동군)",
+   "org": "경상남도",
+   "title": "경로당 현황",
+   "url": "https://www.data.go.kr/data/15089076/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-12710",
+   "display": "담양군 경로당 현황",
+   "org": "담양군",
+   "title": "경로당 현황",
+   "url": "https://www.data.go.kr/data/15040054/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-12810",
+   "display": "무안군 경로당현황",
+   "org": "무안군",
+   "title": "경로당현황",
+   "url": "https://www.data.go.kr/data/15085801/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-12820",
+   "display": "함평군 경로당현황",
+   "org": "함평군",
+   "title": "경로당현황",
+   "url": "https://www.data.go.kr/data/3068568/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-12850",
+   "display": "완도군 노인복지시설 현황",
+   "org": "완도군",
+   "title": "노인복지시설 현황",
+   "url": "https://www.data.go.kr/data/15008033/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-44770",
+   "display": "서천군 경로당 정보",
+   "org": "서천군",
+   "title": "경로당 정보",
+   "url": "https://www.data.go.kr/data/15013732/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-44790",
+   "display": "청양군 경로당",
+   "org": "청양군",
+   "title": "경로당",
+   "url": "https://www.data.go.kr/data/3077925/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-31710",
+   "display": "울주군 노인복지시설현황(경로당)",
+   "org": "울주군",
+   "title": "노인복지시설현황",
+   "url": "https://www.data.go.kr/data/15054861/fileData.do",
+   "status": "open",
+   "license": "이용허락범위 제한 없음"
+  },
+  {
+   "id": "senior-43740",
+   "display": "영동군 경로당 현황(군 누리집)",
+   "org": "영동군",
+   "title": "경로당 현황",
+   "url": "https://www.yd21.go.kr/kr/html/sub05/0501050105.html",
+   "status": "hold",
+   "license": "표시 없음, 군 정책은 사전 협의"
+  },
+  {
+   "id": "senior-43760",
+   "display": "괴산군 경로당 현황(군 누리집)",
+   "org": "괴산군",
+   "title": "경로당 현황",
+   "url": "https://www.goesan.go.kr/welfare/selectBbsNttView.do?key=315&bbsNo=276&nttNo=136601",
+   "status": "hold",
+   "license": "표시 없음"
+  },
+  {
+   "id": "senior-12770",
+   "display": "장흥군 경로당 현황(군 누리집)",
+   "org": "장흥군",
+   "title": "경로당 현황",
+   "url": "https://www.jangheung.go.kr/www/life_welfare/senior_welfare/senior_centers",
+   "status": "hold",
+   "license": "표시 없음, 군 정책은 사전 협의"
+  },
+  {
+   "id": "addr-epost",
+   "display": "우정사업본부 지역별 주소 DB(우편번호 도로명주소)",
+   "org": "우정사업본부",
+   "title": "지역별 주소 DB",
+   "url": "https://www.epost.go.kr/search/zipcode/areacdAddressDown.jsp",
+   "status": "absent",
+   "license": "정적 파일에 값 없음(리를 찾는 데만 씀)"
+  }
+ ]
+}

@@ -7,6 +7,7 @@ import { useStore } from '../store'
 import { fitCounty } from '../map/geo'
 import { RegionCard } from '../ui/RegionCard'
 import { useTierCounts } from '../hooks'
+import { OsmNotice } from '../ui/OsmNotice'
 
 const KOREA_BOX: [number, number, number, number] = [125.6, 34.2, 129.6, 38.4]
 
@@ -30,6 +31,10 @@ export function Select({ mapRef, blocked, pick, picked }: { mapRef: React.RefObj
   // 정밀 지역 수는 숫자를 박지 않고 서버 /api/health(tiers.precise) 값을 쓴다. 받기 전이면 지역 목록에서 센다
   const tiers = useTierCounts()
   const precise = tiers?.precise ?? (regions.length ? regions.filter((r) => r.tier === 'precise').length : null)
+  // 서버 장애 때 지원하지 않는 지역: 목록에서 찾을 수 있게 따로 보여 주고, 고르면 이유를 알린다
+  const held = listSource === 'snapshot' ? snapshot?.unsupported ?? [] : []
+  const heldShown = held.filter((r) => !q.trim() || r.name.includes(q.trim()) || r.sido.includes(q.trim()))
+  const blockedHeld = !!blocked && (snapshot?.unsupported ?? []).some((r) => r.name === blocked)
 
   return (
     <motion.aside className="panel" initial={{ x: -40, opacity: 0 }} animate={{ x: 0, opacity: 1 }} exit={{ x: -40, opacity: 0 }} transition={{ type: 'spring', stiffness: 260, damping: 28 }}>
@@ -48,26 +53,33 @@ export function Select({ mapRef, blocked, pick, picked }: { mapRef: React.RefObj
       {listSource === 'snapshot' && snapshot && (
         <div className="estimate-note" role="status">
           <b>서버에 연결되지 않아요</b>
-          <p>{snapshot.capturedAt}에 수집해 저장한 실제 자료로 {snapshot.complete === false || regions.length < snapshot.totalRegions ? `저장한 ${regions.length}개 지역만 볼 수 있어요. 나머지 ${snapshot.totalRegions - regions.length}개 지역은 서버가 돌아오면 다시 볼 수 있어요.` : `${regions.length}개 지역을 모두 볼 수 있어요.`} 대안은 서버 최적화 결과가 아니라 브라우저 추정이에요. 수집일은 원본 통계의 기준 시점이 아니고, 자료마다 기준 시점이 달라요.</p>
+          <p>{snapshot.capturedAt}에 수집해 저장한 실제 자료로 {snapshot.complete === false || regions.length < snapshot.totalRegions ? `저장한 ${regions.length}개 지역만 볼 수 있어요. 나머지 ${snapshot.totalRegions - regions.length}개 지역은 서버 장애 중에는 지원하지 않고, 서버가 돌아오면 다시 볼 수 있어요.` : `${regions.length}개 지역을 모두 볼 수 있어요.`} 대안은 서버 최적화 결과가 아니라 브라우저 추정이에요. 수집일은 원본 통계의 기준 시점이 아니고, 자료마다 기준 시점이 달라요.</p>
           <button className="link" onClick={() => void retryServer()}>서버 다시 확인</button>
         </div>
       )}
 
+      {!!heldShown.length && (
+        <div className="region-held">
+          <p className="muted small"><b>서버 장애 중 지원하지 않는 지역</b> · 서버가 돌아오면 볼 수 있어요</p>
+          <div className="chips">{heldShown.map((r) => <button key={r.code} className="chip" onClick={() => pick(r.code)}>{r.name}</button>)}</div>
+        </div>
+      )}
       <div className="region-list">
         {list.map((r) => (
           <RegionCard key={r.code} r={r} on={hoverRegion === r.code || picked === r.code} dim={!!picked && picked !== r.code} onClick={() => pick(r.code)} onHover={(on) => set({ hoverRegion: on ? r.code : null })} />
         ))}
-        {!!regions.length && !list.length && <p className="muted">‘{q}’에 맞는 지역이 없어요.</p>}
+        {!!regions.length && !list.length && !heldShown.length && <p className="muted">‘{q}’에 맞는 지역이 없어요.</p>}
       </div>
 
       <AnimatePresence>
         {blocked && (
           <motion.div key={blocked} className="toast-inline" initial={{ opacity: 0 }} animate={{ opacity: 1, x: [0, -6, 6, -4, 4, 0] }} exit={{ opacity: 0 }} transition={{ duration: 0.4 }}>
-            <b>{blocked}</b>은(는) 아직 준비되지 않았어요. 파랗게 빛나는 군을 골라 주세요.
+            <b>{blocked}</b>은(는) {blockedHeld ? '서버 장애 중에는 지원하지 않아요. 서버가 돌아오면 볼 수 있어요.' : '아직 준비되지 않았어요.'} 파랗게 빛나는 군을 골라 주세요.
           </motion.div>
         )}
       </AnimatePresence>
-      <p className="source">경계 SGIS(admdongkor 2026.7) · 지도 © OpenStreetMap, OpenFreeMap</p>
+      <p className="source">경계 SGIS(admdongkor 2026.7) · 지도 OpenFreeMap</p>
+      <OsmNotice />
     </motion.aside>
   )
 }

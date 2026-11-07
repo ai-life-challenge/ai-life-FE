@@ -131,7 +131,10 @@ const DATA_USE: { group: string; rows: { name: string; src: Src[]; use: string }
 const DATA_SOURCES: [string, string, string, string][] = [
   ['행정 경계', 'vuski/admdongkor ver20260701 · 통계청 SGIS 기반 (원자료 공공누리 제1유형)', 'CC BY 4.0', 'https://github.com/vuski/admdongkor'],
   ['바탕 지도', 'OpenFreeMap · OpenMapTiles · © OpenStreetMap 기여자', 'ODbL', 'https://www.openstreetmap.org/copyright'],
-  ['도로망', '이동 시간 계산 · © OpenStreetMap 기여자', 'ODbL', 'https://www.openstreetmap.org/copyright'],
+  ['도로망 · 마을 지점', '이동 시간과 마을 위치 일부 · © OpenStreetMap 기여자 · 이 값으로 만든 파생 자료를 파일로 제공해요', 'ODbL', '/data/snapshot/osm/README.txt'],
+  ['병의원 · 약국', '건강보험심사평가원 병원정보서비스', '공공누리 제1유형', 'https://www.data.go.kr/data/15001698/openapi.do'],
+  ['생명표', '국가데이터처(옛 통계청) · 10년 뒤 80세 이상 인구는 생존율로 계산한 값이에요', 'KOSIS 이용지침', 'https://kosis.kr/serviceInfo/useGuide.do'],
+  ['그 밖의 공공데이터', '인구, 정류장, 버스 노선 · 시간표, 경로당, 응급의료기관 등 · 자료별 조건은 목록에 있어요', '자료별', '/data/snapshot/LICENSES.txt'],
 ]
 
 // 랜딩에 쓴 이미지 출처. CC BY·BY-SA 이미지는 출처 표시가 필요해서 모두 적는다: [쓰인 곳, 제목, 저작자, 라이선스, 링크]
