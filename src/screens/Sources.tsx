@@ -6,6 +6,7 @@ import { COST_FIELDS as FIELDS, SUPPLY, SUPPLY_IDS, roundTele } from '../api/met
 import { FIRST_BUS_LIMIT } from '../api/judge'
 import type { Cost, SupplyId } from '../api/types'
 import { useStore } from '../store'
+import { OsmNotice } from '../ui/OsmNotice'
 
 export function Sources() {
   const { sources, state, defaults, data, plans, dataSource, snapshot, snapshotNotes, patch, set } = useStore()
@@ -45,10 +46,11 @@ export function Sources() {
             <button className="close" onClick={close} aria-label="닫기">×</button>
             <h2>이 시뮬레이션이 사용한 데이터와 가정</h2>
             <p className="muted small">데이터와 가정을 나눠서 공개해요. {estimated ? '지금은 서버 계산을 쓸 수 없어 이 브라우저가 추정해요.' : '계산은 모두 서버가 해요.'}</p>
-            {dataSource === 'snapshot' && snapshot && <p className="muted small">지금 자료는 서버에 연결되지 않아 {snapshot.capturedAt}에 수집해 저장한 값이에요. 수집일은 원본 통계의 기준 시점이 아니에요. 이동 시간은 © OpenStreetMap 기여자 자료(ODbL)로 계산한 값이에요.</p>}
+            {dataSource === 'snapshot' && snapshot && <p className="muted small">지금 자료는 서버에 연결되지 않아 {snapshot.capturedAt}에 수집해 저장한 값이에요. 수집일은 원본 통계의 기준 시점이 아니에요.</p>}
             {dataSource === 'snapshot' && !!snapshotNotes?.length && (
-              <table className="stable"><tbody>{snapshotNotes.map((n) => <tr key={`${n.org}-${n.title}`}><td>{n.url ? <a href={n.url} target="_blank" rel="noopener noreferrer">{n.org} · {n.title}</a> : `${n.org} · ${n.title}`}</td><td className="r">{n.date ?? '시점 표시 없음'}</td></tr>)}</tbody></table>
+              <table className="stable"><tbody>{snapshotNotes.map((n) => <tr key={`${n.org}-${n.title}`}><td>{n.url ? <a href={n.url} target="_blank" rel="noopener noreferrer">{n.org} · {n.title}</a> : `${n.org} · ${n.title}`}</td><td className="small">{n.license ?? ''}</td><td className="r">{n.date ?? '시점 표시 없음'}</td></tr>)}</tbody></table>
             )}
+            <OsmNotice />
 
             <h3><span className="badge public">공공데이터</span> {data ? `${data.name} 자료` : '지역 자료'}</h3>
             <table className="stable" data-src="public">

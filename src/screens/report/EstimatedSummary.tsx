@@ -12,6 +12,7 @@ import { useStore } from '../../store'
 import { AiBadge, LevelBadge } from '../../ui/Badges'
 import { Basis } from '../../ui/Basis'
 import { EstimateNotice } from '../../ui/EstimateNotice'
+import { OsmNotice } from '../../ui/OsmNotice'
 
 const today = new Date().toLocaleDateString('sv-SE')
 
@@ -116,11 +117,12 @@ export function EstimatedSummary({ plans }: { plans: Plans }) {
           : <p className="muted small">자료: 서버에서 받은 지역 자료 · 계산: 브라우저 추정</p>}
         {dataSource === 'snapshot' && !!snapshotNotes?.length && (
           <table className="ltable">
-            <thead><tr><th>원자료</th><th className="r">자료 기준 시점</th></tr></thead>
-            <tbody>{snapshotNotes.map((n) => <tr key={`${n.org}-${n.title}`}><td>{n.org} · {n.title}</td><td className="r">{n.date ?? '표시 없음'}</td></tr>)}</tbody>
+            <thead><tr><th>원자료</th><th>이용 조건</th><th className="r">자료 기준 시점</th></tr></thead>
+            <tbody>{snapshotNotes.map((n) => <tr key={`${n.org}-${n.title}`}><td>{n.org} · {n.title}</td><td>{n.license ?? ''}</td><td className="r">{n.date ?? '표시 없음'}</td></tr>)}</tbody>
           </table>
         )}
         <p className="muted small">이 지역 마을 자료에 담긴 출처 목록이에요: {data?.sources.join(' · ')}</p>
+        <OsmNotice />
       </article>
       {toast && <div className="toast no-print" role="status">{toast}</div>}
     </motion.div>

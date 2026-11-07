@@ -11,6 +11,8 @@
     "test": "vitest run",
     "snapshot": "node scripts/make-snapshot.mjs",
     "snapshot:verify": "node scripts/verify-snapshot.mjs --live",
+    "snapshot:public": "node scripts/make-public-snapshot.mjs",
+    "snapshot:public:verify": "node scripts/verify-snapshot.mjs public/data/snapshot --live",
     "deploy": "npm run build && wrangler deploy"
   },
   "dependencies": {

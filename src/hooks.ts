@@ -64,7 +64,7 @@ export function useTierCounts() {
     let live = true, fromServer = false
     const saved = () => loadSnapshotManifest().then((m) => {
       if (!live || fromServer || !m) return
-      setN({ precise: m.tiers?.precise ?? m.regions.filter((r) => r.tier === 'precise').length, total: m.totalRegions })
+      setN({ precise: m.tiers?.precise ?? m.regions.filter((r) => r.tier === 'precise').length, total: m.regions.length })
     })
     const t = setTimeout(saved, GRACE_MS)
     cached('health', () => api.health()).then((h) => { fromServer = true; clearTimeout(t); if (live) setN({ precise: h.tiers.precise, total: h.regions }) }, () => { clearTimeout(t); void saved() })

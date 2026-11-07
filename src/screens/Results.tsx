@@ -13,6 +13,7 @@ import type { Plan } from '../api/types'
 import { useStore } from '../store'
 import { boxOf, fitCounty, flyToArea, villagesOfMyeon } from '../map/geo'
 import { Count } from '../ui/Count'
+import { OsmNotice } from '../ui/OsmNotice'
 import { AiBadge, SrcBadge } from '../ui/Badges'
 import { Basis } from '../ui/Basis'
 import { EstimateNotice } from '../ui/EstimateNotice'
@@ -170,6 +171,7 @@ function PlanLegend({ plan, mapRef }: { plan: Plan | null; mapRef: React.RefObje
       <p className="pl-basis"><b>{TARGET_NAME[gridTarget]}</b>까지 걸리는 시간 · {AGES.find((a) => a.id === state!.age)!.name}</p>
       <i className="time-bar" style={{ background: `linear-gradient(90deg, ${MINUTE_STOPS.map(([m]) => `rgb(${minuteRgb(m).join(',')}) ${(m / 45) * 100}%`).join(', ')})` }} />
       <p className="muted time-scale" style={{ margin: 0 }}><span>10분 이하</span><span>30분</span><span>45분 이상</span></p>
+      <OsmNotice />
     </motion.div>
   )
 }

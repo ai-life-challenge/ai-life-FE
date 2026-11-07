@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from 'react'
 import type { MapRef } from 'react-map-gl/maplibre'
-import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate, useParams } from 'react-router'
+import { BrowserRouter, Navigate, Route, Routes, useLocation, useNavigate } from 'react-router'
 import { AnimatePresence, MotionConfig } from 'motion/react'
 import { useStore } from './store'
 import { Progress } from './ui/Progress'
@@ -19,32 +19,11 @@ import { ChatDock } from './chat/ChatDock'
 import { PcNotice } from './ui/PcNotice'
 import { Logo } from './ui/Logo'
 import { useServerRecovery, useTierCounts } from './hooks'
+import { RegionRoute } from './RegionRoute'
 
 // 진행 바 칸: 지역 0 · 진단 1 · 목표 2 · 시뮬레이션 3 · 결과(+What-if) 4 · 레포트 5
 const stepOf = (path: string) =>
   path === '/start' ? 0 : /\/goal$/.test(path) ? 2 : /\/sim$/.test(path) ? 3 : /\/(result|whatif)$/.test(path) ? 4 : /\/report$/.test(path) ? 5 : 1
-
-// /r/:code 아래 화면은 지역 자료가 와 있어야 한다. 없는 코드면 지역 선택으로 돌려보내고, 오는 중이면 기다린다
-function RegionRoute({ children }: { children: React.ReactNode }) {
-  const { code } = useParams()
-  const { regions, listError, code: loaded, data, state, regionError, loadList, loadRegion } = useStore()
-  useEffect(() => { void loadList() }, [loadList])
-  useEffect(() => { if (code) void loadRegion(code) }, [code, loadRegion])
-  const error = listError ?? regionError
-  if (error) {
-    return (
-      <aside className="panel">
-        <h1>불러오지 못했어요</h1>
-        <p className="muted">{error}</p>
-        <div className="row"><button className="primary" onClick={() => { void loadList(); if (code) { useStore.setState({ code: null }); void loadRegion(code) } }}>다시 시도</button><button className="ghost" onClick={() => window.location.assign('/start')}>지역 다시 고르기</button></div>
-      </aside>
-    )
-  }
-  if (!regions.length) return <aside className="panel"><p className="muted" role="status">불러오는 중이에요…</p></aside>
-  if (!regions.some((r) => r.code === code)) return <Navigate to="/start" replace />
-  if (loaded !== code || !data || !state) return <aside className="panel"><p className="muted" role="status">{regions.find((r) => r.code === code)!.name} 자료를 불러오는 중이에요…</p></aside>
-  return children
-}
 
 function Shell() {
   const tiers = useTierCounts()
@@ -52,6 +31,8 @@ function Shell() {
   const loc = useLocation()
   const nav = useNavigate()
   const code = loc.pathname.match(/^\/r\/(\d+)/)?.[1] ?? null
+  // 서버 장애 때 지원하지 않는 지역을 보는 중이면 자료가 없으므로 질문 창을 띄우지 않는다
+  const held = useStore((st) => !!st.unsupported || (st.listSource === 'snapshot' && !st.data && !!st.snapshot?.unsupported?.some((r) => r.code === code)))
   useEffect(() => { window.scrollTo(0, 0) }, [loc.pathname])
   const intro = loc.pathname === '/' || loc.pathname === '/about' // 랜딩·프로젝트 정보는 헤더·공용 지도 없이 전체 화면
   // 지도가 깔리는 화면: S1 지역 선택 · S2 진단 · S5 결과 (나머지 화면에서는 숨겨 두고 카메라는 그대로 둔다)
@@ -94,7 +75,7 @@ function Shell() {
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </AnimatePresence>
-      {code && <ChatDock code={code} />}
+      {code && !held && <ChatDock code={code} />}
       <Sources />
       <PcNotice />
     </div>

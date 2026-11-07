@@ -4,7 +4,8 @@ import { createHash } from 'node:crypto'
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { GRACE_MS, isDown, resetDown } from './api/fallback'
 import { estimateJudge, estimatePlans } from './api/estimatePlans'
-import { resetSnapshotCache, snapshotIndicators, snapshotRegion } from './api/snapshot'
+import { loadSnapshotManifest, resetSnapshotCache, snapshotIndicators, snapshotRegion } from './api/snapshot'
+import { splitRegion } from './api/snapshotSplit'
 import { region, state } from './api/testRegion'
 import type { Plans, RegionData } from './api/types'
 import { forgetAll } from './api/client'
@@ -372,5 +373,138 @@ describe('서버 복구', () => {
     release(json(data))
     await retry
     expect(s().data).toBeNull()
+  })
+})
+
+// 공개 형식: 공공데이터 파일과 OSM 파생 파일(ODbL)이 나뉘어 있고, 정적 자료에 없는 지역은 unsupported에 이름만 있다
+describe('공개 스냅샷(schema 3)', () => {
+  const full = { ...data, indicators: { pop: 300, elderly: 0.5, walkMin: 5, e30: 0.1 } as RegionData['indicators'] }
+  const { base, osm } = splitRegion(full)
+  const baseBody = JSON.stringify({ data: base, map, notes: [{ org: '기관', title: '자료', license: '이용허락범위 제한 없음' }] })
+  const osmBody = JSON.stringify(osm)
+  const indexBody = JSON.stringify({ regions: { 99999: { center: item.center, indicators: osm.indicators } } })
+  const hash = (b: string) => createHash('sha256').update(b).digest('hex')
+  const part = (path: string, b: string) => ({ path, bytes: b.length, sha256: hash(b) })
+  const { center: _c, ...listItem } = item
+  const m3 = {
+    schema: 3, dataVersion: 'v', capturedAt: '2026-11-06', origin: 'x', complete: false, totalRegions: 2, totalVillages: 12, tiers: { precise: 0, auto: 1 },
+    regions: [listItem], unsupported: [{ code: '88888', name: '보류군', sido: '예시도' }], defaultState: state(),
+    files: { 99999: { ...part('99999.json', baseBody), osm: part('osm/99999.json', osmBody), villages: 6, status: 'ok', indicators: base.indicators } },
+    osmIndex: part('osm/index.json', indexBody),
+  }
+  const text = (b: string) => () => new Response(b, { headers: { 'content-type': 'application/json' } })
+  const stat: Record<string, Route> = {
+    '/data/snapshot/manifest.json': () => json(m3), '/data/snapshot/99999.json': text(baseBody), '/data/snapshot/osm/99999.json': text(osmBody), '/data/snapshot/osm/index.json': text(indexBody),
+  }
+  const down: Record<string, Route> = { '/api/': netFail, ...stat }
+
+  test('두 파일을 합친 값이 나누기 전과 같다', async () => { // 실제 자료의 칸 순서까지 같은지는 scripts/public-snapshot.test.ts가 본다
+    net(down)
+    const r = await snapshotRegion('99999')
+    expect(r!.data).toEqual(full)
+    expect(r!.notes![0].license).toBe('이용허락범위 제한 없음')
+  })
+  test('목록의 중심 좌표와 카드 지표는 osm/index.json을 합친다', async () => {
+    net(down)
+    const m = await loadSnapshotManifest()
+    expect(m!.regions[0].center).toEqual(item.center)
+    expect((await snapshotIndicators('99999'))!.indicators).toEqual(full.indicators)
+    expect(calls.filter((c) => c.endsWith('99999.json'))).toEqual([])
+  })
+  test.each([
+    ['OSM 파일 없음', { '/data/snapshot/osm/99999.json': () => html() }],
+    ['OSM 파일 변조', { '/data/snapshot/osm/99999.json': text(JSON.stringify({ ...osm, depot: 'x' })) }],
+    ['공공데이터 파일 변조', { '/data/snapshot/99999.json': text(JSON.stringify({ data: { ...base, name: '바뀐군' }, map })) }],
+  ] as [string, Record<string, Route>][])('%s: 그 지역을 쓰지 않는다', async (_n, routes) => {
+    net({ ...down, ...routes })
+    await s().loadList()
+    await s().loadRegion('99999')
+    expect(s().data).toBeNull()
+    expect(s().regionError).toContain('진단과 계산을 할 수 없어요')
+  })
+  test('osm/index.json이 없으면 목록을 쓰지 않는다', async () => {
+    net({ ...down, '/data/snapshot/osm/index.json': () => html() })
+    await s().loadList()
+    expect(s().regions).toEqual([])
+    expect(s().listError).toContain('진단과 계산을 할 수 없어요')
+  })
+  test('전체 장애: 담은 지역은 계산까지 되고, 목록에 보류 지역은 없다', async () => {
+    net(down)
+    await openRegion()
+    expect(s().regions.map((r) => r.code)).toEqual(['99999'])
+    expect(s()).toMatchObject({ listSource: 'snapshot', dataSource: 'snapshot' })
+    expect(s().plans.source).toBe('estimated')
+    expect(serverCalls().filter((c) => !c.startsWith('/api/regions') && !c.startsWith('/api/judge') && !c.startsWith('/api/plans'))).toEqual([])
+  })
+  test('전체 장애에 보류 지역을 열면 지원하지 않는다고 알리고 값을 만들지 않는다', async () => {
+    net(down)
+    await s().loadList()
+    await s().loadRegion('88888')
+    expect(s().unsupported).toEqual({ code: '88888', name: '보류군', sido: '예시도' })
+    expect(s().data).toBeNull()
+    expect(s().regionError).toBeNull()
+    expect(isDegraded(s())).toBe(true)
+    await s().fetchJudge(); await s().fetchPlans()
+    expect(s().judge.data).toBeNull()
+    expect(s().plans.data).toBeNull()
+    expect(calls.filter((c) => c.includes('88888') && c.startsWith('/data/'))).toEqual([])
+  })
+  const healthyHeld: Record<string, Route> = {
+    ...healthy,
+    '/api/regions/88888/map': () => json(map), '/api/regions/88888': () => json({ ...data, code: '88888', name: '보류군' }),
+    '/api/regions': () => json({ regions: [item, { ...item, code: '88888', name: '보류군' }], defaultState: state() }),
+  }
+  test('서버 정상: 보류 지역도 기존대로 서버 자료를 쓰고 정적 파일을 받지 않는다', async () => {
+    net({ ...healthyHeld, ...stat })
+    await s().loadList()
+    await s().loadRegion('88888')
+    expect(s().regions).toHaveLength(2)
+    expect(s()).toMatchObject({ dataSource: 'server', unsupported: null })
+    expect(s().data!.name).toBe('보류군')
+    expect(calls.filter((c) => c.startsWith('/data/'))).toEqual([])
+  })
+  test('서버가 돌아오면 보류 지역이 서버 자료로 이어진다', async () => {
+    net(down)
+    await s().loadList()
+    await s().loadRegion('88888')
+    expect(s().unsupported).not.toBeNull()
+    net({ ...healthyHeld, ...stat })
+    await s().retryServer()
+    expect(s()).toMatchObject({ unsupported: null, dataSource: 'server', listSource: 'server' })
+    expect(s().data!.name).toBe('보류군')
+    expect(s().regions).toHaveLength(2)
+    expect(isDegraded(s())).toBe(false)
+  })
+  test('자료 API만 장애: 목록은 서버, 보류 지역은 지원하지 않는다고 알리고 복구된다', async () => {
+    net({ ...healthyHeld, '/api/regions/88888': () => err(), ...stat })
+    await s().loadList()
+    await s().loadRegion('88888')
+    expect(s().listSource).toBe('server')
+    expect(s().unsupported?.name).toBe('보류군')
+    net({ ...healthyHeld, ...stat })
+    await s().retryServer()
+    expect(s()).toMatchObject({ unsupported: null, dataSource: 'server' })
+    expect(s().data!.name).toBe('보류군')
+  })
+  test('목록 API만 장애: 저장 목록에 없는 지역이어도 서버 자료가 오면 이어서 쓴다', async () => {
+    net({ ...healthyHeld, '/api/regions': (p) => (p === '/api/regions' ? err() : json({ ...data, code: '88888', name: '보류군' })), ...stat })
+    await s().loadList()
+    expect(s().listSource).toBe('snapshot')
+    await s().loadRegion('88888')
+    expect(s().regions.map((r) => r.code)).toEqual(['99999', '88888'])
+    expect(s()).toMatchObject({ unsupported: null, dataSource: 'server' })
+  })
+  test('답 없이 멈춘 서버: 보류 지역 안내를 바로 보여 주고, 늦게라도 답하면 서버 자료로 바꾼다', async () => {
+    vi.useFakeTimers()
+    let release: (r: Response) => void = () => {}
+    net({ ...healthyHeld, '/api/regions/88888/map': () => json(map), '/api/regions/88888': () => new Promise<Response>((go) => { release = go }), ...stat })
+    await s().loadList()
+    const p = s().loadRegion('88888')
+    await vi.advanceTimersByTimeAsync(GRACE_MS + 10)
+    vi.useRealTimers()
+    await vi.waitFor(() => expect(s().unsupported?.name).toBe('보류군'))
+    release(json({ ...data, code: '88888', name: '보류군' }))
+    await p
+    expect(s()).toMatchObject({ unsupported: null, dataSource: 'server' })
   })
 })

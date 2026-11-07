@@ -18,6 +18,7 @@ import { STD, W, overLimit, villageTimes, vulnOf, type Vuln } from '../api/vuln'
 import { KIND_RE, targetMinutes } from '../api/judge'
 import { boxOf, fitCounty } from '../map/geo'
 import { Count } from '../ui/Count'
+import { OsmNotice } from '../ui/OsmNotice'
 import { LevelBadge, SrcBadge } from '../ui/Badges'
 import { Chevron } from '../ui/Chevron'
 import { Seg } from '../ui/Seg'
@@ -177,6 +178,7 @@ export function Diagnose({ mapRef }: { mapRef: React.RefObject<MapRef | null> })
         <button className="primary big-btn" onClick={() => nav(`/r/${code}/goal`)}>목표 정하기 →</button>
       </div>
       <p className="source">마을 원자료: {data!.sources.join(' · ')}</p>
+      <OsmNotice />
       {(judge.status === 'error' || judge.source === 'estimated') && !cmp && <p className="source">서버 판정을 받지 못했어요({judge.error ?? judge.reason}). 화면 판정만 보여 드려요.</p>}
       {dataSource === 'snapshot' && snapshot && <p className="source">서버에 연결되지 않아 {snapshot.capturedAt}에 저장한 실제 지역 자료로 보여 드려요. 최신 자료와 다를 수 있어요.</p>}
     </motion.aside>

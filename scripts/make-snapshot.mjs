@@ -1,7 +1,7 @@
 // 서버 전체 장애 때 쓸 정적 스냅샷을 만든다. 서버 응답(지역 목록 · 기본 상태 · 마을 자료 · 읍면 경계)을 값을 고치지 않고 그대로 저장한다.
 //   node scripts/make-snapshot.mjs                    전 지역 수집 → snapshot.local/ (Git · 배포 제외)
 //   node scripts/make-snapshot.mjs 48740 12710        일부 지역만(manifest.complete=false, 완성본으로 취급하지 않는다)
-//   node scripts/make-snapshot.mjs --out public/data/snapshot   공개 폴더로 수집(이용 조건을 확인한 뒤에만)
+//   공개용 파일은 이 결과에서 node scripts/make-public-snapshot.mjs로 만든다
 // 하나라도 실패하거나 검증을 통과하지 못하면 임시 폴더를 버리고 종료 코드 1로 끝난다. 기존 결과는 그대로 남는다.
 // 수집한 파일을 서버와 다시 대조하려면 scripts/verify-snapshot.mjs를 쓴다.
 import { createHash } from 'node:crypto'
@@ -15,6 +15,8 @@ const ROOT = path.join(import.meta.dirname, '..')
 const args = process.argv.slice(2)
 const outAt = args.indexOf('--out')
 const OUT = path.resolve(ROOT, outAt >= 0 ? args[outAt + 1] : 'snapshot.local')
+// 이 스크립트의 파일에는 공개 조건을 확인하지 않은 값과 OSM 값이 섞여 있다. 공개 폴더에는 make-public-snapshot.mjs만 쓴다
+if (OUT.startsWith(path.join(ROOT, 'public') + path.sep)) throw new Error('공개 폴더로 바로 수집할 수 없어요. node scripts/make-public-snapshot.mjs를 쓰세요')
 const codes = args.filter((a, i) => !a.startsWith('--') && (outAt < 0 || i !== outAt + 1))
 const TRIES = 4, TIMEOUT_MS = 30_000, WORKERS = 3
 
